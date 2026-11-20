@@ -31,7 +31,7 @@
         .recruit-flip-card {
           width:100%; max-width:180px; aspect-ratio:.72; margin:auto; padding:0;
           border:0; border-radius:12px; background:transparent; perspective:1100px;
-          color:inherit; cursor:pointer;
+          color:inherit; cursor:default;
         }
         .recruit-flip-card.is-single { max-width:270px; }
         .recruit-flip-inner {
@@ -74,28 +74,20 @@
         }
         .consort-lantern { position:absolute; top:7%; font-size:4rem; filter:drop-shadow(0 0 18px #f59e0b); animation:consortLantern 1.8s ease-in-out infinite alternate; transform-origin:top center; }
         .consort-lantern-left { left:6%; } .consort-lantern-right { right:6%; animation-delay:-.7s; }
-        .consort-plaque-wrap { width:min(68vw,250px); height:340px; margin:auto; perspective:1200px; }
-        .consort-plaque-inner { position:relative; width:100%; height:100%; transform-style:preserve-3d; animation:consortPlaqueReveal 1.05s cubic-bezier(.2,.75,.2,1) both; }
-        .consort-plaque-face { position:absolute; inset:0; border-radius:22px 22px 50px 50px; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:24px; backface-visibility:hidden; -webkit-backface-visibility:hidden; box-shadow:0 18px 35px rgba(0,0,0,.5); }
-        .consort-plaque-back { border:6px double #d97706; color:#fde68a; background:linear-gradient(145deg,#7f1d1d,#3f0b12); }
-        .consort-plaque-back span { display:grid; place-items:center; width:90px; height:90px; border:2px solid #fbbf24; border-radius:999px; font:700 3rem serif; }
-        .consort-plaque-back small { margin-top:20px; letter-spacing:.35em; }
-        .consort-plaque-front { transform:rotateY(180deg); border:6px double #b45309; color:#451a03; background:linear-gradient(145deg,#fff7ed,#fde7b0); }
-        .consort-plaque-wrap.is-historical .consort-plaque-front { border-color:#d97706; box-shadow:0 0 34px rgba(251,191,36,.72),0 18px 35px rgba(0,0,0,.5); }
-        .consort-plaque-wrap.is-legendary .consort-plaque-front { border-color:#7e22ce; background:linear-gradient(145deg,#faf5ff,#f3e8ff 55%,#fde68a); box-shadow:0 0 42px rgba(192,132,252,.85),0 18px 35px rgba(0,0,0,.5); }
+        .consort-intimacy-heart { filter:drop-shadow(0 0 22px rgba(251,113,133,.85)); animation:consortHeartBeat .75s ease-in-out infinite alternate; }
+        .consort-intimacy-heart svg { width:5rem; height:5rem; fill:currentColor; }
         .consort-visit-panel { width:min(86vw,360px); margin:auto; padding:26px; border:4px double #d97706; border-radius:18px; background:linear-gradient(145deg,#fff7ed,#ffe4e6); box-shadow:0 18px 40px rgba(0,0,0,.45); animation:consortVisitFade .75s ease-out both; }
-        @keyframes consortPlaqueReveal { 0%,28%{transform:translateY(28px) rotateY(0);opacity:0} 42%{opacity:1} 100%{transform:translateY(0) rotateY(180deg);opacity:1} }
+        @keyframes consortHeartBeat { from{transform:scale(.94)} to{transform:scale(1.08)} }
         @keyframes consortLantern { from{transform:rotate(-4deg)} to{transform:rotate(4deg)} }
         @keyframes consortVisitFade { from{transform:translateY(18px) scale(.96);opacity:0} to{transform:none;opacity:1} }
         @media(max-width:480px) {
           .recruit-flip-inner { min-height:190px; }
           .recruit-flip-card.is-single .recruit-flip-inner { min-height:330px; }
           .consort-lantern { top:4%; font-size:3rem; }
-          .consort-plaque-wrap { height:315px; }
         }
         @media(prefers-reduced-motion:reduce) {
           .recruit-flip-inner { transition-duration:.01ms; }
-          .consort-plaque-inner { animation-duration:.01ms; }
+          .consort-intimacy-heart { animation:none; }
           .consort-lantern { animation:none; }
           .consort-visit-panel { animation-duration:.01ms; }
         }

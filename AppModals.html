@@ -89,30 +89,23 @@
         const ConsortVisitTransition = () => {
             if(!consortVisitTransition)return null;
             const visit=consortVisitTransition.mode==='visit';
-            const rarity=consortVisitTransition.specialRarity;
-            return <div className="consort-transition fixed inset-0 z-[220] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label={visit?'探望孕妃':'敬事房翻牌'}>
+            if(!visit)return <div className="fixed inset-0 bg-pink-900/95 z-[220] flex flex-col items-center justify-center text-pink-100 p-4 text-center" role="dialog" aria-modal="true" aria-label="翻牌子">
+                <div className="consort-intimacy-heart"><Heart /></div>
+                <h2 className="text-3xl sm:text-4xl font-serif font-bold mt-5">紅燭高照，共度良宵……</h2>
+            </div>;
+            return <div className="consort-transition fixed inset-0 z-[220] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="探望孕妃">
                 <div className="consort-lantern consort-lantern-left">🏮</div><div className="consort-lantern consort-lantern-right">🏮</div>
                 <div className="relative z-10 text-center w-full max-w-md">
-                    <p className="text-amber-200 tracking-[.35em] text-sm mb-3">{visit?'移駕寢宮':'敬事房呈牌'}</p>
-                    <h2 className="text-3xl sm:text-4xl font-serif font-bold text-amber-50 mb-7">{visit?'前往探望孕妃':'今夜承恩'}</h2>
-                    {visit?<div className="consort-visit-panel">
+                    <p className="text-amber-200 tracking-[.35em] text-sm mb-3">移駕寢宮</p>
+                    <h2 className="text-3xl sm:text-4xl font-serif font-bold text-amber-50 mb-7">前往探望孕妃</h2>
+                    <div className="consort-visit-panel">
                         <div className="text-5xl mb-3">🌙</div>
                         <div className="flex justify-center mb-3">{renderAvatar(consortVisitTransition.name,consortVisitTransition.avatar)}</div>
                         <p className="text-2xl font-serif font-bold text-red-950">{consortVisitTransition.title}{consortVisitTransition.rank}</p>
                         <p className="text-stone-700 mt-1">{consortVisitTransition.name}</p>
                         <p className="text-sm text-rose-800 mt-4">宮燈引路，前往寢宮探望。</p>
-                    </div>:<div className={`consort-plaque-wrap ${rarity==='legendary'?'is-legendary':rarity?'is-historical':''}`}>
-                        <div className="consort-plaque-inner">
-                            <div className="consort-plaque-face consort-plaque-back"><span>御</span><small>內廷名牌</small></div>
-                            <div className="consort-plaque-face consort-plaque-front">
-                                <div className="flex justify-center mb-3">{renderAvatar(consortVisitTransition.name,consortVisitTransition.avatar)}</div>
-                                <p className="text-sm tracking-widest text-amber-700">{rarity==='legendary'?'傳奇佳人':rarity?'歷史佳人':'今夜承恩'}</p>
-                                <p className="text-2xl font-serif font-bold mt-2">{consortVisitTransition.title}{consortVisitTransition.rank}</p>
-                                <p className="mt-1 text-stone-700">{consortVisitTransition.name}</p>
-                            </div>
-                        </div>
-                    </div>}
-                    <p className="text-amber-100/80 text-sm mt-7">{visit?'稍候片刻……':'名牌既定，移駕寢宮……'}</p>
+                    </div>
+                    <p className="text-amber-100/80 text-sm mt-7">稍候片刻……</p>
                 </div>
             </div>;
         };
@@ -124,44 +117,47 @@
             const [revealedIds,setRevealedIds]=useState([]);
             const [sequenceActive,setSequenceActive]=useState(false);
             const revealTimersRef=useRef([]);
-            useEffect(()=>()=>revealTimersRef.current.forEach(timer=>clearTimeout(timer)),[]);
             const personId=(person,index)=>String(person.id??`${person.name}-${index}`);
             const reveal=(person,index)=>setRevealedIds(current=>current.includes(personId(person,index))?current:[...current,personId(person,index)]);
             const allRevealed=results.every((person,index)=>revealedIds.includes(personId(person,index)));
-            const revealNext=()=>{
-                const index=results.findIndex((person,i)=>!revealedIds.includes(personId(person,i)));
-                if(index>=0)reveal(results[index],index);
+            const clearRevealTimers=()=>{
+                revealTimersRef.current.forEach(timer=>clearTimeout(timer));
+                revealTimersRef.current=[];
             };
-            const revealAll=()=>{
-                if(sequenceActive||allRevealed)return;
-                const remaining=results.map((person,index)=>({person,index})).filter(({person,index})=>!revealedIds.includes(personId(person,index)));
-                if(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches){setRevealedIds(results.map(personId));return;}
+            useEffect(()=>{
+                if(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches){setRevealedIds(results.map(personId));return clearRevealTimers;}
                 setSequenceActive(true);
-                remaining.forEach(({person,index},order)=>{
-                    revealTimersRef.current.push(setTimeout(()=>reveal(person,index),order*120));
+                const startDelay=450;
+                results.forEach((person,index)=>{
+                    revealTimersRef.current.push(setTimeout(()=>reveal(person,index),startDelay+index*120));
                 });
-                revealTimersRef.current.push(setTimeout(()=>setSequenceActive(false),remaining.length*120+650));
-            };
+                revealTimersRef.current.push(setTimeout(()=>setSequenceActive(false),startDelay+(results.length-1)*120+700));
+                return clearRevealTimers;
+            },[]);
             const finish=()=>{
                 const isTen=results.length>1;
                 setRecruitReveal(null);
                 if(isTen)setCurrentView('RECRUIT');
             };
-            const skip=()=>finish();
+            const skip=()=>{
+                clearRevealTimers();
+                setRevealedIds(results.map(personId));
+                setSequenceActive(false);
+            };
             return <div className="fixed inset-0 z-[215] bg-stone-950/90 flex items-center justify-center p-2 sm:p-4" role="dialog" aria-modal="true" aria-label={recruitReveal.title||'金榜揭曉'}>
                 <div className="recruit-reveal-shell w-full max-w-5xl max-h-[96dvh] flex flex-col overflow-hidden rounded-xl border-4 border-double border-amber-500 shadow-2xl">
                     <div className="shrink-0 text-center px-4 pt-4 pb-3 border-b border-amber-500/40">
                         <p className="text-xs tracking-[.35em] text-amber-300">禮部呈榜</p>
                         <h2 className="font-serif text-2xl sm:text-3xl font-bold text-amber-50 mt-1">{recruitReveal.title||'金榜揭曉'}</h2>
-                        <p className="text-sm text-amber-100/75 mt-1">{results.length>1?'點擊十張殿試名帖逐一揭曉':'點擊殿試名帖揭曉本次錄取人才'}</p>
+                        <p className="text-sm text-amber-100/75 mt-1">{results.length>1?'十張殿試名帖將依序自動揭曉':'殿試名帖將自動揭曉本次錄取人才'}</p>
                     </div>
                     <div className={`min-h-0 flex-1 overflow-y-auto p-3 sm:p-5 grid gap-3 ${results.length>1?'grid-cols-2 sm:grid-cols-5':'grid-cols-1 place-items-center'}`}>
                         {results.map((person,index)=>{
                             const id=personId(person,index),revealed=revealedIds.includes(id);
                             const rarity=person.rarity==='legendary'?'legendary':person.specialId?'historical':'common';
-                            return <button type="button" key={id} disabled={sequenceActive} onClick={()=>reveal(person,index)} className={`recruit-flip-card ${results.length===1?'is-single':''} ${revealed?'is-revealed':''}`} aria-label={revealed?`${person.name}已揭曉`:`揭曉第${index+1}張名帖`}>
+                            return <div key={id} className={`recruit-flip-card ${results.length===1?'is-single':''} ${revealed?'is-revealed':''}`} aria-label={revealed?`${person.name}已揭曉`:`第${index+1}張名帖等待揭曉`} aria-live="polite">
                                 <span className="recruit-flip-inner">
-                                    <span className="recruit-flip-face recruit-flip-back"><b>殿試名帖</b><span>第 {index+1} 名</span><small>點擊揭曉</small></span>
+                                    <span className="recruit-flip-face recruit-flip-back"><b>殿試名帖</b><span>第 {index+1} 名</span><small>即將揭曉</small></span>
                                     <span className={`recruit-flip-face recruit-flip-front rarity-${rarity}`}>
                                         <span className="flex justify-center">{renderAvatar(person.name,person.avatar)}</span>
                                         <b className="text-lg leading-tight mt-1">{person.name}</b>
@@ -171,12 +167,10 @@
                                         {person.specialId&&<small className="mt-1 line-clamp-2">★ {getMinisterSkillText(person)}</small>}
                                     </span>
                                 </span>
-                            </button>;
+                            </div>;
                         })}
                     </div>
                     <div className="shrink-0 border-t border-amber-500/40 bg-stone-950/95 p-3 flex flex-wrap justify-center gap-2">
-                        {!allRevealed&&<button onClick={revealNext} disabled={sequenceActive} className="px-4 py-2 rounded bg-amber-100 text-amber-950 font-bold disabled:opacity-40">翻開下一張</button>}
-                        {results.length>1&&!allRevealed&&<button onClick={revealAll} disabled={sequenceActive} className="px-4 py-2 rounded bg-amber-600 text-white font-bold disabled:opacity-40">一鍵全部揭曉</button>}
                         {!allRevealed&&<button onClick={skip} className="px-4 py-2 rounded bg-stone-700 text-white">跳過動畫</button>}
                         {allRevealed&&<button onClick={finish} disabled={sequenceActive} className="px-6 py-2 rounded bg-red-900 text-amber-50 font-bold disabled:opacity-40">{results.length>1?'前往挑選人才':'收入朝中'}</button>}
                     </div>

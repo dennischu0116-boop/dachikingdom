@@ -396,8 +396,8 @@
                         if(gameState.energy < cost){showMessage('體力不足');return;}
                         if(!await confirmLowEnergySpend(cost,c.pregnancy?'探望孕妃':'翻牌子'))return;
                         consortVisitProcessingRef.current=true;
-                        setConsortVisitTransition({mode:c.pregnancy?'visit':'flip',consortId:c.id,name:c.name,title:c.title,rank:c.rank,avatar:c.avatar,specialRarity:c.specialRarity});
-                        const transitionDelay=window.matchMedia?.('(prefers-reduced-motion: reduce)').matches?180:(c.pregnancy?900:1250);
+                        setConsortVisitTransition({mode:c.pregnancy?'visit':'flip',consortId:c.id,name:c.name,title:c.title,rank:c.rank,avatar:c.avatar});
+                        const transitionDelay=window.matchMedia?.('(prefers-reduced-motion: reduce)').matches?180:(c.pregnancy?900:600);
                         setTimeout(()=>{
                             setGameState(prev=>{
                                 const current=prev.consorts.find(con=>String(con.id)===String(c.id));
