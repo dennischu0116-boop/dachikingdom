@@ -1,0 +1,696 @@
+      const { useState, useEffect, useLayoutEffect, useRef } = React;
+
+      // 遊戲對外顯示版本，未來更新只需要修改這一處。
+      const APP_VERSION = "v1.3.4";
+      const QING_CLOUD_BINDING_KEY = 'qing_cloud_active_binding_v1';
+      const readCloudBinding = () => {
+          try {
+              const value=JSON.parse(localStorage.getItem(QING_CLOUD_BINDING_KEY)||'null');
+              return value&&value.gameId&&Number(value.slot)?value:null;
+          } catch (error) { return null; }
+      };
+      const writeCloudBinding = value => {
+          try {
+              if(value)localStorage.setItem(QING_CLOUD_BINDING_KEY,JSON.stringify(value));
+              else localStorage.removeItem(QING_CLOUD_BINDING_KEY);
+          } catch (error) { console.warn('無法保存雲端槽位綁定：',error); }
+      };
+
+      const ANNUAL_TAX_POLICIES = {
+          1:{incomeRate:1/3,stability:4,populationGrowth:1},
+          2:{incomeRate:2/3,stability:2,populationGrowth:.5},
+          3:{incomeRate:1,stability:0,populationGrowth:0},
+          4:{incomeRate:4/3,stability:-2,populationGrowth:-.5},
+          5:{incomeRate:5/3,stability:-5,populationGrowth:-1},
+          6:{incomeRate:2,stability:-9,populationGrowth:-2},
+          7:{incomeRate:7/3,stability:-14,populationGrowth:-3},
+          8:{incomeRate:8/3,stability:-20,populationGrowth:-5},
+          9:{incomeRate:3,stability:-27,populationGrowth:-8},
+          10:{incomeRate:10/3,stability:-35,populationGrowth:-12}
+      };
+      const normalizeAnnualTaxRate = value => Math.max(1,Math.min(10,Math.round(Number(value)||3)));
+      const getAnnualTaxPolicy = value => ANNUAL_TAX_POLICIES[normalizeAnnualTaxRate(value)];
+      const formatPopulation = value => Math.max(0,Number(value)||0).toLocaleString('zh-TW',{
+          minimumFractionDigits:0,maximumFractionDigits:1
+      });
+      const roundPopulation = value => Math.max(0,Math.round((Number(value)||0)*10)/10);
+      const signedNumber = value => `${Number(value)>0?'+':''}${Number(value)||0}`;
+
+      const INVENTORY_CAPACITY = 100;
+      const ITEM_RARITIES = {legendary:{label:'稀世',order:0},rare:{label:'珍貴',order:1},common:{label:'普通',order:2}};
+      const IMPERIAL_ITEMS = [
+          {id:'ginseng',name:'普通人參',category:'健康藥品',rarity:'rare',effect:'現任皇帝健康 +2',stat:'health',amount:2,target:'emperor',price:200,shopSpecial:true},
+          {id:'century_ginseng',name:'百年人參',category:'健康藥品',rarity:'legendary',effect:'現任皇帝健康 +5',stat:'health',amount:5,target:'emperor'},
+          {id:'palace_elixir',name:'宮廷秘製靈藥',category:'健康藥品',rarity:'legendary',effect:'現任皇帝健康 +15',stat:'health',amount:15,target:'emperor'},
+          {id:'imperial_silk',name:'御賜錦緞',category:'賞賜物品',rarity:'common',effect:'官員忠誠 +5',stat:'loyalty',amount:5,target:'minister',price:300},
+          {id:'imperial_gold',name:'御賜金錠',category:'賞賜物品',rarity:'rare',effect:'官員忠誠 +12',stat:'loyalty',amount:12,target:'minister',price:1500},
+          {id:'gold_hairpin',name:'金簪',category:'賞賜物品',rarity:'common',effect:'妃嬪好感 +5',stat:'affection',amount:5,target:'consort',price:300},
+          {id:'jade_ruyi',name:'玉如意',category:'賞賜物品',rarity:'rare',effect:'妃嬪好感 +10',stat:'affection',amount:10,target:'consort',price:1500},
+          {id:'night_pearl',name:'夜明珠',category:'賞賜物品',rarity:'legendary',effect:'妃嬪好感 +25',stat:'affection',amount:25,target:'consort'},
+          {id:'primer',name:'啟蒙書冊',category:'文武培養',rarity:'common',effect:'皇室子女文治 +3',stat:'civil',amount:3,target:'royal',price:400},
+          {id:'art_of_war',name:'孫子兵法',category:'文武培養',rarity:'rare',effect:'官員或皇室子女武力 +5',stat:'military',amount:5,target:'minister_or_royal',price:1200},
+          {id:'rule_classic',name:'帝王治世秘典',category:'文武培養',rarity:'legendary',effect:'官員或皇室子女文治 +12',stat:'civil',amount:12,target:'minister_or_royal'},
+          {id:'wumu_book',name:'武穆遺書',category:'文武培養',rarity:'legendary',effect:'官員或皇室子女武力 +12',stat:'military',amount:12,target:'minister_or_royal'},
+          {id:'revival_pill',name:'九轉還魂丹',category:'特殊物品',rarity:'legendary',effect:'死亡確認前救治一人',target:'death'}
+      ];
+      const IMPERIAL_ITEM_MAP = Object.fromEntries(IMPERIAL_ITEMS.map(item=>[item.id,item]));
+      const inventoryUsedSlots = inventory => Object.values(inventory||{}).filter(quantity=>Number(quantity)>0).length;
+      const randomInt = (min,max) => min+Math.floor(Math.random()*(max-min+1));
+      const createYearlyImperialShop = year => {
+          const cards=[],priced=IMPERIAL_ITEMS.filter(item=>item.price&&!item.shopSpecial);
+          priced.forEach(item=>{
+              const count=item.rarity==='common'?4:1;
+              for(let index=0;index<count;index++)cards.push({id:`shop_${year}_${item.id}_${index}`,itemId:item.id,sold:false});
+          });
+          const finalItem=Math.random()<.10?'ginseng':priced[randomInt(0,priced.length-1)].id;
+          cards.push({id:`shop_${year}_${finalItem}_bonus`,itemId:finalItem,sold:false});
+          return cards;
+      };
+      const normalizeInventoryState = rawState => {
+          const state=rawState||{};
+          const inventory=Object.fromEntries(Object.entries(state.inventory||{})
+              .filter(([id,quantity])=>IMPERIAL_ITEM_MAP[id]&&Number(quantity)>0)
+              .map(([id,quantity])=>[id,Math.max(0,Math.floor(Number(quantity)||0))]));
+          const year=Math.max(1,Math.round(Number(state.dynastyYear||state.year)||1));
+          const sameYear=Number(state.imperialShopYear)===year&&Array.isArray(state.imperialShopStock);
+          return {...state,inventory,pendingItemRewards:Array.isArray(state.pendingItemRewards)?state.pendingItemRewards:[],
+              pendingItemNotices:Array.isArray(state.pendingItemNotices)?state.pendingItemNotices:[],
+              imperialShopYear:year,imperialShopStock:sameYear?state.imperialShopStock:createYearlyImperialShop(year),
+              rescuedThisDynastyYear:Array.isArray(state.rescuedThisDynastyYear)&&Number(state.rescuedThisDynastyYearValue)===year
+                  ?state.rescuedThisDynastyYear:[],rescuedThisDynastyYearValue:year,
+              pendingDeathCandidates:Array.isArray(state.pendingDeathCandidates)?state.pendingDeathCandidates:[]};
+      };
+      const appendStateLog = (state,text) => ({...state,logsAdd:[state.logsAdd,text].filter(Boolean).join('\n')});
+      const grantInventoryItem = (rawState,itemId,source='事件獎勵',refundSilver=0) => {
+          const state=normalizeInventoryState(rawState),item=IMPERIAL_ITEM_MAP[itemId];
+          if(!item)return state;
+          const owns=Number(state.inventory[itemId])>0;
+          if(!owns&&inventoryUsedSlots(state.inventory)>=INVENTORY_CAPACITY){
+              const reward={id:royalNewId('reward'),itemId,quantity:1,source,refundSilver:Math.max(0,Number(refundSilver)||0)};
+              return appendStateLog({...state,pendingItemRewards:[...(state.pendingItemRewards||[]),reward]},
+                  `【皇家寶庫】${source}抽中${item.name}，因背包已滿轉入待領。`);
+          }
+          const notice=source.startsWith('皇家商店')?state.pendingItemNotices:[...(state.pendingItemNotices||[]),{
+              id:royalNewId('item_notice'),itemId,quantity:1,source}];
+          return appendStateLog({...state,inventory:{...state.inventory,[itemId]:(Number(state.inventory[itemId])||0)+1},pendingItemNotices:notice},
+              `【皇家寶庫】${source}獲得${item.name}×1。`);
+      };
+      const weightedChoice = entries => {
+          const total=entries.reduce((sum,entry)=>sum+entry.weight,0);let roll=Math.random()*total;
+          return entries.find(entry=>(roll-=entry.weight)<=0)?.value||entries[entries.length-1]?.value;
+      };
+      const drawInventoryItem = pool => {
+          const items=(pool||[]).map(id=>IMPERIAL_ITEM_MAP[id]).filter(Boolean);
+          const rarityEntries=[['common',75],['rare',22],['legendary',3]]
+              .filter(([rarity])=>items.some(item=>item.rarity===rarity)).map(([value,weight])=>({value,weight}));
+          const rarity=weightedChoice(rarityEntries),sameRarity=items.filter(item=>item.rarity===rarity);
+          return weightedChoice(sameRarity.map(item=>({value:item.id,
+              weight:item.id==='revival_pill'?1:item.category==='健康藥品'?2:10})));
+      };
+      const maybeGrantInventoryItem = (state,pool,source,chance=.20,refundSilver=0) =>
+          Math.random()<chance?grantInventoryItem(state,drawInventoryItem(pool),source,refundSilver):state;
+      const makeInventoryEventOption = (text,effect) => ({text,effect});
+      const createSpecialAdventureEvent = state => {
+          const key=weightedChoice([
+              {value:'market',weight:10},{value:'books',weight:10},{value:'herbs',weight:3},
+              {value:'temple',weight:1},{value:'elixir',weight:1},{value:'revival',weight:1}
+          ]);
+          const event={market:{title:'市集奇珍',desc:'微服行至繁華市集，侍衛暗中制止地痞勒索。獲救商旅願向皇帝出售一件江南珍寶。',options:[
+              makeInventoryEventOption('購買商旅珍寶（銀-300）',s=>grantInventoryItem({...s,treasury:s.treasury-300},drawInventoryItem(['imperial_silk','gold_hairpin','imperial_gold','jade_ruyi','night_pearl']),'微服・市集奇珍',300)),
+              makeInventoryEventOption('不購買，離開市集',s=>appendStateLog(s,'微服市集，未購買商旅珍寶。'))]},
+          books:{title:'書肆尋寶',desc:'古舊書肆的老儒展示珍藏書卷，願出售一冊供宮中典藏。',options:[
+              makeInventoryEventOption('購買珍藏古籍（銀-200）',s=>grantInventoryItem({...s,treasury:s.treasury-200},drawInventoryItem(['primer','art_of_war']),'微服・書肆尋寶',200)),
+              makeInventoryEventOption('勉勵老儒，免費離開',s=>appendStateLog(s,'微服書肆，勉勵老儒後離開。'))]},
+          herbs:{title:'深山採藥',desc:'採藥老人引導皇帝入山辨識藥草，眾人在山林中尋得一株人參。',options:[
+              makeInventoryEventOption('協助採藥，收下藥材',s=>grantInventoryItem(s,drawInventoryItem(['ginseng','century_ginseng']),'微服・深山採藥')),
+              makeInventoryEventOption('留下藥材救助山村（民心+3）',s=>appendStateLog({...s,stability:s.stability+3},'留下深山藥材供山村使用，民心+3。'))]},
+          temple:{title:'古寺藏經',desc:'古寺住持開啟封存多年的藏經閣，願將一卷治世秘典或名將兵書託付皇帝。',options:[
+              makeInventoryEventOption('接受住持贈書',s=>grantInventoryItem(s,drawInventoryItem(['rule_classic','wumu_book']),'微服・古寺藏經')),
+              makeInventoryEventOption('捐助寺院（銀-300、民心+5）',s=>appendStateLog({...s,treasury:s.treasury-300,stability:s.stability+5},'捐助古寺，民心+5。'))]},
+          elixir:{title:'奇方秘藥',desc:'隱居名醫展示宮廷失傳秘方，尚需資金完成最後一道製程。',options:[
+              makeInventoryEventOption('資助完成秘藥（銀-500）',s=>grantInventoryItem({...s,treasury:s.treasury-500},'palace_elixir','微服・奇方秘藥',500)),
+              makeInventoryEventOption('留下藥材救助百姓（民心+8）',s=>appendStateLog({...s,stability:s.stability+8},'留下藥材救助百姓，民心+8。'))]},
+          revival:{title:'異人獻丹',desc:'白髮道人獻上九轉還魂丹，稱可在生死一線間救回一人。',options:[
+              makeInventoryEventOption('收下還魂丹',s=>grantInventoryItem(s,'revival_pill','微服・異人獻丹')),
+              makeInventoryEventOption('謝絕仙丹',s=>appendStateLog(s,'謝絕異人所獻還魂丹。'))]}}[key];
+          event.options=event.options.map(option=>({...option,disabled:/銀-300/.test(option.text)&&state.treasury<300||/銀-200/.test(option.text)&&state.treasury<200||/銀-500/.test(option.text)&&state.treasury<500}));
+          return event;
+      };
+      const directCourtItemOption = (text,effect) => ({text,effect:s=>({...effect(s),_courtOutcome:{kind:'direct',success:true,label:text.split('（')[0]}})});
+      const createSpecialCourtEvent = state => {
+          const key=weightedChoice([{value:'tribute',weight:10},{value:'books',weight:3},{value:'medicine',weight:3},{value:'warbook',weight:1}]);
+          return {tribute:{title:'藩邦進獻奇珍',description:'遠方藩邦遣使入朝，呈獻上等錦緞、金器與罕見寶珠。戶部請示收貢或折銀。',options:[
+              directCourtItemOption('接納藩邦貢品',s=>grantInventoryItem(s,drawInventoryItem(['imperial_silk','imperial_gold','jade_ruyi','night_pearl']),'上朝・藩邦進獻奇珍')),
+              directCourtItemOption('命戶部將貢品折銀（銀+250）',s=>appendStateLog({...s,treasury:s.treasury+250},'藩邦貢品折銀，國庫+250。'))]},
+          books:{title:'翰林院進獻古籍',description:'翰林學士整理皇家藏書時找到前朝珍本，請旨收入御書房或抄錄廣布。',options:[
+              directCourtItemOption('將珍本收入御書房',s=>grantInventoryItem(s,drawInventoryItem(['primer','art_of_war','rule_classic']),'上朝・翰林院進獻古籍')),
+              directCourtItemOption('抄錄廣布天下書院（民心+3）',s=>appendStateLog({...s,stability:s.stability+3},'翰林抄錄珍本廣布書院，民心+3。'))]},
+          medicine:{title:'太醫院獻藥',description:'太醫院取得珍貴藥材與失傳秘方，可撥款調製御用珍藥或送往地方醫館。',options:[
+              {...directCourtItemOption('撥銀調製御用珍藥（銀-350）',s=>grantInventoryItem({...s,treasury:s.treasury-350},drawInventoryItem(['ginseng','century_ginseng','palace_elixir']),'上朝・太醫院獻藥',350)),disabled:state.treasury<350},
+              directCourtItemOption('送往地方醫館（民心+5）',s=>appendStateLog({...s,stability:s.stability+5},'太醫院藥材送往地方，民心+5。'))]},
+          warbook:{title:'邊關將領獻兵書',description:'邊關將領尋得前朝名將手稿，請旨收入皇家武庫或抄錄送回邊關。',options:[
+              directCourtItemOption('將兵書收入皇家武庫',s=>grantInventoryItem(s,drawInventoryItem(['art_of_war','wumu_book']),'上朝・邊關將領獻兵書')),
+              directCourtItemOption('抄錄兵書送回邊關',s=>appendStateLog(s,'命人抄錄兵書送回邊關。'))]}}[key];
+      };
+      const generateDynamicEvent = state => {
+          if(Math.random()>=.10)return null;
+          const key=weightedChoice([{value:'tribute',weight:10},{value:'books',weight:3},{value:'medicine',weight:3},{value:'revival',weight:1}]);
+          const data={tribute:{title:'各省歲貢',description:'歲末各省督撫遣使進京，呈獻錦緞、金簪與金錠。',options:[
+              {text:'收納貢品，入皇家庫藏',effect:s=>grantInventoryItem(s,drawInventoryItem(['imperial_silk','gold_hairpin','imperial_gold']),'年度・各省歲貢')},
+              {text:'命戶部將貢品折銀（銀+300）',effect:s=>appendStateLog({...s,treasury:s.treasury+300},'各省歲貢折銀，國庫+300。')}]},
+          books:{title:'民間古籍出世',description:'江南書院發現塵封典籍，請朝廷裁決收藏或刊印。',options:[
+              {text:'收歸皇家藏書閣',effect:s=>grantInventoryItem(s,drawInventoryItem(['primer','rule_classic']),'年度・民間古籍出世')},
+              {text:'刊印廣布天下（民心+5）',effect:s=>appendStateLog({...s,stability:s.stability+5},'刊印民間古籍，民心+5。')}]},
+          medicine:{title:'名醫進京',description:'各地名醫奉召入京，呈獻珍貴人參及宮廷失傳秘方。',options:[
+              {text:'撥銀資助，進獻珍藥（銀-400）',disabled:state.treasury<400,effect:s=>grantInventoryItem({...s,treasury:s.treasury-400},drawInventoryItem(['ginseng','century_ginseng','palace_elixir']),'年度・名醫進京',400)},
+              {text:'留藥救助百姓（民心+6）',effect:s=>appendStateLog({...s,stability:s.stability+6},'名醫留藥救助百姓，民心+6。')}]},
+          revival:{title:'隱世高人入京',description:'白髮道人求見天子，獻上可在命懸一線時救回一人的九轉還魂丹。',options:[
+              {text:'接受還魂丹，收入皇家秘庫',effect:s=>grantInventoryItem(s,'revival_pill','年度・隱世高人入京')},
+              {text:'婉拒丹藥',effect:s=>appendStateLog(s,'婉拒隱世高人所獻丹藥。')}]}}[key];
+          return {id:royalNewId('annual_item'),...data};
+      };
+
+      // 健康 100 時每年最多 100 體力，隨健康下降線性降低，最低 80。
+      // 例：健康 75 → 95；健康 50 → 90；健康 25 → 85。
+      const getMaxEnergy = (health) => {
+          const numeric = Number(health);
+          const currentHealth = Number.isFinite(numeric) ? Math.max(0, Math.min(100, numeric)) : 100;
+          return 80 + Math.round(currentHealth / 5);
+      };
+
+      // 繼位者的文治＋武力越高，百官對新君越有信心、忠誠損失越少。
+      // 文+武=100 → -25；200 → -20；300 → -15；400 → -10；500以上 → -5。
+      const calculateSuccessionLoyaltyLoss = (heir) => {
+          const civil = Math.max(0, Number(heir?.civil) || 0);
+          const military = Math.max(0, Number(heir?.military) || 0);
+          return Math.max(5, Math.min(35, Math.round(30 - (civil + military) / 20)));
+      };
+
+      // 30歲以前登基維持健康100；31歲起每增加1歲減少1點，最低50。
+      const calculateSuccessionHealth = heir => Math.max(50, 100 - Math.max(0, Math.round(Number(heir?.age) || 16) - 30));
+
+      const CHILD_TALENTS = {
+          civil:{name:'文治之才',short:'文',course:'civil',civilRatio:.75},
+          military:{name:'武略之才',short:'武',course:'military',civilRatio:.25},
+          balanced:{name:'文武雙全',short:'文武',course:'balanced',civilRatio:.5}
+      };
+      const inferChildEducationTalent = child => {
+          const civil=Number(child?.civil)||0, military=Number(child?.military)||0;
+          if (civil>=military+15) return 'civil';
+          if (military>=civil+15) return 'military';
+          return 'balanced';
+      };
+      const getChildEducationTalent = child => CHILD_TALENTS[child?.educationTalent]
+          ? child.educationTalent : inferChildEducationTalent(child);
+      const childTalentCourse = child => CHILD_TALENTS[getChildEducationTalent(child)].course;
+      const rollNewChildEducationTalent = (aptitude, random=Math.random) => {
+          const value=Math.max(0,Math.min(100,Number(aptitude)||0));
+          const balancedChance=value<40?.10:value<60?.15:value<80?.20:.30;
+          const roll=random();
+          if (roll<balancedChance) return 'balanced';
+          return roll<balancedChance+(1-balancedChance)/2?'civil':'military';
+      };
+
+      // 太傅教導：資質與年齡決定總成長，出生時固定的天賦決定文武分配。
+      const rollChildEducation = (child, random = Math.random) => {
+          const age = Math.max(0, Math.floor(Number(child.age) || 0));
+          const aptitude = Math.max(0, Math.min(100, Number(child.aptitude) || 0));
+          const ageMultiplier = age <= 3 ? 1.5 : age <= 7 ? 1.25 : age <= 11 ? 1 : 0.65;
+          const total=Math.max(2,Math.round((3+Math.floor(aptitude/20)+Math.floor(random()*6))*ageMultiplier));
+          const talent=getChildEducationTalent(child), meta=CHILD_TALENTS[talent];
+          const civil=Math.round(total*meta.civilRatio);
+          return {civil,military:total-civil,total,focus:meta.name,talent};
+      };
+
+      // 皇子女冊封為官後仍屬皇室子女，不參與「國士無雙」。
+      // 舊版存檔沒有 isRoyalChild 欄位，因此也辨識「皇子／公主 」名稱前綴。
+      const isRoyalChildMinister = (minister) => Boolean(
+          minister && (minister.isRoyalChild === true || /^(皇子|公主|宗室|長公主|宗親)\s/.test(String(minister.name || '')))
+      );
+      // v1.1.8：皇子／公主任官後，資質仍以出生時的 childrenList／宗人府資料為準。
+      // 舊存檔若曾把文武平均值誤當資質，載入時優先從原皇嗣資料還原。
+      const getRoyalChildAptitudeForMinister = (state, minister) => {
+          if (!minister || (!isRoyalChildMinister(minister) && minister.royalChildId == null && minister.royalId == null)) return null;
+          const childId = minister.royalChildId == null ? null : String(minister.royalChildId);
+          const royalId = minister.royalId == null ? null : String(minister.royalId);
+          const nameMatch = String(minister.name || '').replace(/^(皇子|公主|宗室|長公主|宗親)\s+/, '');
+          const childList = state.childrenList || [];
+          const familyList = state.royalFamily || [];
+          const childById = childList.find(c =>
+              (childId != null && String(c.id) === childId) ||
+              (royalId != null && String(c.royalId || '') === royalId)
+          );
+          const familyById = familyList.find(r =>
+              (childId != null && String(r.childId) === childId) ||
+              (royalId != null && String(r.id) === royalId)
+          );
+          const child = childById || (nameMatch ? childList.find(c=>String(c.name||'')===nameMatch) : null);
+          const family = familyById || (nameMatch ? familyList.find(r=>String(r.name||'')===nameMatch) : null);
+          const raw = child?.aptitude ?? family?.aptitude;
+          if (raw === null || raw === undefined || raw === '') return null;
+          const value = Number(raw);
+          return Number.isFinite(value) ? Math.max(0, Math.min(100, Math.round(value))) : null;
+      };
+      // 以朝廷名單為準，避免舊存檔 isAppointed=true 卻沒有實際官員而隱藏冊封按鈕。
+      const findAppointedRoyalChild = (state, child) => (state.ministers || []).find(m =>
+          (m.royalChildId != null && String(m.royalChildId) === String(child.id)) ||
+          (isRoyalChildMinister(m) && m.name === `${child.gender === 'male' ? '皇子' : '公主'} ${child.name}`)
+      );
+      const createRoyalChildMinister = (state, child) => ({
+          id:royalNewId('royal_minister'),name:`${child.gender==='male'?'皇子':'公主'} ${child.name}`,
+          gender:child.gender,isRoyalChild:true,royalChildId:child.id,
+          royalId:child.royalId||royalIdOf(child,state),age:Math.floor(Number(child.age)||16),
+          civil:Math.round(Number(child.civil)||15),military:Math.round(Number(child.military)||15),
+          loyalty:100,aptitude:Math.max(0,Math.min(100,Math.round(Number(child.aptitude)||0))),
+          avatar:child.gender==='male'?'🐲':'👸',recruitedYear:state.dynastyYear||state.year,postHistory:[]
+      });
+      const peakNonRoyalMinister = (ministers) => (ministers || [])
+          .filter(m => !isRoyalChildMinister(m))
+          .reduce((best, m) => {
+              const score = Number(m.civil || 0) + Number(m.military || 0);
+              return score > best.score ? { name: m.name || '無', score } : best;
+          }, { name: '無', score: 0 });
+      const historicalNonRoyalMinister = (history, current) => {
+          const previous = history?.maxMinister;
+          return previous && !isRoyalChildMinister(previous) && Number(previous.score || 0) >= current.score
+              ? previous : current;
+      };
+      const leaderboardPeaksOf = (state) => {
+          const history = state?.statsHistory || {};
+          return {
+              maxTreasury: Math.max(0, Math.floor(Number(history.maxTreasury) || 0),
+                  Math.floor(Number(state?.treasury) || 0)),
+              maxConsortCount: Math.max(0, Math.floor(Number(history.maxConsortCount) || 0),
+                  Array.isArray(state?.consorts) ? state.consorts.length : 0),
+              maxDescendantCount: Math.max(0, Math.floor(Number(history.maxDescendantCount) || 0),
+                  Array.isArray(state?.childrenList) ? state.childrenList.length : 0)
+          };
+      };
+      const withLeaderboardPeaks = (state) => {
+          const history = state?.statsHistory || {};
+          const peaks = leaderboardPeaksOf(state);
+          if (peaks.maxTreasury === Number(history.maxTreasury || 0) &&
+              peaks.maxConsortCount === Number(history.maxConsortCount || 0) &&
+              peaks.maxDescendantCount === Number(history.maxDescendantCount || 0)) return state;
+          return {...state, statsHistory: {...history, ...peaks}};
+      };
+
+
+
+      // === v1.0.5 宗人府資料層 ===
+      // 身分一律使用永久 ID 連結。舊存檔無血緣資料時，標示親緣未知而非猜測。
+      const royalNewId = (prefix = 'royal') => `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+      const rulerIdOf = (state) => String(state.currentEmperorId || `emperor_${state.gameId || 'unknown'}`);
+      const royalIdOf = (child, state) => String(child.royalId || `royal_${state.gameId || 'unknown'}_${child.id}`);
+      const royalConsortIdOf = (consort, rulerId) => String(consort.royalConsortId || `consort_${rulerId}_${consort.id}`);
+      const makeRoyalMember = (child, state, fallbackFather = null) => ({
+          id: royalIdOf(child, state), childId: child.id, name: String(child.name || '無名氏'), gender: child.gender === 'female' ? 'female' : 'male',
+          age: Math.max(0, Math.floor(Number(child.age) || 0)),
+          civil: Math.round(Number(child.civil) || 0), military: Math.round(Number(child.military) || 0),
+          aptitude: Math.round(Number(child.aptitude) || 0), educationTalent:getChildEducationTalent(child),
+          fatherId: child.fatherId !== undefined ? child.fatherId : fallbackFather,
+          motherId: child.motherId ?? null,
+          generation: child.generation ?? null,
+          alive: child.alive !== false, expelled: !!child.expelled,
+          hasBeenEmperor: !!child.hasBeenEmperor, appointed: !!child.isAppointed,
+          legacyUnknownParent: !!child.legacyUnknownParent,
+          motherName: child.motherName || ''
+      });
+      // 勝利歸屬固定為「親自完成第一次統一」的皇帝，後代只能繼承疆土，不承繼排行榜資格。
+      // v1.0.5 舊存檔若沒有統一歸屬欄位，先根據有記錄的帝王歷史尋找原統一者；
+      // 若多代舊資料不足以辨認，保守標示未知，不誤將現任皇帝當成統一者。
+      const normalizeUnificationState = (state) => {
+          if (state.unificationGameId) return {
+              ...state, unificationGameId:String(state.unificationGameId),
+              unificationYear: Math.max(1, Math.round(Number(state.unificationYear) || Number(state.year) || 1)),
+              unificationAttributionUnknown:false
+          };
+          if (state.unificationAttributionUnknown === true) return state;
+          const hasUnified = !!state.gameWon || ENEMIES.every((_, i) => (state.conqueredEnemies || []).some(x => Number(x) === i));
+          if (!hasUnified) return state;
+          const known = (state.emperorHistory || []).find(e =>
+              e.gameId && (e.didUnify === true || Number(e.conqueredCount) >= ENEMIES.length));
+          if (known) return {...state, unificationGameId:String(known.gameId),
+              unificationYear:Math.max(1, Math.round(Number(known.unificationYear) || Number(known.reignYears) || 1)),
+              unificationAttributionUnknown:false};
+          if ((state.emperorHistory || []).length || (state.historicalConsorts || []).length) {
+              return {...state, unificationGameId:null, unificationYear:null, unificationAttributionUnknown:true};
+          }
+          // 第一代舊存檔已有統一，過去並未儲存統一當年，因此只能沿用目前在位年數。
+          return {...state, unificationGameId:state.gameId || null,
+              unificationYear:Math.max(1, Math.round(Number(state.year) || 1)),
+              unificationAttributionUnknown:false};
+      };
+      const normalizeRoyalState = (rawState) => {
+          const state = normalizeInventoryState(normalizeUnificationState(rawState));
+          const emperorId = rulerIdOf(state);
+          const oldFamily = Array.isArray(state.royalFamily) ? state.royalFamily : [];
+          const existing = new Map(oldFamily.filter(m => m && m.id).map(m => [String(m.id), {...m, id: String(m.id)}]));
+          // 僅在舊資料沒有歷代繼承時，能確定現任皇帝是目前子女的父親。
+          const migratedFromPreviousReign = (state.historicalConsorts || []).length > 0;
+          const prevRuler = existing.get(emperorId) || {};
+          existing.set(emperorId, {
+              ...prevRuler, id: emperorId, name: state.playerName || prevRuler.name || '無名氏',
+              gender: 'male', age: Math.max(0, Number(state.age) || 16),
+              fatherId: prevRuler.fatherId ?? null, motherId: prevRuler.motherId ?? null,
+              generation: prevRuler.generation ?? (migratedFromPreviousReign ? null : 1),
+              alive: state.health > 0, hasBeenEmperor: true, expelled: false,
+              civil: Math.round(Number(state.civil ?? prevRuler.civil ?? 60)),
+              military: Math.round(Number(state.military ?? prevRuler.military ?? 60)),
+              reignStatus: 'current'
+          });
+          // 舊版本已封存的先帝資料能重建帝王紀錄，但沒有的親緣資料不補猜。
+          const history = Array.isArray(state.emperorHistory) ? [...state.emperorHistory] : [];
+          (state.historicalConsorts || []).forEach((group, index) => {
+              const archiveId = String(group.emperorId || `emperor_${group.gameId || `legacy_${index}`}`);
+              if (!history.some(e => String(e.emperorId) === archiveId)) {
+                  history.push({emperorId: archiveId, name: group.emperorName || '無名氏', eraName: group.eraName || '未知',
+                      reignYears: Number(group.reignYears) || null, endType: group.successionType || '未知',
+                      successorName: group.successorName || null, archivedAt: group.archivedAt || null,
+                      gameId: group.gameId || null, legacy: true});
+              }
+              if (archiveId !== emperorId && !existing.has(archiveId)) {
+                  existing.set(archiveId, {id: archiveId, name: group.emperorName || '無名氏', gender: 'male',
+                      fatherId: null, motherId: null, generation: null, age: null,
+                      alive: group.successionType !== '駕崩', hasBeenEmperor: true, expelled: false,
+                      reignStatus: 'former', legacyUnknownParent: true});
+              }
+          });
+          // 舊存檔的「子女名單」至少要保留人物、年齡及能力；父子關係不明時保持未知。
+          const childrenList = (state.childrenList || []).map(child => {
+              const id = royalIdOf(child, state);
+              const known = existing.get(id) || {};
+              const legacyUnknownParent = child.legacyUnknownParent === true ||
+                  (child.fatherId === undefined && known.fatherId === undefined && migratedFromPreviousReign);
+              const fatherId = child.fatherId !== undefined ? child.fatherId :
+                  known.fatherId !== undefined ? known.fatherId : legacyUnknownParent ? null : emperorId;
+              const motherId = child.motherId ?? known.motherId ?? null;
+              const father = fatherId ? existing.get(String(fatherId)) : null;
+              const generation = child.generation ?? known.generation ??
+                  (father && father.generation != null ? father.generation + 1 : null);
+              const nextChild = {...child, royalId: id, fatherId, motherId, generation,
+                  educationTalent:getChildEducationTalent(child),
+                  legacyUnknownParent, isAdult: Number(child.age) >= 16, gender: child.gender === 'female' ? 'female' : 'male',
+                  alive: known.alive === false || child.alive === false ? false : true,
+                  expelled: !!known.expelled || !!child.expelled};
+              const member = makeRoyalMember(nextChild, state, fatherId);
+              existing.set(id, {...known, ...member, hasBeenEmperor: !!known.hasBeenEmperor,
+                  expelled: !!known.expelled || !!child.expelled});
+              return nextChild;
+          });
+          const crownPrince = childrenList.find(child => String(child.id) === String(state.crownPrinceId));
+          const crownMember = crownPrince ? existing.get(String(crownPrince.royalId)) : null;
+          const crownPrinceId = crownPrince && crownPrince.gender === 'male' && Number(crownPrince.age) >= 16 &&
+              crownPrince.alive !== false && !crownPrince.expelled && crownMember?.alive !== false &&
+              !crownMember?.expelled && !crownMember?.hasBeenEmperor ? state.crownPrinceId : null;
+          const validMinisterIds=new Set((state.ministers||[]).map(minister=>String(minister.id)));
+          const autoAppointmentIdleIds=[...new Set((state.autoAppointmentIdleIds||[]).map(String).filter(id=>validMinisterIds.has(id)))];
+          const bulkAppointmentScope={primeMinister:true,revenueMinister:true,warMinister:true,provinceGovernor:true,provinceMagistrate:true,...(state.bulkAppointmentScope||{})};
+          return withLeaderboardPeaks({...state, currentEmperorId: emperorId,
+              royalFamily: Array.from(existing.values()), emperorHistory: history, childrenList, crownPrinceId,
+              autoAppointmentIdleIds,bulkAppointmentScope,
+              dynastyId: state.dynastyId || `dynasty_${(state.gameId || emperorId)}`,
+              accessionAge: Number.isFinite(Number(state.accessionAge)) ? Number(state.accessionAge) :
+                  Math.max(0, (Number(state.age) || 16) - Math.max(0, (Number(state.year) || 1) - 1))});
+      };
+      const findRoyalRelationship = (person, state, byId) => {
+          if (String(person.id) === String(state.currentEmperorId)) return {label: '現任皇帝', kind: 'emperor', extra: 0, priority: -1};
+          const monarch = byId.get(String(state.currentEmperorId));
+          if (!monarch) return {label:'宗室（親緣未詳）',kind:'unknown', extra:10, priority:10};
+          if (person.fatherId && String(person.fatherId) === String(monarch.id))
+              return {label: person.gender === 'female' ? '公主' : '皇子', kind:'son', extra:0, priority:0};
+          if (monarch.fatherId && person.fatherId && String(monarch.fatherId) === String(person.fatherId))
+              return {label: person.gender === 'female' ? '長公主（皇姊妹）' : '皇兄弟', kind:'sibling', extra:5, priority:1};
+          const parent = person.fatherId ? byId.get(String(person.fatherId)) : null;
+          if (parent && monarch.fatherId && parent.fatherId && String(parent.fatherId) === String(monarch.fatherId))
+              return {label: person.gender === 'female' ? '姪女' : '姪子',kind:'nephew',extra:5,priority:2};
+          if (parent && String(parent.id) === String(monarch.id)) return {label:'皇子',kind:'son',extra:0,priority:0};
+          const ancestors = (who) => {
+              const ids = new Set(); const todo = [who]; let steps = 0;
+              while (todo.length && steps++ < 100) {
+                  const x = todo.pop(); if (!x || ids.has(String(x.id))) continue;
+                  ids.add(String(x.id));
+                  if (x.fatherId) todo.push(byId.get(String(x.fatherId)));
+                  if (x.motherId && byId.has(String(x.motherId))) todo.push(byId.get(String(x.motherId)));
+              }
+              return ids;
+          };
+          const ownAncestors = ancestors(monarch), theirAncestors = ancestors(person);
+          if (theirAncestors.has(String(monarch.id)))
+              return {label: '皇孫／後裔',kind:'descendant',extra:5,priority:3};
+          const shared = [...ownAncestors].some(id => theirAncestors.has(id));
+          return shared ? {label:'遠房宗親',kind:'distant',extra:10,priority:4} :
+              {label:person.legacyUnknownParent ? '舊存檔親緣未記錄' : '血緣未確認',kind:'unknown',extra:10,priority:10};
+      };
+      const getSuccessionCandidates = (rawState) => {
+          const state = normalizeRoyalState(rawState);
+          const byId = new Map(state.royalFamily.map(r => [String(r.id),r]));
+          const sons = (state.childrenList || []).filter(c => c.gender === 'male' && Number(c.age) >= 16 &&
+              c.alive !== false && !c.expelled && !byId.get(String(c.royalId))?.expelled &&
+              !byId.get(String(c.royalId))?.hasBeenEmperor).map(c => ({...c, id: c.id,
+                  relationship: 'son', relationshipLabel: c.legacyUnknownParent ? '舊存檔皇子（親緣未記錄）' : '親生皇子',
+                  extraLoyaltyLoss: 0, priority:0}));
+          if (sons.length) return sons;
+          // 沒有成年皇子，才尋找有可驗證共同祖先或直系後裔的成年男性宗親。
+          const adultKin=state.royalFamily.filter(p => p.gender === 'male' && p.id !== state.currentEmperorId &&
+              p.alive !== false && !p.expelled && !p.hasBeenEmperor && Number(p.age) >= 16)
+              .map(p => ({p, rel: findRoyalRelationship(p,state,byId)}))
+              .filter(({rel}) => rel.kind !== 'unknown' && rel.kind !== 'son')
+              .sort((a,b) => a.rel.priority - b.rel.priority || Number(b.p.age)-Number(a.p.age))
+              .map(({p,rel}) => ({...p, royalId:p.id, isAdult:true, relationship:rel.kind,
+                  relationshipLabel:rel.label, extraLoyaltyLoss:rel.extra, priority:rel.priority}));
+          if(adultKin.length) return adultKin;
+          // 無成年繼位者時，准許未成年親生皇子繼承；只有駕崩時可擇幼帝，不能主動禪讓給幼兒。
+          return (state.childrenList||[]).filter(c=>c.gender==='male'&&Number(c.age)<16&&
+              c.alive!==false&&!c.expelled&&!byId.get(String(c.royalId))?.expelled&&
+              !byId.get(String(c.royalId))?.hasBeenEmperor)
+              .map(c=>({...c,id:c.id,isAdult:false,relationship:'son',
+                  relationshipLabel:'未成年皇子',extraLoyaltyLoss:0,priority:5}));
+      };
+      const successionLoss = (heir) => calculateSuccessionLoyaltyLoss(heir) + (Number(heir?.extraLoyaltyLoss) || 0);
+
+      // --- 模擬 Icons (確保在 GAS 純淨環境下不依賴外部套件而報錯) ---
+      const Coins = () => <span>💰</span>;
+      const Users = () => <span>👥</span>;
+      const Sword = () => <span>⚔️</span>;
+      const Heart = () => <span>❤️</span>;
+      const Activity = () => <span>💪</span>;
+      const RefreshCw = () => <span>🔄</span>;
+      const Crown = () => <span>👑</span>;
+      const MapIcon = () => <span>🗺️</span>;
+      const Hammer = () => <span>🔨</span>;
+      const Zap = () => <span>⚡</span>;
+      const Briefcase = () => <span>💼</span>;
+      const TrendingUp = () => <span>📈</span>;
+      const TrendingDown = () => <span>📉</span>;
+      const AlertTriangle = () => <span>⚠️</span>;
+      const Skull = () => <span>💀</span>;
+      const Gift = () => <span>🎁</span>;
+      const Snowflake = () => <span>❄️</span>;
+      const XCircle = () => <span>❌</span>;
+      const ChevronDown = () => <span>🔽</span>;
+      const ChevronUp = () => <span>🔼</span>;
+      const Trophy = () => <span>🏆</span>;
+      const UserX = () => <span>🙅</span>;
+      const HelpCircle = () => <span>❓</span>;
+      const Save = () => <span>💾</span>;
+      const Download = () => <span>📥</span>;
+      const Upload = () => <span>📤</span>;
+      const Share = () => <span>📤</span>;
+      const BarChart2 = () => <span>📊</span>;
+      const Compass = () => <span>🧭</span>;
+      const Award = () => <span>🏅</span>;
+      const Wrench = () => <span>🔧</span>;
+      const Lock = () => <span>🔒</span>;
+      const Unlock = () => <span>🔓</span>;
+      const Medal = () => <span>🎖️</span>;
+      const User = () => <span>👤</span>;
+      const Loader = () => <span>⏳</span>;
+
+      // --- 遊戲數據 ---
+      const DEFAULT_MINISTERS = [
+        { id: 1, name: '索尼', civil: 88, military: 45, loyalty: 90, aptitude: 67, age: 48, avatar: '🦁' },
+        { id: 2, name: '鰲拜', civil: 30, military: 98, loyalty: 40, aptitude: 64, age: 37, avatar: '🐯' },
+        { id: 3, name: '蘇克薩哈', civil: 75, military: 60, loyalty: 70, aptitude: 68, age: 34, avatar: '🦊' },
+        { id: 4, name: '遏必隆', civil: 65, military: 65, loyalty: 80, aptitude: 65, age: 33, avatar: '🐹' },
+        { id: 5, name: '施琅', civil: 40, military: 92, loyalty: 85, aptitude: 66, age: 26, avatar: '🦈' },
+        { id: 6, name: '范文程', civil: 95, military: 20, loyalty: 95, aptitude: 58, age: 52, avatar: '🐢' },
+        { id: 7, name: '納蘭明珠', civil: 92, military: 50, loyalty: 85, aptitude: 71, age: 22, avatar: '🦚' },
+        { id: 8, name: '周培公', civil: 94, military: 88, loyalty: 95, aptitude: 91, age: 20, avatar: '🐲' },
+        { id: 9, name: '姚啟聖', civil: 89, military: 70, loyalty: 60, aptitude: 80, age: 31, avatar: '🐍' },
+        { id: 10, name: '李光地', civil: 85, military: 30, loyalty: 88, aptitude: 58, age: 20, avatar: '🦉' },
+        { id: 11, name: '納蘭性德', civil: 90, military: 80, loyalty: 100, aptitude: 85, age: 20, avatar: '🦋' },
+      ];
+
+      // 特殊人才固定數值與永久技能。稀有度只影響招募，不作為成長倍率。
+      const SPECIAL_PERSONS = {
+        military: [
+          { key:'guan_yu', name:'關羽', rarity:'legendary', civil:75, military:110, loyalty:95, aptitude:98, age:38, avatar:'🗡️', skillName:'威震華夏', skillEffect:'擔任出征主將時，戰鬥預估勝率增加5個百分點，最高仍為95%。', skillTrigger:'出征主將' },
+          { key:'lu_bu', name:'呂布', rarity:'legendary', civil:30, military:115, loyalty:60, aptitude:99, age:32, avatar:'🐎', skillName:'天下無雙', skillEffect:'擔任出征主將時，本次戰鬥最終戰力增加15%。', skillTrigger:'出征主將' },
+          { key:'yue_fei', name:'岳飛', rarity:'legendary', civil:85, military:112, loyalty:100, aptitude:100, age:35, avatar:'🛡️', skillName:'岳家軍', skillEffect:'擔任出征主將時，本次戰鬥兵力損失降低20%。', skillTrigger:'出征主將' },
+          { key:'sun_wu', name:'孫武', rarity:'legendary', civil:108, military:110, loyalty:95, aptitude:100, age:48, avatar:'📘', skillName:'兵者詭道', skillEffect:'擔任軍師時，敵軍有效戰力降低10%。', skillTrigger:'出征軍師' },
+          { key:'bai_qi', name:'白起', rarity:'legendary', civil:78, military:115, loyalty:92, aptitude:99, age:45, avatar:'⚔️', skillName:'戰神殺伐', skillEffect:'擔任進攻主將時，敵軍有效戰力降低15%。', skillTrigger:'進攻主將' },
+          { key:'xiang_yu', name:'項羽', rarity:'legendary', civil:55, military:115, loyalty:80, aptitude:99, age:31, avatar:'🏴', skillName:'破釜沉舟', skillEffect:'擔任主將且原始預估勝率低於50%時，本次戰鬥最終戰力增加25%。', skillTrigger:'出征主將／弱勢戰' },
+          { key:'li_jing', name:'李靖', rarity:'legendary', civil:105, military:113, loyalty:98, aptitude:100, age:50, avatar:'🧭', skillName:'六軍鏡', skillEffect:'擔任軍師時，軍師文武合計對總戰力的權重由0.5提高至0.75。', skillTrigger:'出征軍師' },
+          { key:'wu_qi', name:'吳起', rarity:'legendary', civil:105, military:112, loyalty:85, aptitude:100, age:45, avatar:'🛡️', skillName:'魏武卒', skillEffect:'擔任副將時，本次戰鬥最終戰力增加12%。', skillTrigger:'出征副將' },
+          { key:'zhao_yun', name:'趙雲', rarity:'historical', civil:70, military:105, loyalty:98, aptitude:96, age:31, avatar:'🐉', skillName:'龍膽', skillEffect:'擔任副將且進行防守時，防守戰敗造成的民心損失減少5點。', skillTrigger:'防守副將' },
+          { key:'zhang_fei', name:'張飛', rarity:'historical', civil:40, military:106, loyalty:85, aptitude:95, age:36, avatar:'🐅', skillName:'當陽怒吼', skillEffect:'擔任副將時，敵軍有效戰力降低10%。', skillTrigger:'出征副將' },
+          { key:'han_xin', name:'韓信', rarity:'historical', civil:90, military:105, loyalty:90, aptitude:99, age:35, avatar:'🏹', skillName:'兵仙', skillEffect:'擔任軍師時，軍師文武合計對總戰力的權重由0.5提高至0.65。', skillTrigger:'出征軍師' },
+          { key:'huo_qubing', name:'霍去病', rarity:'historical', civil:65, military:106, loyalty:95, aptitude:98, age:23, avatar:'🐎', skillName:'封狼居胥', skillEffect:'擔任主將且進攻獲勝時，本次戰利品銀兩增加20%。', skillTrigger:'進攻主將／勝利' },
+          { key:'wei_qing', name:'衛青', rarity:'historical', civil:88, military:105, loyalty:98, aptitude:96, age:38, avatar:'🐎', skillName:'龍城飛將', skillEffect:'擔任進攻主將時，本次兵力損失降低15%。', skillTrigger:'進攻主將' },
+          { key:'xu_da', name:'徐達', rarity:'historical', civil:92, military:104, loyalty:100, aptitude:97, age:42, avatar:'🏯', skillName:'北伐統軍', skillEffect:'擔任進攻副將時，敵軍有效戰力降低8%。', skillTrigger:'進攻副將' },
+          { key:'qi_jiguang', name:'戚繼光', rarity:'historical', civil:93, military:103, loyalty:100, aptitude:97, age:40, avatar:'🛡️', skillName:'鴛鴦陣', skillEffect:'擔任防守主將時，本次兵力損失降低20%。', skillTrigger:'防守主將' },
+          { key:'zhou_yu', name:'周瑜', rarity:'historical', civil:105, military:101, loyalty:92, aptitude:98, age:34, avatar:'🔥', skillName:'火燒赤壁', skillEffect:'擔任進攻軍師時，本次戰鬥最終戰力增加10%。', skillTrigger:'進攻軍師' },
+          { key:'guo_ziyi', name:'郭子儀', rarity:'historical', civil:98, military:102, loyalty:100, aptitude:97, age:55, avatar:'🎖️', skillName:'再造社稷', skillEffect:'擔任防守副將且獲勝時，民心額外增加3點。', skillTrigger:'防守副將／勝利' }
+        ],
+        civil: [
+          { key:'zhuge_liang', name:'諸葛亮', rarity:'legendary', civil:100, military:50, loyalty:100, aptitude:100, age:40, avatar:'🪶', skillName:'鞠躬盡瘁', skillEffect:'擔任丞相時，建設體力消耗額外降低10個百分點；建設最低體力限制仍然有效。', skillTrigger:'丞相' },
+          { key:'zhang_liang', name:'張良', rarity:'legendary', civil:99, military:60, loyalty:95, aptitude:99, age:38, avatar:'📜', skillName:'運籌帷幄', skillEffect:'擔任出征軍師時，戰鬥預估勝率增加5個百分點，最高仍為95%。', skillTrigger:'出征軍師' },
+          { key:'xiao_he', name:'蕭何', rarity:'legendary', civil:98, military:40, loyalty:100, aptitude:97, age:45, avatar:'🧾', skillName:'鎮撫後方', skillEffect:'擔任戶部尚書時，年度歲入額外增加5%。', skillTrigger:'戶部尚書' },
+          { key:'wei_zheng', name:'魏徵', rarity:'historical', civil:97, military:35, loyalty:100, aptitude:96, age:55, avatar:'📯', skillName:'犯顏直諫', skillEffect:'擔任中央官員時，皇帝接受御史死諫可額外降低貪腐率0.5個百分點、民心增加2點。', skillTrigger:'中央官員／接受御史死諫' },
+          { key:'di_renjie', name:'狄仁傑', rarity:'historical', civil:96, military:45, loyalty:98, aptitude:96, age:48, avatar:'🔎', skillName:'神斷', skillEffect:'擔任中央官員時，軍機密查成功率增加10個百分點，最高95%。', skillTrigger:'中央官員／軍機密查' },
+          { key:'bao_zheng', name:'包拯', rarity:'historical', civil:95, military:40, loyalty:100, aptitude:95, age:50, avatar:'⚖️', skillName:'鐵面無私', skillEffect:'擔任中央官員時，舊貪腐案件每五年造成的調查成功率衰減減半。', skillTrigger:'中央官員／舊案調查' },
+          { key:'fan_zhongyan', name:'范仲淹', rarity:'historical', civil:95, military:50, loyalty:98, aptitude:94, age:46, avatar:'🏯', skillName:'先憂後樂', skillEffect:'擔任某省總督時，該省每次城市建設的發展度額外增加1點。', skillTrigger:'地方總督／城市建設' },
+          { key:'wang_an_shi', name:'王安石', rarity:'historical', civil:98, military:35, loyalty:85, aptitude:97, age:45, avatar:'📚', skillName:'變法圖強', skillEffect:'擔任丞相、戶部尚書或兵部尚書時，工部科技研發銀兩成本降低10%；不降低體力。', skillTrigger:'任一中央官職／科技研發' }
+        ]
+      };
+      const SPECIAL_PERSONS_ALL = [...SPECIAL_PERSONS.military, ...SPECIAL_PERSONS.civil];
+      const SPECIAL_PERSON_BY_KEY = Object.fromEntries(SPECIAL_PERSONS_ALL.map(person => [person.key, person]));
+      const getSpecialPerson = minister => minister?.specialId ? SPECIAL_PERSON_BY_KEY[minister.specialId] || null : null;
+      const getUnavailableSpecialIds = state => {
+          const recruitable=new Set(state.recruitableSpecialIds||[]);
+          const active=(state.ministers||[]).map(m=>m.specialId).filter(Boolean);
+          return new Set([...(state.recruitedSpecialIds||[]).filter(id=>!recruitable.has(id)),...active]);
+      };
+      const getMinisterSkillText = minister => {
+          const special = getSpecialPerson(minister);
+          return special ? `${special.skillName}：${special.skillEffect}（觸發：${special.skillTrigger}）` : '';
+      };
+      // v1.1.8：只有專屬技能確實對應的職位才顯示星號。
+      const hasSpecialSkillForPost = (minister, postKey, mode = 'ATTACK') => {
+          const id = minister?.specialId;
+          if (!id) return false;
+          if (postKey === 'primeMinister') return ['zhuge_liang','wei_zheng','di_renjie','bao_zheng','wang_an_shi'].includes(id);
+          if (postKey === 'revenueMinister') return ['xiao_he','wei_zheng','di_renjie','bao_zheng','wang_an_shi'].includes(id);
+          if (postKey === 'warMinister') return ['wei_zheng','di_renjie','bao_zheng','wang_an_shi'].includes(id);
+          if (postKey === 'provinceGovernor') return id === 'fan_zhongyan';
+          if (postKey === 'provinceMagistrate') return false;
+          if (postKey === 'commanderId') return ['guan_yu','lu_bu','yue_fei','xiang_yu'].includes(id) || (['huo_qubing','bai_qi','wei_qing'].includes(id) && mode === 'ATTACK') || (id === 'qi_jiguang' && mode === 'DEFEND');
+          if (postKey === 'viceId') return ['zhang_fei','wu_qi'].includes(id) || (id === 'zhao_yun' && mode === 'DEFEND') || (id === 'xu_da' && mode === 'ATTACK') || (id === 'guo_ziyi' && mode === 'DEFEND');
+          if (postKey === 'strategistId') return ['han_xin','zhang_liang','sun_wu','li_jing'].includes(id) || (id === 'zhou_yu' && mode === 'ATTACK');
+          return false;
+      };
+      // v1.1.9：國家貪腐率同時代表年度歲入損耗比例與新貪污案件觸發機率。
+      // 個別官員忠誠不再各自擲骰，而是在案件已觸發後用加權抽選決定涉案者。
+      const getCorruptionSelectionWeight = loyalty => {
+          const raw = Number(loyalty);
+          const safeLoyalty = Number.isFinite(raw) ? Math.max(0, Math.min(100, raw)) : 50;
+          return Math.max(1, 101 - safeLoyalty);
+      };
+      const pickWeightedCorruptionOfficial = officials => {
+          if (!Array.isArray(officials) || !officials.length) return null;
+          const weights = officials.map(m => getCorruptionSelectionWeight(m.loyalty));
+          const total = weights.reduce((sum, weight) => sum + weight, 0);
+          let roll = Math.random() * total;
+          for (let i = 0; i < officials.length; i++) {
+              roll -= weights[i];
+              if (roll < 0) return officials[i];
+          }
+          return officials[officials.length - 1];
+      };
+      const getCorruptionScale = amount => Number(amount) >= 5000 ? 'large' : Number(amount) >= 1000 ? 'medium' : 'small';
+      const getCorruptionScaleName = scale => scale === 'large' ? '大案' : scale === 'medium' ? '中案' : '小案';
+      const getEffectiveCorruptionScale = item => {
+          const base=item?.scale||getCorruptionScale(item?.amount||0);
+          const repeat=Math.max(0,Number(item?.repeatOffenseCount)||0);
+          if(repeat>=2)return 'large';
+          if(repeat>=1)return base==='small'?'medium':'large';
+          return base;
+      };
+      const getCorruptionScaleReduction = scale => scale === 'large' ? 0.02 : scale === 'medium' ? 0.01 : 0.005;
+
+      // v1.1.2：70歲上疏告老，可重金慰留一次；73歲必然退休，忠誠歸零仍即時離職。
+      // 舊存檔沒有 age 欄位，無法推知真實年齡；以固定雜湊產生28～55歲估計值，
+      // 只在首次升級時補值並隨自動存檔保存，避免每次重新開啟都改變。
+      const MINISTER_RETIRE_AGE = 70;
+      const MINISTER_RETENTION_COST = 2000;
+      const MINISTER_RETENTION_YEARS = 3;
+      const MINISTER_RETIRE_FINAL_AGE = MINISTER_RETIRE_AGE + MINISTER_RETENTION_YEARS;
+      const getPendingRetirementMinisters = state => {
+          const pending = new Set((state.pendingRetirements || []).map(id => String(id)));
+          return (state.ministers || []).filter(m => pending.has(String(m.id)) &&
+              !m.retirementRetained && Number(m.age) >= MINISTER_RETIRE_AGE && Number(m.loyalty) > 0);
+      };
+      const rollMinisterAge = (minimum = 20, maximum = 45) =>
+          minimum + Math.floor(Math.random() * (maximum - minimum + 1));
+      const inferMinisterAge = (minister, state) => {
+          if (isRoyalChildMinister(minister)) {
+              const child = (state.childrenList || []).find(c =>
+                  minister.royalChildId != null && String(c.id) === String(minister.royalChildId));
+              if (child && Number.isFinite(Number(child.age))) return Math.max(0, Math.floor(Number(child.age)));
+              const member = (state.royalFamily || []).find(r =>
+                  minister.royalChildId != null && (String(r.childId) === String(minister.royalChildId) ||
+                      String(r.id) === String(minister.royalChildId)));
+              if (member && member.age != null && Number.isFinite(Number(member.age)))
+                  return Math.max(0, Math.floor(Number(member.age)));
+          }
+          const age = Number(minister.age);
+          if (minister.age !== null && minister.age !== undefined && Number.isFinite(age) && age >= 16)
+              return Math.floor(age);
+          const key = String(minister.id ?? '') + '|' + String(minister.name || '');
+          let hash = 2166136261;
+          for (let i = 0; i < key.length; i++) hash = Math.imul(hash ^ key.charCodeAt(i), 16777619);
+          return 28 + (hash >>> 0) % 28;
+      };
+      const ensureMinisterAges = (state) => ({
+          ...state, ministers: (state.ministers || []).map(m => ({...m, age: inferMinisterAge(m, state)}))
+      });
+
+      const DEFAULT_PROVINCES = [
+        { id: 1, name: '直隸', development: 40, officials: [null, null] }, 
+        { id: 2, name: '江南', development: 50, officials: [null, null] },
+      ];
+
+      const CONSORT_RANKS = ['皇后', '皇貴妃', '貴妃', '妃', '嬪', '貴人', '常在', '答應'];
+      // 高位優先；同位分依好感由高至低，同分依姓名及永久 ID 穩定排列。
+      const sortConsortsByRank = (list = []) => [...list].sort((a,b) => {
+          const rank = c => {const i=CONSORT_RANKS.indexOf(c.rank);return i<0?CONSORT_RANKS.length:i;};
+          return rank(a)-rank(b) || (Number(b.affection)||0)-(Number(a.affection)||0) ||
+              String(a.name||'').localeCompare(String(b.name||''),'zh-Hant') || String(a.id).localeCompare(String(b.id));
+      });
+      const consortIdentity = c => `${c?.title||''}${c?.rank||'妃嬪'} ${c?.name||'未詳'}`;
+      const consortValues = c => `${consortIdentity(c)}｜${c?.age != null ? `${c.age}歲｜` : ''}好感 ${Math.round(Number(c?.affection)||0)}｜生育 ${c?.fertilityKnown ? Math.round(Number(c?.fertility)||0) : c?.fertilityCheckExpired ? '待重新診脈' : '未診脈'}`;
+      const palacePersonDetails = (event,state) => {
+          const ids=[event.attackerId,event.victimId,event.accusedId,event.culpritId,event.rivalId].filter(x=>x!=null);
+          const used=new Set();
+          return ids.map(id=>{
+              if(used.has(String(id)))return null;
+              used.add(String(id));
+              const c=(state.consorts||[]).find(x=>String(x.id)===String(id)) ||
+                  (state.deceasedConsorts||[]).find(x=>String(x.id)===String(id)) ||
+                  (state.historicalConsorts||[]).flatMap(h=>h.consorts||[]).find(x=>String(x.id)===String(id));
+              return c?consortValues(c):null;
+          }).filter(Boolean).join('\n');
+      };
+      // v1.1.0 深宮秘聞：僅以既有好感/位分和一項隱藏性格驅動事件。
+      const PALACE_PERSONALITIES = ['溫柔', '善妒', '心機', '野心', '賢淑'];
+      const PALACE_TYPES = [
+          {id:'favor', title:'爭寵風波', tier:'ordinary'},
+          {id:'garden', title:'御花園爭執', tier:'ordinary'},
+          {id:'promotion', title:'晉封風波', tier:'ordinary'},
+          {id:'rumor', title:'宮中流言', tier:'ordinary'},
+          {id:'jewels', title:'珠寶失竊', tier:'major'},
+          {id:'food', title:'御膳疑雲', tier:'major'},
+          {id:'faction', title:'后妃結黨', tier:'major'},
+          {id:'heir', title:'儲君之爭', tier:'major'},
+          {id:'poison', title:'毒酒之禍', tier:'fatal'},
+          {id:'heirDanger', title:'皇嗣遇險', tier:'fatal'},
+          {id:'pregnancy', title:'胎動不安', tier:'fatal'},
+          {id:'blood', title:'深宮血案', tier:'fatal'},
+          {id:'homeVisit', title:'妃嬪省親', tier:'peaceful'},
+          {id:'giftWish', title:'御前求賞', tier:'peaceful'},
+          {id:'familyLetter', title:'家書寄情', tier:'peaceful'},
+          {id:'festival', title:'宮中雅集', tier:'peaceful'},
+          {id:'charity', title:'施粥行善', tier:'peaceful'},
+          {id:'illnessCare', title:'侍疾問安', tier:'peaceful'}
+      ];

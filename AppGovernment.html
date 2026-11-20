@@ -1,0 +1,705 @@
+        const MinisterView = () => {
+            const pm = getOfficialStats(gameState.centralOfficials.primeMinister);
+            const rev = getOfficialStats(gameState.centralOfficials.revenueMinister);
+            const war = getOfficialStats(gameState.centralOfficials.warMinister);
+            const appointmentCost = getAppointmentCost();
+            const trainingRoster = gameState.ministerTrainingRoster || {};
+            const trainingIds = Object.keys(trainingRoster);
+            const trainingCount = trainingIds.length;
+            const savedBulkScope={primeMinister:true,revenueMinister:true,warMinister:true,provinceGovernor:true,provinceMagistrate:true,...(gameState.bulkAppointmentScope||{})};
+            const autoIdleIdSet=new Set((gameState.autoAppointmentIdleIds||[]).map(String));
+            const originalMinisterOrder=new Map((gameState.ministers||[]).map((m,index)=>[String(m.id),index]));
+            const sortedMinisters=[...(gameState.ministers||[])].sort((a,b)=>{
+                if(ministerSortKey==='default') return (originalMinisterOrder.get(String(a.id))||0)-(originalMinisterOrder.get(String(b.id))||0);
+                const getValue=m=>ministerSortKey==='age'?inferMinisterAge(m,gameState):ministerSortKey==='total'?(Number(m.civil)||0)+(Number(m.military)||0):(Number(m[ministerSortKey])||0);
+                const diff=getValue(a)-getValue(b);
+                if(diff!==0) return ministerSortDirection==='asc'?diff:-diff;
+                return (originalMinisterOrder.get(String(a.id))||0)-(originalMinisterOrder.get(String(b.id))||0);
+            });
+            const toggleMinisterTraining = (minister, checked) => {
+                const id=String(minister.id);
+                if (checked && !trainingRoster[id] && trainingCount >= MINISTER_TRAINING_LIMIT) {
+                    showMessage(`皇家書院最多同時訓練${MINISTER_TRAINING_LIMIT}名官員`, 'error');
+                    return;
+                }
+                if (checked && inferMinisterAge(minister,gameState) < 16) {
+                    showMessage('官員須年滿16歲才能參加皇家書院訓練', 'error');
+                    return;
+                }
+                setGameState(prev=>{
+                    const roster={...(prev.ministerTrainingRoster||{})};
+                    if(checked) roster[id]=roster[id]||'balanced';
+                    else delete roster[id];
+                    return {...prev,ministerTrainingRoster:roster};
+                });
+            };
+            const changeMinisterTrainingCourse = (ministerId,course) => {
+                if(!MINISTER_TRAINING_COURSES[course])return;
+                setGameState(prev=>{
+                    const roster={...(prev.ministerTrainingRoster||{})};
+                    if(!Object.prototype.hasOwnProperty.call(roster,String(ministerId)))return prev;
+                    roster[String(ministerId)]=course;
+                    return {...prev,ministerTrainingRoster:roster};
+                });
+            };
+            const handleMinisterStudy = async (minister, trainCost) => {
+                const energyCost=val(5);
+                if(gameState.energy<energyCost){showMessage(`體力不足，需要 ${energyCost} 體力`,'error');return;}
+                if(gameState.treasury<trainCost){showMessage(`國庫不足，需要 ${trainCost} 銀兩`,'error');return;}
+                const gain=rollMinisterStudyGain(minister);
+                const completed=await handleAction(5,trainCost,`准許${minister.name}進修，文治與武力各增加${gain}點`,s=>({...s,treasury:s.treasury-trainCost,
+                    ministers:s.ministers.map(item=>item.id===minister.id?{...item,civil:Math.round(Number(item.civil)||0)+gain,military:Math.round(Number(item.military)||0)+gain}:item)}));
+                if(completed)showMessage(`${minister.name}進修完成：文治、武力各 +${gain}`,'success');
+            };
+
+            const handleAppoint = async (roleKey, newId) => {
+                if (newId === gameState.centralOfficials[roleKey]) return;
+                if (newId && (!gameState.ministers.some(m => m.id === newId) || !isMinisterAvailable(newId, false))) {
+                    showMessage('此官員已任其他職位，不可重複任命', 'error'); return;
+                }
+                if (gameState.energy < appointmentCost) { showMessage(`體力不足，任命需 ${appointmentCost} 體力`, 'error'); return; }
+                if(!await confirmLowEnergySpend(appointmentCost,'任命中央官員'))return;
+                setGameState(p => ({ ...p, energy: p.energy - appointmentCost, centralOfficials: {...p.centralOfficials, [roleKey]: newId} }));
+                const officialRole = roleKey === 'primeMinister' ? '丞相' : roleKey === 'revenueMinister' ? '戶部尚書' : '兵部尚書';
+                addLog(`任命${officialRole} (體力-${appointmentCost})`);
+                if (newId != null) {
+                    const appointee = gameState.ministers.find(m => m.id === newId);
+                    if (appointee) setImperialEdict({
+                        title: '朝廷任命聖旨', person: appointee.name,
+                        text: `奉天承運，皇帝詔曰：今特命${appointee.name}出任${officialRole}，恪盡職守，勤政愛民，欽此。`,
+                        date: `${gameState.eraName}${gameState.year}年`
+                    });
+                }
+            };
+
+            const renderSelect = (roleKey, roleLabel, sortType) => {
+                const current=gameState.ministers.find(m=>String(m.id)===String(gameState.centralOfficials[roleKey]));
+                return <div className="text-center">
+                   <h4 className="font-bold mb-1">{roleLabel}{current&&hasSpecialSkillForPost(current,roleKey)?' ★':''}</h4>
+                   <select className="w-full text-xs border rounded p-1" value={gameState.centralOfficials[roleKey] || ''} onChange={(e) => handleAppoint(roleKey, resolveMinisterSelectId(e.target.value))}>
+                      <option value="">空缺</option>
+                      {gameState.ministers.filter(m => m.id === gameState.centralOfficials[roleKey] || isMinisterAvailable(m.id, false)).sort((a, b) => b[sortType] - a[sortType]).map(m => <option key={m.id} value={m.id}>{m.name}{hasSpecialSkillForPost(m,roleKey)?' ★':''} {inferMinisterAge(m, gameState)}歲 (文{Math.round(Number(m.civil) || 0)}/武{Math.round(Number(m.military) || 0)})</option>)}
+                   </select>
+                </div>;
+            };
+
+            const getMinisterJobInfo = minister => {
+                const province=gameState.provinces.find(p=>(p.officials||[]).some(id=>String(id)===String(minister.id)));
+                if(province){
+                    const governor=String(province.officials?.[0])===String(minister.id);
+                    return {title:`${province.name}${governor?'總督':'巡撫'}`,status:'appointed'};
+                }
+                const central=Object.entries(gameState.centralOfficials||{}).find(([,id])=>String(id)===String(minister.id));
+                if(central){
+                    const titles={primeMinister:'丞相',revenueMinister:'戶部尚書',warMinister:'兵部尚書'};
+                    return {title:titles[central[0]]||central[0],status:'appointed'};
+                }
+                const military=Object.entries(MILITARY_POST_NAMES).find(([key])=>String(gameState.warSetup?.[key])===String(minister.id));
+                if(military)return {title:MILITARY_POST_NAMES[military[0]],status:'appointed'};
+                return {title:'閒置',status:'idle'};
+            };
+            const getMinisterTypeInfo = minister => {
+                if(minister.isRoyalChild||minister.royalChildId!=null)return {key:'royal',label:'皇室'};
+                const special=minister.specialId?SPECIAL_PERSON_BY_KEY[minister.specialId]:null;
+                if(special?.rarity==='legendary')return {key:'legendary',label:'傳奇'};
+                if(special)return {key:'historical',label:'歷史'};
+                return {key:'ordinary',label:'一般'};
+            };
+            const visibleMinisters=sortedMinisters.filter(minister=>{
+                const query=ministerSearch.trim().toLowerCase();
+                if(query&&!String(minister.name||'').toLowerCase().includes(query))return false;
+                if(ministerTypeFilter!=='all'&&getMinisterTypeInfo(minister).key!==ministerTypeFilter)return false;
+                const job=getMinisterJobInfo(minister);
+                if(ministerStatusFilter==='appointed'&&job.status!=='appointed')return false;
+                if(ministerStatusFilter==='idle'&&job.status!=='idle')return false;
+                if(ministerStatusFilter==='retiring'&&inferMinisterAge(minister,gameState)<65)return false;
+                if(ministerStatusFilter==='danger'&&Number(minister.loyalty)>=20)return false;
+                return true;
+            });
+            const selectedIdSet=new Set(selectedMinisterIds.map(String));
+            const selectedMinisters=(gameState.ministers||[]).filter(m=>selectedIdSet.has(String(m.id)));
+            const allVisibleSelected=visibleMinisters.length>0&&visibleMinisters.every(m=>selectedIdSet.has(String(m.id)));
+            const toggleMinisterSelection=(id,checked)=>setSelectedMinisterIds(previous=>{
+                const next=new Set(previous.map(String)),key=String(id);
+                if(checked)next.add(key);else next.delete(key);
+                return [...next];
+            });
+            const toggleAllVisible=()=>setSelectedMinisterIds(previous=>{
+                const next=new Set(previous.map(String));
+                visibleMinisters.forEach(m=>allVisibleSelected?next.delete(String(m.id)):next.add(String(m.id)));
+                return [...next];
+            });
+            const batchRewardMinisters=async ()=>{
+                if(!selectedMinisters.length)return;
+                const moneyCost=selectedMinisters.length*100,energyCost=selectedMinisters.length*val(5);
+                if(gameState.treasury<moneyCost){showMessage(`國庫不足，需要 ${moneyCost} 銀兩`,'error');return;}
+                if(gameState.energy<energyCost){showMessage(`體力不足，需要 ${energyCost} 體力`,'error');return;}
+                if(!await requestGameConfirm(`確定賞賜所選 ${selectedMinisters.length} 名官員？\n銀兩-${moneyCost}、體力-${energyCost}，每人忠誠+10。`,{title:'批次賞賜',danger:false}))return;
+                if(!await confirmLowEnergySpend(energyCost,'批次賞賜官員'))return;
+                const ids=new Set(selectedMinisters.map(m=>String(m.id)));
+                setGameState(prev=>({...prev,treasury:prev.treasury-moneyCost,energy:prev.energy-energyCost,
+                    ministers:prev.ministers.map(m=>ids.has(String(m.id))?{...m,loyalty:Math.min(100,(Number(m.loyalty)||0)+10)}:m)}));
+                addLog(`批次賞賜${selectedMinisters.length}名官員，支出${moneyCost}兩、體力-${energyCost}，每人忠誠+10。`);
+                showMessage(`已賞賜 ${selectedMinisters.length} 名官員`,'success');
+            };
+            const batchStudyMinisters=async ()=>{
+                if(!selectedMinisters.length)return;
+                const costs=selectedMinisters.map(m=>100+Math.floor(((Number(m.civil)||0)+(Number(m.military)||0))*1.5));
+                const moneyCost=costs.reduce((sum,cost)=>sum+cost,0),energyCost=selectedMinisters.length*val(5);
+                if(gameState.treasury<moneyCost){showMessage(`國庫不足，需要 ${moneyCost} 銀兩`,'error');return;}
+                if(gameState.energy<energyCost){showMessage(`體力不足，需要 ${energyCost} 體力`,'error');return;}
+                if(!await requestGameConfirm(`確定讓所選 ${selectedMinisters.length} 名官員進修？\n銀兩-${moneyCost}、體力-${energyCost}；每人依自己的資質獨立判定成長。`,{title:'批次進修',danger:false}))return;
+                if(!await confirmLowEnergySpend(energyCost,'批次安排官員進修'))return;
+                const gains=new Map(selectedMinisters.map(m=>[String(m.id),rollMinisterStudyGain(m)]));
+                setGameState(prev=>({...prev,treasury:prev.treasury-moneyCost,energy:prev.energy-energyCost,
+                    ministers:prev.ministers.map(m=>gains.has(String(m.id))?{...m,civil:Math.round(Number(m.civil)||0)+gains.get(String(m.id)),military:Math.round(Number(m.military)||0)+gains.get(String(m.id))}:m)}));
+                addLog(`批次安排${selectedMinisters.length}名官員進修，支出${moneyCost}兩、體力-${energyCost}。${selectedMinisters.map(m=>`${m.name}文武各+${gains.get(String(m.id))}`).join('、')}。`);
+                showMessage(`已完成 ${selectedMinisters.length} 名官員進修`,'success');
+            };
+            const batchExpelMinisters=async ()=>{
+                if(!selectedMinisters.length)return;
+                const names=selectedMinisters.map(m=>m.name).join('、');
+                if(!await requestGameConfirm(`確定逐出所選 ${selectedMinisters.length} 名官員？\n${names}\n\n其中央、地方與軍職將一併解除，這項操作無法取消。`,{title:'批次逐出官員'}))return;
+                const ids=new Set(selectedMinisters.map(m=>String(m.id)));
+                setGameState(prev=>{
+                    const synced=syncMinisterCareers(prev);
+                    const targets=synced.ministers.filter(m=>ids.has(String(m.id)));
+                    const archives=targets.map(m=>createMinisterArchiveRecord(synced,m,'expelled',Number(m.age),null));
+                    const royalChildIds=new Set(targets.filter(m=>m.royalChildId!=null).map(m=>String(m.royalChildId)));
+                    return sanitizeAppointments({...synced,
+                        ministers:synced.ministers.filter(m=>!ids.has(String(m.id))),
+                        retiredMinisters:[...(synced.retiredMinisters||[]),...archives],
+                        ministerTrainingRoster:Object.fromEntries(Object.entries(synced.ministerTrainingRoster||{}).filter(([id])=>!ids.has(String(id)))),
+                        pendingRetirements:(synced.pendingRetirements||[]).filter(id=>!ids.has(String(id))),
+                        childrenList:(synced.childrenList||[]).map(c=>royalChildIds.has(String(c.id))?{...c,isAppointed:false}:c),
+                        royalFamily:(synced.royalFamily||[]).map(r=>royalChildIds.has(String(r.childId))?{...r,appointed:false}:r)
+                    });
+                });
+                addLog(`下旨將${names}逐出朝廷，解除所有官職。`);
+                setSelectedMinisterIds([]);
+                setMinisterDetailId(null);
+                showMessage(`已逐出 ${selectedMinisters.length} 名官員`,'success');
+            };
+            const detailMinister=(gameState.ministers||[]).find(m=>String(m.id)===String(ministerDetailId));
+
+            return (
+          <div className="h-full bg-slate-50 flex flex-col overflow-hidden relative">
+            <ResourceBar />
+            <div className={`p-4 flex-1 overflow-y-auto ${ministerTab==='OFFICERS'?'pb-36':''}`}>
+              <button onClick={() => setCurrentView('THRONE')} className="screen-page-return font-bold mb-3 text-slate-700">← 返回</button>
+              <h2 className="text-2xl text-center mb-2 font-serif">吏部 - 中央與百官</h2>
+              <p className="text-xs text-center text-stone-600 mb-3">任命、官員資料、皇家書院與人才招募分頁管理。</p>
+              <div className="sticky top-0 z-30 grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4 bg-slate-50/95 py-2 backdrop-blur">
+                  {[
+                      ['APPOINTMENTS','📜 官職任命'],['OFFICERS','👥 官員清單'],['ACADEMY','🏫 皇家書院'],['RECRUIT','🎴 人才招募']
+                  ].map(([key,label])=><button key={key} onClick={()=>setMinisterTab(key)} className={`rounded-lg px-3 py-2 text-sm font-bold border ${ministerTab===key?'bg-red-900 text-white border-red-900':'bg-white text-slate-700 border-slate-300'}`}>{label}</button>)}
+              </div>
+
+              {ministerTab==='APPOINTMENTS'&&<>
+                  <VacantPostsBanner kind="central" />
+                  <div className="mb-4 bg-amber-50 border border-amber-300 rounded-lg p-3 shadow-sm">
+                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+                          <div><h3 className="font-bold text-red-900 font-serif">📜 吏部・百官統籌任命</h3><p className="text-xs text-amber-900 mt-1">勾選本次要套用的職務；選擇會保存。未勾選職務、出征職務及其任職者不變。</p></div>
+                          <button type="button" onClick={proposeBulkAppointment} className="shrink-0 px-4 py-3 rounded-lg bg-red-900 text-amber-50 font-bold hover:bg-red-800">擬定百官任命總詔</button>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mt-3">{BULK_APPOINTMENT_SCOPE_OPTIONS.map(([key,label])=><label key={key} className={`flex items-center gap-2 rounded border p-2 text-xs font-bold cursor-pointer ${savedBulkScope[key]?'bg-white border-amber-400':'bg-stone-100 border-stone-300 text-stone-500'}`}><input type="checkbox" checked={!!savedBulkScope[key]} onChange={event=>setSavedBulkAppointmentScope(key,event.target.checked)}/>{label}</label>)}</div>
+                      <p className="text-[11px] text-amber-900 mt-2">官員清單可將指定官員標記為「保留空閒」；一鍵任命會排除這些官員，手動任命仍可使用。</p>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6 bg-white p-4 rounded shadow-sm border border-slate-200">
+                      {renderSelect('primeMinister', '丞相 (文)', 'civil')}
+                      {renderSelect('revenueMinister', '戶部尚書 (文)', 'civil')}
+                      {renderSelect('warMinister', '兵部尚書 (武)', 'military')}
+                      <div className="sm:col-span-3 text-center text-xs text-gray-500 mt-2 flex justify-around flex-wrap gap-2"><span>建設體力 -{getPrimeMinisterBonus()}%</span><span>徵稅收益 +{Math.floor(rev.civil/2)}%</span><span>招兵效率 +{Math.floor(war.military/2)}%</span></div>
+                      <div className="sm:col-span-3 text-center text-xs font-bold text-slate-500">任命消耗體力 {appointmentCost}</div>
+                  </div>
+              </>}
+
+              {ministerTab==='OFFICERS'&&<>
+                  <div className="mb-3 flex flex-col lg:flex-row gap-2">
+                      <input value={ministerSearch} onChange={e=>setMinisterSearch(e.target.value)} placeholder="搜尋官員姓名" className="flex-1 min-w-[160px] border rounded px-3 py-2 text-sm" />
+                      <select value={ministerTypeFilter} onChange={e=>setMinisterTypeFilter(e.target.value)} className="border rounded px-3 py-2 text-sm"><option value="all">全部人才</option><option value="ordinary">一般官員</option><option value="historical">歷史人才</option><option value="legendary">傳奇人才</option><option value="royal">皇室官員</option></select>
+                      <select value={ministerStatusFilter} onChange={e=>setMinisterStatusFilter(e.target.value)} className="border rounded px-3 py-2 text-sm"><option value="all">全部狀態</option><option value="appointed">已任職</option><option value="idle">閒置</option><option value="retiring">接近告老</option><option value="danger">忠誠危險</option></select>
+                      <select value={ministerSortKey} onChange={e=>setMinisterSortKey(e.target.value)} className="border rounded px-3 py-2 text-sm"><option value="default">原始順序</option><option value="civil">文治</option><option value="military">武力</option><option value="aptitude">資質</option><option value="loyalty">忠誠</option><option value="age">年齡</option><option value="total">文武合計</option></select>
+                      {ministerSortKey!=='default'&&<button onClick={()=>setMinisterSortDirection(v=>v==='desc'?'asc':'desc')} className="px-3 py-2 rounded bg-slate-700 text-white text-sm font-bold">{ministerSortDirection==='desc'?'高→低':'低→高'}</button>}
+                  </div>
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                      <div className="flex gap-2"><button onClick={toggleAllVisible} className="px-3 py-2 rounded bg-white border text-xs font-bold">{allVisibleSelected?'取消本頁全選':'全選篩選結果'}</button><button onClick={()=>setSelectedMinisterIds([])} className="px-3 py-2 rounded bg-white border text-xs">清除選取</button></div>
+                      <button onClick={()=>setShowMinisterArchive(true)} className="px-3 py-2 rounded bg-amber-100 text-amber-950 border border-amber-400 text-xs font-bold">🏛️ 名人堂（{ministerHallEntries.length}）</button>
+                  </div>
+                  <div className="bg-white border border-slate-300 rounded-lg shadow-sm overflow-x-auto">
+                      <table className="w-full min-w-[680px] text-xs text-left">
+                          <thead className="sticky top-0 z-10 bg-slate-800 text-white"><tr><th className="p-2 w-9">選</th><th className="p-2">官員</th><th className="p-2">類型</th><th className="p-2">官職／狀態</th><th className="p-2 text-center">一鍵任命</th><th className="p-2 text-center">年齡</th><th className="p-2 text-center">文治</th><th className="p-2 text-center">武力</th><th className="p-2 text-center">忠誠</th><th className="p-2 text-center">資質</th><th className="p-2">特殊能力</th></tr></thead>
+                          <tbody>{visibleMinisters.map(m=>{
+                              const job=getMinisterJobInfo(m),type=getMinisterTypeInfo(m),age=inferMinisterAge(m,gameState);
+                              return <tr key={m.id} onClick={()=>setMinisterDetailId(m.id)} className={`border-b cursor-pointer hover:bg-blue-50 ${selectedIdSet.has(String(m.id))?'bg-blue-50':''}`}>
+                                  <td className="p-2" onClick={e=>e.stopPropagation()}><input type="checkbox" checked={selectedIdSet.has(String(m.id))} onChange={e=>toggleMinisterSelection(m.id,e.target.checked)} /></td>
+                                  <td className="p-2 font-bold whitespace-nowrap">{m.name}{m.loyalty<20&&<span className="text-red-600 ml-1">⚠</span>}</td><td className="p-2 whitespace-nowrap">{type.label}</td><td className="p-2 whitespace-nowrap">{job.title}</td><td className="p-2 text-center whitespace-nowrap">{autoIdleIdSet.has(String(m.id))?<span className="text-amber-800 font-bold">🔒 保留空閒</span>:<span className="text-stone-400">可分配</span>}</td><td className="p-2 text-center">{age}</td><td className="p-2 text-center text-blue-700 font-bold">{Math.round(Number(m.civil)||0)}</td><td className="p-2 text-center text-red-700 font-bold">{Math.round(Number(m.military)||0)}</td><td className="p-2 text-center text-amber-700">{Math.round(Number(m.loyalty)||0)}</td><td className="p-2 text-center text-violet-700">{Number.isFinite(Number(m.aptitude))?Math.round(Number(m.aptitude)):'—'}</td><td className="p-2 min-w-[190px]">{m.specialId?getMinisterSkillText(m):'—'}</td>
+                              </tr>;
+                          })}</tbody>
+                      </table>
+                      {!visibleMinisters.length&&<p className="text-center text-stone-500 py-8">沒有符合條件的官員。</p>}
+                  </div>
+                  <p className="text-[11px] text-stone-500 mt-2">手機可左右滑動查看完整欄位；點擊任一官員可查看詳細資料。</p>
+              </>}
+
+              {ministerTab==='ACADEMY'&&<div className="mb-4 bg-indigo-50 border border-indigo-300 rounded-lg p-3 shadow-sm">
+                  <div className="flex flex-wrap justify-between items-center gap-2"><h3 className="font-bold text-indigo-950">🏫 皇家書院・百官年度訓練</h3><span className={`text-xs font-bold px-2 py-1 rounded ${trainingCount>=MINISTER_TRAINING_LIMIT?'bg-amber-200 text-amber-900':'bg-indigo-100 text-indigo-900'}`}>訓練名額 {trainingCount}/{MINISTER_TRAINING_LIMIT}</span></div>
+                  <p className="text-xs text-indigo-900 mt-2">最多安排10名16歲以上官員。年度財報會顯示每人的訓練前數值、增加值及訓練後總數值。</p>
+                  <div className="mt-3 bg-white border border-indigo-300 rounded-lg overflow-x-auto">
+                      <div className="grid grid-cols-12 gap-2 min-w-[1050px] bg-indigo-900 text-white text-xs font-bold p-2"><span>訓練</span><span className="col-span-2">官員／類型</span><span className="col-span-2">官職</span><span>年齡</span><span>文／武</span><span>忠／資</span><span className="col-span-2">課程</span><span className="col-span-2">訓練後總值／技能</span></div>
+                      {sortedMinisters.filter(m=>inferMinisterAge(m,gameState)>=16).map(m=>{
+                          const id=String(m.id),course=trainingRoster[id],selected=!!course,gains=selected?getAcademyCourseGrowth(gameState,course,true):null;
+                          const civilNow=Math.round(Number(m.civil)||0),militaryNow=Math.round(Number(m.military)||0),loyaltyNow=Math.round(Number(m.loyalty)||0),aptitudeNow=Number.isFinite(Number(m.aptitude))?Math.round(Number(m.aptitude)):'—';
+                          return <div key={id} className={`grid grid-cols-12 gap-2 min-w-[1050px] items-center border-b p-2 text-xs ${selected?'bg-indigo-50':'bg-white'}`}><span><input type="checkbox" checked={selected} disabled={!selected&&trainingCount>=MINISTER_TRAINING_LIMIT} onChange={e=>toggleMinisterTraining(m,e.target.checked)} /></span><span className="col-span-2"><b>{m.name}</b><small className="block text-stone-500">{getMinisterTypeInfo(m).label}</small></span><span className="col-span-2">{getMinisterJobInfo(m).title}</span><span>{inferMinisterAge(m,gameState)}歲</span><span>文{civilNow}／武{militaryNow}</span><span>忠{loyaltyNow}／資{aptitudeNow}</span><span className="col-span-2">{selected?<><select className="w-full border rounded p-1" value={course} onChange={e=>changeMinisterTrainingCourse(m.id,e.target.value)}>{Object.entries(MINISTER_TRAINING_COURSES).map(([key,item])=><option key={key} value={key}>{item.name}</option>)}</select><small>文+{gains.civil}／武+{gains.military}</small></>:<span className="text-stone-400">未安排</span>}</span><span className="col-span-2">{selected?<b>文{civilNow+gains.civil}／武{militaryNow+gains.military}</b>:<span>文{civilNow}／武{militaryNow}</span>}<small className="block text-amber-800 line-clamp-2">{m.specialId?getMinisterSkillText(m):'一般官員'}</small></span></div>;
+                      })}
+                  </div>
+              </div>}
+
+              {ministerTab==='RECRUIT'&&<div className="bg-amber-50 border border-amber-300 rounded-lg p-4 shadow-sm">
+                  <h3 className="font-bold text-red-950 text-lg mb-2">🎴 吏部招賢・科舉與特殊人才招募</h3>
+                  <div className="rounded bg-white border p-3 mb-3 text-sm"><b>共用保底進度：{Math.max(0,Math.min(99,Number(gameState.recruitPity)||0))}/100</b><div className="h-2 bg-stone-200 rounded mt-2 overflow-hidden"><div className="h-full bg-amber-600" style={{width:`${Math.max(0,Math.min(99,Number(gameState.recruitPity)||0))}%`}}></div></div></div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3"><button onClick={handleSingleRecruit} disabled={gameState.treasury<300} className="px-4 py-4 rounded-lg bg-slate-800 text-white font-bold shadow disabled:opacity-40">科舉單抽<br/><span className="text-xs font-normal">銀-300・不耗體力</span></button><button onClick={()=>gameState.pendingRecruitDraw?setCurrentView('RECRUIT'):beginTenRecruit()} disabled={!gameState.pendingRecruitDraw&&gameState.treasury<3000} className="px-4 py-4 rounded-lg bg-red-900 text-amber-50 font-bold shadow disabled:opacity-40">{gameState.pendingRecruitDraw?'繼續處理十連候選人':'科舉十連'}<br/><span className="text-xs font-normal">{gameState.pendingRecruitDraw?'候選名單尚未結束':'銀-3,000・不耗體力'}</span></button></div>
+                  <p className="text-xs text-slate-600 mt-3">單抽與十連共用傳奇1%、歷史9%、普通90%的招募池及100抽保底。退休後已故的特殊人才會重新加入招募池。</p>
+              </div>}
+            </div>
+            {ministerTab==='OFFICERS'&&!showGameManual&&!showReleaseNotes&&!showAchievements&&!showSystemSettings&&!showLeaderboard&&!showCloudPanel&&!showImportModal&&!imperialEdict&&!bulkAppointmentDraft&&!detailMinister&&<div className="screen-fixed-actions"><div className="max-w-6xl mx-auto flex flex-wrap items-center gap-2"><b className="mr-auto text-sm">已選擇 {selectedMinisters.length} 人</b><button disabled={!selectedMinisters.length} onClick={()=>setSelectedMinistersAutoIdle(true)} className="px-3 py-2 rounded bg-amber-100 border border-amber-400 text-amber-900 font-bold text-xs disabled:opacity-40">鎖定保留空閒</button><button disabled={!selectedMinisters.length} onClick={()=>setSelectedMinistersAutoIdle(false)} className="px-3 py-2 rounded bg-stone-100 border border-stone-400 text-stone-800 font-bold text-xs disabled:opacity-40">解除空閒鎖定</button><button disabled={!selectedMinisters.length} onClick={batchRewardMinisters} className="px-3 py-2 rounded bg-yellow-100 border border-yellow-400 text-yellow-900 font-bold text-xs disabled:opacity-40">批次賞賜</button><button disabled={!selectedMinisters.length} onClick={batchStudyMinisters} className="px-3 py-2 rounded bg-blue-100 border border-blue-400 text-blue-900 font-bold text-xs disabled:opacity-40">批次進修</button><button disabled={!selectedMinisters.length} onClick={batchExpelMinisters} className="px-3 py-2 rounded bg-red-100 border border-red-400 text-red-900 font-bold text-xs disabled:opacity-40">批次逐出</button></div></div>}
+            {detailMinister&&<div className="fixed inset-0 z-[150] bg-black/70 flex items-center justify-center p-4" onClick={()=>setMinisterDetailId(null)}><div className="bg-white rounded-xl border-4 border-slate-700 max-w-md w-full max-h-[85dvh] flex flex-col overflow-hidden" onClick={e=>e.stopPropagation()}><div className="shrink-0 flex items-center justify-between p-4 border-b"><h3 className="font-serif text-xl font-bold">{detailMinister.name}・官員詳情</h3><button onClick={()=>setMinisterDetailId(null)} className="bg-stone-200 rounded px-3 py-1">關閉</button></div><div className="overflow-y-auto p-4 text-sm space-y-3"><div className="grid grid-cols-4 gap-2 text-center"><div className="bg-blue-50 p-2 rounded">文治<b className="block text-lg">{Math.round(Number(detailMinister.civil)||0)}</b></div><div className="bg-red-50 p-2 rounded">武力<b className="block text-lg">{Math.round(Number(detailMinister.military)||0)}</b></div><div className="bg-amber-50 p-2 rounded">忠誠<b className="block text-lg">{Math.round(Number(detailMinister.loyalty)||0)}</b></div><div className="bg-violet-50 p-2 rounded">資質<b className="block text-lg">{Math.round(Number(detailMinister.aptitude)||0)}</b></div></div><p><b>類型：</b>{getMinisterTypeInfo(detailMinister).label}</p><p><b>年齡：</b>{inferMinisterAge(detailMinister,gameState)}歲</p><p><b>官職：</b>{getMinisterJobInfo(detailMinister).title}</p><p><b>進修預期：</b>文治、武力各+1～8，期望+{getMinisterStudyTier(detailMinister).expectedGain.toFixed(1)}</p>{detailMinister.specialId&&<div className="rounded bg-amber-50 border border-amber-200 p-3"><b>專屬能力</b><p className="mt-1">{getMinisterSkillText(detailMinister)}</p></div>}<button onClick={()=>{toggleMinisterSelection(detailMinister.id,!selectedIdSet.has(String(detailMinister.id)));setMinisterDetailId(null);}} className="w-full rounded bg-slate-800 text-white py-2 font-bold">{selectedIdSet.has(String(detailMinister.id))?'取消選取':'加入批次選取'}</button></div></div></div>}
+          </div>
+        );};
+
+        // 文武合併十連與單抽共用同一池與100抽保底，逐抽結算，保底可在十連中途觸發。
+        const beginTenRecruit = () => {
+            if(gameState.pendingRecruitDraw){showMessage('請先完成目前這批十連招募的選人');return;}
+            const silverCost=3000;
+            if(Number(gameState.treasury)<silverCost){showMessage('十連招募需要3,000兩銀子');return;}
+            let pity=Math.max(0,Math.min(99,Number(gameState.recruitPity)||0));
+            const owned=getUnavailableSpecialIds(gameState);
+            const usedInBatch=new Set();
+            const candidates=[];
+            const usedNames=(gameState.ministers||[]).map(m=>m.name);
+            const pm=getOfficialStats(gameState.centralOfficials?.primeMinister);
+            const qualityBonus=Math.min(5,Math.floor((Number(pm.civil)||0)/20));
+
+            for(let i=0;i<10;i++){
+                const draw=drawRecruitCandidate({pity,owned,usedInBatch,usedNames,qualityBonus,idPrefix:'recruit_candidate'});
+                pity=draw.pity;
+                candidates.push(draw.candidate);
+            }
+            setGameState(prev=>{
+                if(prev.pendingRecruitDraw||Number(prev.treasury)<silverCost)return prev;
+                return {...prev,treasury:prev.treasury-silverCost,recruitPity:pity,
+                    pendingRecruitDraw:{type:'unified',createdAt:Date.now(),candidates,selectedIds:[],paid:silverCost}};
+            });
+            setRecruitReveal({source:'tenRecruit',title:'科舉十連・金榜揭曉',results:candidates});
+            addLog(`【吏部招賢】支付3,000兩完成文武綜合十連，十名候選人已封存；共用保底進度${pity}/100。`);
+        };
+        const toggleRecruitCandidate = candidateId => {
+            setGameState(prev=>{
+                const pending=prev.pendingRecruitDraw;if(!pending)return prev;
+                const selected=new Set((pending.selectedIds||[]).map(String));
+                const key=String(candidateId);
+                if(selected.has(key))selected.delete(key);else if(selected.size<10)selected.add(key);
+                return {...prev,pendingRecruitDraw:{...pending,selectedIds:[...selected]}};
+            });
+        };
+        const finishTenRecruit = async (candidateIds = null) => {
+            const pending=gameState.pendingRecruitDraw;
+            if(!pending)return;
+            const requestedIds=Array.isArray(candidateIds)?candidateIds:(pending.selectedIds||[]);
+            const selected=new Set(requestedIds.map(String));
+            if(selected.size>10){showMessage('最多選擇10名人才');return;}
+            if(selected.size===0){
+                if(!await requestGameConfirm('確定不錄取本批任何人？\n已支付的3,000兩不退還，十次抽取仍已計入共用保底。',{title:'放棄本批人才'}))return;
+                setGameState(prev=>prev.pendingRecruitDraw?{...prev,pendingRecruitDraw:null}:prev);
+                addLog('【吏部招賢】本次文武綜合十連未錄取任何人；費用不退，十次抽取已計入共用保底。');
+                showMessage('本批候選人已全部放棄，保底進度保留。','success');
+                return;
+            }
+            const chosen=pending.candidates.filter(c=>selected.has(String(c.id)));
+            const alreadyOwned=getUnavailableSpecialIds(gameState);
+            const actual=chosen.filter(c=>!c.specialId||!alreadyOwned.has(c.specialId));
+            if(!actual.length){showMessage('選擇的人才已不符合招募條件，請重新選擇');return;}
+            const newSpecials=actual.filter(c=>c.specialId).map(c=>c.specialId);
+            setGameState(prev=>{
+                if(!prev.pendingRecruitDraw)return prev;
+                const pendingNow=prev.pendingRecruitDraw;
+                const chosenNow=new Set((Array.isArray(candidateIds)?candidateIds:(pendingNow.selectedIds||[])).map(String));
+                const selectedNow=pendingNow.candidates.filter(c=>chosenNow.has(String(c.id)));
+                const ownedNow=getUnavailableSpecialIds(prev);
+                const recruitNow=selectedNow.filter(c=>!c.specialId||!ownedNow.has(c.specialId));
+                if(!recruitNow.length)return prev;
+                const specialNow=recruitNow.filter(c=>c.specialId).map(c=>c.specialId);
+                const newMinistersNow=recruitNow.map(c=>({...c,aptitude:Math.max(0,Math.min(100,Number(c.aptitude)||0)),
+                    recruitedYear:prev.dynastyYear||prev.year,postHistory:[]}));
+                return {...prev,ministers:[...(prev.ministers||[]),...newMinistersNow],
+                    recruitedSpecialIds:[...new Set([...(prev.recruitedSpecialIds||[]),...specialNow])],
+                    recruitableSpecialIds:(prev.recruitableSpecialIds||[]).filter(id=>!specialNow.includes(id)),pendingRecruitDraw:null};
+            });
+            addLog(`【吏部招賢】皇上從十名綜合候選人中招募${actual.length}人：${actual.map(m=>m.name).join('、')}。`);
+            setExamResult({source:'tenRecruit',title:'本次錄取名單',results:actual});
+        };
+        const RecruitView = () => {
+            const pending=gameState.pendingRecruitDraw;
+            const pity=Math.max(0,Math.min(99,Number(gameState.recruitPity)||0));
+            const owned=getUnavailableSpecialIds(gameState);
+            const availableLegend=SPECIAL_PERSONS_ALL.filter(p=>p.rarity==='legendary'&&!owned.has(p.key)).length;
+            const availableHistorical=SPECIAL_PERSONS_ALL.filter(p=>p.rarity==='historical'&&!owned.has(p.key)).length;
+            const pityName=availableLegend?'傳奇':availableHistorical?'歷史名臣／名將':'特殊人才已全數招募';
+            return <div className="h-full bg-amber-50 flex flex-col overflow-hidden relative"><ResourceBar/><div className="p-4 flex-1 overflow-y-auto">
+                <button onClick={()=>{setMinisterTab('RECRUIT');setCurrentView('MINISTERS');}} className="screen-page-return font-bold mb-4 text-amber-900">← 返回人才招募</button>
+                <h2 className="text-2xl text-center font-serif text-red-950 mb-2">吏部招賢・文武綜合十連</h2>
+                <p className="text-center text-xs text-slate-600 mb-4">單抽與十連不分文武、機率相同，並共用招募池與保底。</p>
+                {pending? <div className="bg-white rounded-xl border border-amber-300 p-3 shadow-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-2 mb-3"><div><h3 className="font-bold text-red-950">文武綜合候選名單</h3><p className="text-xs text-slate-600">十連已付款{Number(pending.paid||3000).toLocaleString()}兩；十名候選人全部展示，請勾選要招募的人才。</p></div><div className="text-sm font-bold text-amber-900">已選 {(pending.selectedIds||[]).length}/10</div></div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {pending.candidates.map((c,index)=>{
+                            const selected=(pending.selectedIds||[]).some(id=>String(id)===String(c.id));
+                            const rarityClass=c.rarity==='legendary'?'border-yellow-500 bg-yellow-50':c.rarity==='historical'?'border-blue-300 bg-blue-50':'border-stone-200 bg-stone-50';
+                            const typeLabel=c.recruitType||(Number(c.civil)>=Number(c.military)?'文官':'武將');
+                            return <button key={c.id} onClick={()=>toggleRecruitCandidate(c.id)} className={`text-left rounded-lg border-2 p-3 ${rarityClass} ${selected?'ring-2 ring-red-700':''}`}>
+                                <div className="flex items-center justify-between gap-2"><div className="font-bold text-base">{index+1}. {c.avatar||'👤'} {c.name}</div><span className="text-[11px] font-bold px-2 py-1 rounded bg-white/80">{c.rarityLabel||'普通人才'}</span></div>
+                                <div className="mt-1 text-[11px] font-bold text-slate-600">{typeLabel}</div>
+                                <div className="grid grid-cols-4 gap-1 text-center mt-2 text-xs"><div className="bg-white/70 rounded p-1">文<br/><b>{c.civil}</b></div><div className="bg-white/70 rounded p-1">武<br/><b>{c.military}</b></div><div className="bg-white/70 rounded p-1">忠誠<br/><b>{c.loyalty}</b></div><div className="bg-white/70 rounded p-1">資質<br/><b>{c.aptitude}</b></div></div>
+                                {c.specialId&&<div className="mt-2 text-xs text-amber-950 bg-amber-100/80 rounded p-2"><b>{c.skillName}</b><br/>{c.skillEffect}<br/><span className="font-bold">觸發：{c.skillTrigger}</span></div>}
+                                <div className="mt-2 text-xs font-bold">{selected?'✓ 已選擇招募':'點擊選擇招募'}</div>
+                            </button>;
+                        })}
+                    </div>
+                    <div className="flex flex-wrap gap-2 mt-4"><button onClick={()=>finishTenRecruit(pending.candidates.map(c=>String(c.id)))} className="px-4 py-2 rounded bg-amber-600 text-white font-bold text-sm">一鍵全部收下（10人）</button><button onClick={()=>setGameState(prev=>({...prev,pendingRecruitDraw:{...prev.pendingRecruitDraw,selectedIds:prev.pendingRecruitDraw.candidates.map(c=>String(c.id))}}))} className="px-3 py-2 rounded bg-amber-100 text-amber-950 border border-amber-300 text-sm">全選10人</button><button onClick={()=>setGameState(prev=>({...prev,pendingRecruitDraw:{...prev.pendingRecruitDraw,selectedIds:[]}}))} className="px-3 py-2 rounded bg-stone-100 text-stone-700 border text-sm">清空選擇</button><button onClick={()=>finishTenRecruit()} className="ml-auto px-5 py-2 rounded bg-red-900 text-white font-bold">{(pending.selectedIds||[]).length===0?'全部放棄・錄取0人':`確認招募 ${(pending.selectedIds||[]).length} 人`}</button></div>
+                </div>:<div className="max-w-xl mx-auto bg-white border border-amber-300 rounded-xl p-4 shadow-sm">
+                    <div className="flex items-center justify-between gap-2"><h3 className="text-lg font-bold text-amber-950">文武合併・綜合招賢池</h3><span className="text-xs bg-amber-100 text-amber-900 px-2 py-1 rounded">3,000兩／十連・不耗體力</span></div>
+                    <p className="text-sm text-slate-600 mt-2">一次抽取10人，文臣、武將與普通人才混合出現。十人全部展示後，可自由選擇招募0至10人；全部放棄不退費，十次抽取仍計入保底。</p>
+                    <div className="grid grid-cols-3 gap-2 mt-4 text-center text-sm"><div className="bg-yellow-50 border border-yellow-200 rounded p-2"><b className="text-yellow-800">{availableLegend}</b><div className="text-xs text-slate-500">可招募傳奇</div></div><div className="bg-blue-50 border border-blue-200 rounded p-2"><b className="text-blue-800">{availableHistorical}</b><div className="text-xs text-slate-500">可招募歷史人才</div></div><div className="bg-stone-50 border rounded p-2"><b>{(gameState.recruitableSpecialIds||[]).length}</b><div className="text-xs text-slate-500">已故可再招募</div></div></div>
+                    <div className="mt-4 h-2 bg-stone-200 rounded-full overflow-hidden"><div className="h-full bg-amber-600" style={{width:`${pity}%`}}/></div>
+                    <div className="text-xs text-slate-600 mt-1">共用保底：{pity}/100 抽（目前保底目標：{pityName}）</div>
+                    <button onClick={beginTenRecruit} disabled={!!pending||gameState.treasury<3000} className="w-full mt-4 py-3 rounded-lg bg-red-900 text-amber-50 font-bold disabled:opacity-40">抽取十名文武人才（銀-3,000・不耗體力）</button>
+                </div>}
+                <div className="max-w-xl mx-auto mt-4 bg-white/80 border border-amber-200 rounded-lg p-3 text-xs text-slate-700 leading-6">單抽與十連機率皆為傳奇1%、歷史9%、普通90%，並共用100抽保底；尚有可招募傳奇時保底傳奇，之後改保底可招募的歷史人才。十連逐抽結算，保底若在中途觸發，剩餘抽數會累積新一輪。特殊人物任職或在世離任期間不重複招募；退休後已故者會重新加入。暫無可招募特殊人物時保底進度不會消失；已抽出但未選擇的人物仍可在未來再次出現。</div>
+            </div></div>;
+        };
+
+        const investigateCorruptionCase = async (caseId,mode) => {
+            const target=(gameState.corruptionCases||[]).find(c=>String(c.id)===String(caseId));
+            if(!target||!['uninvestigated','investigating','evidence'].includes(target.status)){showMessage('本案已結案或不存在');return;}
+            if(Number(target.lastInvestigatedYear)===Number(gameState.dynastyYear||gameState.year)){showMessage('本案本年度已調查過');return;}
+            const cost=mode==='full'?{silver:300,energy:5}:mode==='group'?{silver:200,energy:4}:{silver:100,energy:2};
+            if(gameState.treasury<cost.silver||gameState.energy<val(cost.energy)){showMessage(`調查需要銀${cost.silver}及體力${val(cost.energy)}`);return;}
+            if(!await confirmLowEnergySpend(val(cost.energy),'調查貪腐案件'))return;
+            const currentYear=Number(gameState.dynastyYear||gameState.year);
+            const oldYears=Math.max(0,currentYear-Number(target.dynastyYear||currentYear));
+            const hasDiRenjie=Object.values(gameState.centralOfficials||{}).some(id=>gameState.ministers.some(m=>String(m.id)===String(id)&&m.specialId==='di_renjie'));
+            const hasBaoZheng=Object.values(gameState.centralOfficials||{}).some(id=>gameState.ministers.some(m=>String(m.id)===String(id)&&m.specialId==='bao_zheng'));
+            const decay=Math.floor(oldYears/5)*5*(hasBaoZheng?0.5:1);
+            const base=mode==='full'?70:mode==='group'?60:45;
+            const chance=Math.max(mode==='full'?45:10,Math.min(95,base-decay+(hasDiRenjie?10:0)));
+            const investigationRoll=Math.random()*100;
+            setGameState(prev=>{
+                const cases=[...(prev.corruptionCases||[])];
+                const index=cases.findIndex(c=>String(c.id)===String(caseId));
+                if(index<0)return prev;
+                const c=cases[index];
+                if(!['uninvestigated','investigating','evidence'].includes(c.status)||Number(c.lastInvestigatedYear)===currentYear)return prev;
+                const success=investigationRoll<chance;
+                let updated={...c,lastInvestigatedYear:currentYear,investigationCount:(Number(c.investigationCount)||0)+1,
+                    investigationHistory:[...(c.investigationHistory||[]),{year:currentYear,mode,chance,success,investigatorSkill:hasDiRenjie?'狄仁傑神斷':''}]};
+                if(c.isFalseAccusation){
+                    if(success){updated={...updated,status:'evidence',falseAccusationExposed:true,evidenceLevel:'strong',evidenceScore:2,
+                        evidenceText:'查明密奏內容不實，未發現被告貪污事證。'};}
+                    else updated={...updated,status:'investigating',evidenceText:'尚未查明密奏真偽，仍需更多線索。'};
+                }else if(success){
+                    const gained=mode==='full'?2:1;
+                    const score=(Number(c.evidenceScore)||0)+gained;
+                    updated={...updated,evidenceScore:score,evidenceLevel:score>=2?'strong':'weak',
+                        status:score>=2?'evidence':'investigating',evidenceText:score>=2?'已取得可供正式裁決的確切罪證。':'取得部分帳冊或證人線索，尚不足以定罪。'};
+                }else updated={...updated,status:'investigating',evidenceText:'本次未取得足以確認案情的新證據。'};
+                cases[index]=updated;
+                let groups=[...(prev.corruptionGroups||[])];
+                if(success&&c.groupId){groups=groups.map(g=>String(g.id)===String(c.groupId)?{...g,revealed:true,revealedMembers:[...(g.members||[])],status:'revealed'}:g);}
+                return {...prev,treasury:prev.treasury-cost.silver,energy:prev.energy-val(cost.energy),corruptionCases:cases,corruptionGroups:groups};
+            });
+            addLog(`【軍機密查】對${target.officialName}進行${mode==='full'?'徹查':mode==='group'?'同黨追查':'簡查'}，預估成功率${Math.round(chance)}%。`);
+        };
+        const investigateCorruptionGroup = async groupId => {
+            const group=(gameState.corruptionGroups||[]).find(g=>String(g.id)===String(groupId));
+            if(!group||group.revealed){showMessage('此集團已揭露或不存在');return;}
+            if(Number(group.lastInvestigatedYear)===Number(gameState.dynastyYear||gameState.year)){showMessage('本集團本年度已追查過');return;}
+            if(gameState.treasury<200||gameState.energy<val(4)){showMessage('追查同黨需要銀200及4體力');return;}
+            if(!await confirmLowEnergySpend(val(4),'追查貪腐集團'))return;
+            const hasDiRenjie=Object.values(gameState.centralOfficials||{}).some(id=>gameState.ministers.some(m=>String(m.id)===String(id)&&m.specialId==='di_renjie'));
+            const chance=Math.min(95,60+(hasDiRenjie?10:0));
+            const success=Math.random()*100<chance;
+            setGameState(prev=>{
+                const latest=(prev.corruptionGroups||[]).find(g=>String(g.id)===String(groupId));
+                if(!latest||latest.revealed||Number(latest.lastInvestigatedYear)===Number(prev.dynastyYear||prev.year))return prev;
+                return {...prev,treasury:prev.treasury-200,energy:prev.energy-val(4),
+                    corruptionGroups:(prev.corruptionGroups||[]).map(g=>String(g.id)===String(groupId)?{...g,revealed:success,
+                        revealedMembers:success?[...(g.members||[])]:g.revealedMembers||[],status:success?'revealed':'suspected',
+                        lastInvestigatedYear:Number(prev.dynastyYear||prev.year)}:g)};
+            });
+            addLog(`【軍機處】追查貪腐集團${success?'成功，已取得同黨名單':'未能取得完整同黨名單'}。`);
+            showMessage(success?'已揭露集團成員；各成員仍須分別調查及裁決。':'追查失敗，未取得可靠同黨名單。',success?'success':'error');
+        };
+        const removeCorruptOfficial = (state,officialId,reason) => {
+            const person=(state.ministers||[]).find(m=>String(m.id)===String(officialId));
+            if(!person)return state;
+            const archive={...person,reason:'corruption',departureLabel:reason||'貪腐革職',retiredAtYear:state.year,
+                retiredAtDynastyYear:state.dynastyYear,eraName:state.eraName,emperorName:state.playerName,
+                vacatedPosts:getMinisterPostLabels(state,person.id),postHistory:[...(person.postHistory||[])]};
+            return sanitizeAppointments({...state,ministers:state.ministers.filter(m=>String(m.id)!==String(officialId)),
+                retiredMinisters:[...(state.retiredMinisters||[]),archive]});
+        };
+        const resolveCorruptionCase = (caseId,action) => {
+            const target=(gameState.corruptionCases||[]).find(c=>String(c.id)===String(caseId));
+            if(!target){showMessage('找不到案件');return;}
+            const currentYear=Number(gameState.dynastyYear||gameState.year);
+            if(action==='recover'){
+                if(target.status!=='convicted'||target.trueOffense!==true){showMessage('只有取得確切罪證並正式定罪的案件可以追贓');return;}
+                setGameState(prev=>{
+                    const current=(prev.corruptionCases||[]).find(c=>String(c.id)===String(caseId));
+                    if(!current||current.status!=='convicted'||current.trueOffense!==true)return prev;
+                    const remaining=Math.max(0,(Number(current.amount)||0)-(Number(current.recoveredAmount)||0));
+                    if(remaining<=0)return prev;
+                    const record=prev.corruptionRecords?.[String(current.officialId)]||{};
+                    return {...prev,treasury:prev.treasury+remaining,
+                        corruptionCases:(prev.corruptionCases||[]).map(c=>String(c.id)===String(caseId)?{...c,recoveredAmount:(Number(c.recoveredAmount)||0)+remaining,
+                            recoveryHistory:[...(c.recoveryHistory||[]),{year:currentYear,amount:remaining}]}:c),
+                        corruptionRecords:{...(prev.corruptionRecords||{}),[String(current.officialId)]:{...record,
+                            totalRecovered:(Number(record.totalRecovered)||0)+remaining}}};
+                });
+                addLog(`【追贓入庫】執行${target.officialName}案件追贓；系統只追回尚未入庫的剩餘金額，不會重複入庫。`);
+                showMessage('已執行追贓；系統只追回尚未入庫的剩餘金額。','success');return;
+            }
+            if(action==='lenient'){
+                setGameState(prev=>({...prev,corruptionCases:(prev.corruptionCases||[]).map(c=>String(c.id)===String(caseId)?{...c,status:'lenient',verdict:'從寬發落',closedYear:currentYear}:c)}));
+                addLog(`【御前裁決】${target.officialName}一案從寬發落；官員留任，貪腐率不降低。`);
+                showMessage('從寬發落：官員留任，貪腐率不變。','success');return;
+            }
+            if(action==='clear'){
+                setGameState(prev=>{
+                    const latest=(prev.corruptionCases||[]).find(c=>String(c.id)===String(caseId));
+                    if(!latest||!['uninvestigated','investigating','evidence'].includes(latest.status))return prev;
+                    let next={...prev,corruptionCases:(prev.corruptionCases||[]).map(c=>String(c.id)===String(caseId)?{...c,status:'cleared',verdict:'昭雪／證據不足',closedYear:currentYear}:c)};
+                    if(target.isFalseAccusation&&target.accuserId!=null){
+                        next.ministers=(next.ministers||[]).map(m=>String(m.id)===String(target.accuserId)?{...m,loyalty:Math.max(0,(Number(m.loyalty)||0)-10)}:m);
+                    }
+                    if(target.isFalseAccusation)next.stability=(Number(next.stability)||0)+3;
+                    return next;
+                });
+                addLog(`【御前裁決】${target.officialName}一案${target.isFalseAccusation?'查明為誣告，已予昭雪。':'證據不足，暫不定罪。'}`);
+                showMessage(target.isFalseAccusation?'昭雪完成，誣告者已處理，本案已結案。':'本案已結案。','success');return;
+            }
+            if(action==='force'||action==='punish_keep'||action==='punish_dismiss'){
+                if(target.falseAccusationExposed){showMessage('已查明屬於誣告，應先昭雪，不可再對被告判刑。');return;}
+                const strong=target.evidenceLevel==='strong'&&!target.falseAccusationExposed;
+                if((action==='punish_keep'||action==='punish_dismiss')&&!strong){showMessage('正式處罰必須有確切罪證；證據不足請選擇強行判刑並承擔冤案風險。');return;}
+                let wrongful=false;
+                if(action==='force'&&!strong){wrongful=Math.random()<(target.isFalseAccusation?0.85:0.35);}
+                const proven=strong&&!target.isFalseAccusation;
+                setGameState(prev=>{
+                    const latest=(prev.corruptionCases||[]).find(c=>String(c.id)===String(caseId));
+                    if(!latest||!['uninvestigated','investigating','evidence'].includes(latest.status))return prev;
+                    let next={...prev};
+                    let reduction=0;
+                    if(proven){
+                        const scale=getEffectiveCorruptionScale(target);
+                        const requested=getCorruptionScaleReduction(scale);
+                        const usedYear=Number(prev.corruptionReductionYear)===currentYear?Number(prev.corruptionReductionThisYear)||0:0;
+                        const currentRate=normalizeCorruptionRate(prev.corruptionRate);
+                        const reducible=Math.max(0,currentRate-MIN_CORRUPTION_RATE);
+                        reduction=Math.min(requested,Math.max(0,0.03-usedYear),reducible);
+                        next.corruptionRate=normalizeCorruptionRate(currentRate-reduction);
+                        next.corruptionReductionYear=currentYear;
+                        next.corruptionReductionThisYear=usedYear+reduction;
+                        const record=prev.corruptionRecords?.[String(target.officialId)]||{};
+                        next.corruptionRecords={...(prev.corruptionRecords||{}),[String(target.officialId)]:{...record,
+                            discoveredCount:(Number(record.discoveredCount)||0)+1,lastDiscoveredYear:currentYear}};
+                    }
+                    const verdict=wrongful?'冤案：證據不足仍強行判刑':action==='force'?'強行判刑（未降低貪腐率）':action==='punish_keep'?'正式處罰、留任':'正式處罰、革職';
+                    next.corruptionCases=(prev.corruptionCases||[]).map(c=>String(c.id)===String(caseId)?{...c,
+                        status:wrongful?'wrongful':proven?'convicted':'convicted_no_rate',verdict,closedYear:currentYear,
+                        rateReductionApplied:reduction,wrongfulConviction:wrongful}:c);
+                    if(wrongful){next.stability=Math.max(0,(Number(next.stability)||0)-10);}
+                    if(action==='punish_dismiss'||(action==='force'&&!wrongful)||wrongful){
+                        next=removeCorruptOfficial(next,target.officialId,wrongful?'冤案革職':'貪腐定罪革職');
+                    }
+                    return next;
+                });
+                if(wrongful){addLog(`【御前冤案】皇帝強行判處${target.officialName}，後證明罪證不足，民心受損10點；貪腐率不降低。`);showMessage('強行判刑造成冤案，貪腐率沒有降低。','error');}
+                else if(proven){addLog(`【正式處罰】${target.officialName}罪證確鑿，貪腐率依${getCorruptionScaleName(getEffectiveCorruptionScale(target))}規則降低，年度最多3個百分點。`);showMessage('已正式處罰；貪腐率按案件規模降低（受年度3%上限限制）。','success');}
+                else{addLog(`【御前裁決】${target.officialName}遭強行判刑，但無確切罪證，貪腐率不降低。`);showMessage('已強行判刑，但無確切罪證，貪腐率不降低。','error');}
+            }
+        };
+        const CorruptionView = () => {
+            const cases=(gameState.corruptionCases||[]).slice().sort((a,b)=>Number(b.dynastyYear||0)-Number(a.dynastyYear||0));
+            const openCases=cases.filter(c=>['uninvestigated','investigating','evidence'].includes(c.status));
+            const selected=cases.find(c=>String(c.id)===String(selectedCorruptionCaseId))||openCases[0]||cases[0]||null;
+            const selectedCurrentMinister=selected?(gameState.ministers||[]).find(m=>String(m.id)===String(selected.officialId)):null;
+            const selectedArchivedMinister=selected?(gameState.retiredMinisters||[]).find(m=>String(m.id)===String(selected.officialId)):null;
+            const selectedOfficialSnapshot=selected?.officialSnapshot||selectedCurrentMinister||selectedArchivedMinister||null;
+            const selectedPostLabels=(selected?.postLabels&&selected.postLabels.length)?selected.postLabels:
+                (selectedOfficialSnapshot?.postLabels||selectedOfficialSnapshot?.vacatedPosts||[]);
+            const activeRate=normalizeCorruptionRate(gameState.corruptionRate);
+            const used=Number(gameState.corruptionReductionYear)===Number(gameState.dynastyYear||gameState.year)?Number(gameState.corruptionReductionThisYear)||0:0;
+            const totalStolen=Object.values(gameState.corruptionRecords||{}).reduce((n,r)=>n+(Number(r.totalStolen)||0),0);
+            const totalRecovered=Object.values(gameState.corruptionRecords||{}).reduce((n,r)=>n+(Number(r.totalRecovered)||0),0);
+            const groups=gameState.corruptionGroups||[];
+            const personExists=selected&&(gameState.ministers||[]).some(m=>String(m.id)===String(selected.officialId));
+            const selectedGroup=selected?.groupId?groups.find(g=>String(g.id)===String(selected.groupId)):null;
+            const hasDiRenjie=Object.values(gameState.centralOfficials||{}).some(id=>gameState.ministers.some(m=>String(m.id)===String(id)&&m.specialId==='di_renjie'));
+            const oldYears=selected?Math.max(0,Number(gameState.dynastyYear||gameState.year)-Number(selected.dynastyYear||gameState.dynastyYear||gameState.year)):0;
+            const hasBaoZheng=Object.values(gameState.centralOfficials||{}).some(id=>gameState.ministers.some(m=>String(m.id)===String(id)&&m.specialId==='bao_zheng'));
+            const decay=Math.floor(oldYears/5)*5*(hasBaoZheng?0.5:1);
+            const simpleChance=Math.max(10,Math.min(95,45-decay+(hasDiRenjie?10:0)));
+            const fullChance=Math.max(45,Math.min(95,70-decay+(hasDiRenjie?10:0)));
+            const canDecide=selected&&['evidence','investigating','uninvestigated'].includes(selected.status);
+            return <div className="h-full bg-stone-100 flex flex-col overflow-hidden relative"><ResourceBar/><div className="p-4 flex-1 overflow-y-auto">
+                <button onClick={()=>setCurrentView('THRONE')} className="screen-page-return font-bold mb-4 text-stone-800">← 返回朝堂</button>
+                <h2 className="text-2xl text-center font-serif text-red-950 mb-2">軍機處・密查貪官</h2>
+                <p className="text-xs text-center text-slate-600 mb-4">年度貪腐漏損已由國家貪腐率統一扣除；案件贓款只是該筆損耗的分帳，追贓不會重複扣款。</p>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
+                    <div className="bg-white border rounded-lg p-3"><div className="text-xs text-slate-500">國家貪腐率</div><div className="text-2xl font-bold text-red-800">{formatCorruptionPercentage(activeRate)}</div><div className="text-[10px] text-slate-500 mt-1">歲入損耗比例／年度案件機率（5%～30%）</div></div>
+                    <div className="bg-white border rounded-lg p-3"><div className="text-xs text-slate-500">本年查貪降低</div><div className="text-2xl font-bold text-emerald-700">{(used*100).toFixed(1)} / 3%</div></div>
+                    <div className="bg-white border rounded-lg p-3"><div className="text-xs text-slate-500">個別案件贓款</div><div className="text-xl font-bold">{totalStolen.toLocaleString()}兩</div></div>
+                    <div className="bg-white border rounded-lg p-3"><div className="text-xs text-slate-500">已追回贓款</div><div className="text-xl font-bold text-emerald-700">{totalRecovered.toLocaleString()}兩</div></div>
+                </div>
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                    <div className="lg:col-span-1 bg-white border rounded-lg p-3">
+                        <div className="flex justify-between items-center mb-2"><h3 className="font-bold text-red-950">密奏與案件</h3><span className="text-xs text-slate-500">待查 {openCases.length} 件</span></div>
+                        <div className="space-y-2 max-h-[55vh] overflow-y-auto">
+                            {cases.length===0&&<div className="text-sm text-slate-500 p-3">目前尚無貪官案件。年度結算時，任職官員可能發生貪污或收到誣告密奏。</div>}
+                            {cases.map(c=><button key={c.id} onClick={()=>setSelectedCorruptionCaseId(c.id)} className={`w-full text-left rounded border p-2 ${String(selected?.id)===String(c.id)?'border-red-700 bg-red-50':'border-stone-200 bg-stone-50'}`}>
+                                <div className="flex justify-between gap-2"><b>{c.officialName}</b><span className="text-[11px] text-slate-500">{getCorruptionScaleName(getEffectiveCorruptionScale(c))}</span></div>
+                                <div className="text-xs text-slate-600">{c.isFalseAccusation?'匿名密奏／待查':'個別貪污'}｜{c.dynastyYear}年｜涉案 {Number(c.amount||0).toLocaleString()}兩</div>
+                                <div className="text-[10px] text-slate-500 mt-1">職位：{(c.postLabels||[]).join('、')||'職務資料未保存'}</div>
+                                <div className="text-[11px] text-red-800 mt-1">{c.status==='uninvestigated'?'尚未調查':c.status==='investigating'?'調查中':c.status==='evidence'?'已有線索／證據':c.status==='lenient'?'從寬結案':c.status==='convicted'?'正式定罪':c.status==='convicted_no_rate'?'強行判刑（未減率）':c.status==='wrongful'?'冤案':c.status==='cleared'?'昭雪／結案':c.status}</div>
+                            </button>)}
+                        </div>
+                    </div>
+                    <div className="lg:col-span-2 space-y-3">
+                        {selected?<div className="bg-white border rounded-lg p-4">
+                            <div className="flex flex-wrap justify-between gap-2"><div><h3 className="text-xl font-bold text-red-950">{selected.officialName}・貪腐案</h3><p className="text-xs text-slate-500">{(selected.postLabels||[]).join('、')||'歷史官員／職務已解除'}｜發生於第{selected.dynastyYear}年</p></div><span className="text-xs rounded bg-amber-100 text-amber-900 px-2 py-1 h-fit">{getCorruptionScaleName(getEffectiveCorruptionScale(selected))}</span></div>
+                            <div className="mt-3 rounded-lg border border-blue-200 bg-blue-50/70 p-3">
+                                <div className="font-bold text-blue-950 mb-2">涉案官員資料（犯案時快照）</div>
+                                <div className="text-xs text-blue-900 mb-2">犯案時職位：{selectedPostLabels.join('、')||'職務資料未保存'}</div>
+                                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-sm">
+                                    <div className="bg-white rounded p-2">文治<br/><b>{selectedOfficialSnapshot?.civil??'未保存'}</b></div>
+                                    <div className="bg-white rounded p-2">武力<br/><b>{selectedOfficialSnapshot?.military??'未保存'}</b></div>
+                                    <div className="bg-white rounded p-2">忠誠<br/><b>{selectedOfficialSnapshot?.loyalty??'未保存'}</b></div>
+                                    <div className="bg-white rounded p-2">資質<br/><b>{selectedOfficialSnapshot?.aptitude??'未保存'}</b></div>
+                                    <div className="bg-white rounded p-2">年齡<br/><b>{selectedOfficialSnapshot?.ageAtOffense??selectedOfficialSnapshot?.age??'未保存'}{(selectedOfficialSnapshot?.ageAtOffense??selectedOfficialSnapshot?.age)!=null?'歲':''}</b></div>
+                                </div>
+                                {selected?.offenseHistory?.length>1&&<div className="text-[10px] text-blue-800 mt-2">本案已保存{selected.offenseHistory.length}次犯案快照；上方顯示最近一次犯案時資料。</div>}
+                            </div>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-3 text-sm"><div className="bg-stone-50 rounded p-2">涉案金額<br/><b>{Number(selected.amount||0).toLocaleString()}兩</b></div><div className="bg-stone-50 rounded p-2">已追回<br/><b>{Number(selected.recoveredAmount||0).toLocaleString()}兩</b></div><div className="bg-stone-50 rounded p-2">剩餘贓款<br/><b>{Math.max(0,Number(selected.amount||0)-Number(selected.recoveredAmount||0)).toLocaleString()}兩</b></div><div className="bg-stone-50 rounded p-2">累犯次數<br/><b>{Number(selected.repeatOffenseCount||0)}</b></div></div>
+                            <div className="mt-3 rounded bg-amber-50 border border-amber-200 p-3 text-sm"><b>調查結果：</b>{selected.evidenceText||'尚無確切罪證。密奏與嫌疑不等於定罪。'}<div className="text-xs text-slate-600 mt-1">證據等級：{selected.falseAccusationExposed?'已證明誣告':selected.evidenceLevel==='strong'?'確切罪證':selected.evidenceLevel==='weak'?'部分線索':'尚無證據'}</div></div>
+                            {selectedGroup&&<div className="mt-3 rounded border border-indigo-200 bg-indigo-50 p-3 text-sm"><b>疑似貪腐集團：</b>{selectedGroup.members.length}人／每組上限3人。{selectedGroup.revealed?<div className="mt-1">已揭露成員：{selectedGroup.memberNames.join('、')}；每人仍須分別查證與裁決。</div>:<div className="mt-1">成員名單尚未揭露。</div>}<button onClick={()=>investigateCorruptionGroup(selectedGroup.id)} disabled={selectedGroup.revealed} className="mt-2 px-3 py-2 rounded bg-indigo-800 text-white text-xs disabled:opacity-40">追查同黨（銀-200、體-4）</button></div>}
+                            <div className="flex flex-wrap gap-2 mt-4">
+                                {['uninvestigated','investigating','evidence'].includes(selected.status)&&!selected.falseAccusationExposed&&<><button onClick={()=>investigateCorruptionCase(selected.id,'simple')} className="px-3 py-2 rounded bg-slate-700 text-white text-sm">簡查（銀-100、體-2）成功率約{simpleChance}%</button><button onClick={()=>investigateCorruptionCase(selected.id,'full')} className="px-3 py-2 rounded bg-red-900 text-white text-sm">徹查（銀-300、體-5）成功率約{fullChance}%</button><button onClick={()=>resolveCorruptionCase(selected.id,'lenient')} className="px-3 py-2 rounded bg-stone-200 text-stone-800 text-sm">從寬發落</button><button onClick={()=>resolveCorruptionCase(selected.id,'force')} className="px-3 py-2 rounded bg-orange-700 text-white text-sm">證據不足仍強行判刑</button></>}
+                                {selected.falseAccusationExposed&&['uninvestigated','investigating','evidence'].includes(selected.status)&&<button onClick={()=>resolveCorruptionCase(selected.id,'clear')} className="px-3 py-2 rounded bg-emerald-700 text-white text-sm">昭雪並處理誣告</button>}
+                                {selected.evidenceLevel==='strong'&&!selected.falseAccusationExposed&&selected.status==='evidence'&&<><button onClick={()=>resolveCorruptionCase(selected.id,'punish_keep')} className="px-3 py-2 rounded bg-amber-700 text-white text-sm">正式處罰・留任</button><button onClick={()=>resolveCorruptionCase(selected.id,'punish_dismiss')} className="px-3 py-2 rounded bg-red-800 text-white text-sm">正式處罰・革職</button></>}
+                                {selected.status==='convicted'&&selected.trueOffense&&Number(selected.amount)>Number(selected.recoveredAmount||0)&&<button onClick={()=>resolveCorruptionCase(selected.id,'recover')} className="px-3 py-2 rounded bg-emerald-800 text-white text-sm">追繳剩餘贓款（銀+{Math.max(0,Number(selected.amount)-Number(selected.recoveredAmount||0))}）</button>}
+                            </div>
+                            <div className="mt-3 text-xs text-slate-500">本年度查貪降低貪腐率上限3個百分點。小案0.5%、中案1%、大案2%；從寬不降低，無確切罪證的強行判刑也不降低。累犯正式處罰時案件規模依累犯次數上調一至兩級（最高大案），強行判刑可能造成冤案。</div>
+                        </div>:<div className="bg-white border rounded-lg p-6 text-center text-slate-500">尚無可查看案件。</div>}
+                        <div className="bg-white border rounded-lg p-3"><h3 className="font-bold mb-2">貪腐集團紀錄</h3>{groups.length===0?<p className="text-xs text-slate-500">尚未發現貪腐集團。</p>:<div className="space-y-2">{groups.map(g=><div key={g.id} className="border rounded p-2 text-sm"><div className="flex justify-between"><b>集團 {String(g.id).slice(-6)}</b><span className="text-xs text-slate-500">{g.members.length}/3人</span></div><div className="text-xs text-slate-600">{g.revealed?g.memberNames.join('、'):'成員名單尚未揭露'}</div></div>)}</div>}</div>
+                    </div>
+                </div>
+            </div></div>;
+        };
+
+        const RoyalTreasuryView = () => {
+            const state=normalizeInventoryState(gameState),inventory=state.inventory||{};
+            const pending=(state.pendingItemRewards||[])[0]||null;
+            const selectedItem=IMPERIAL_ITEM_MAP[selectedUseItemId];
+            const visibleItems=IMPERIAL_ITEMS.filter(item=>Number(inventory[item.id])>0&&
+                (inventoryFilter==='全部'||item.category===inventoryFilter))
+                .sort((a,b)=>ITEM_RARITIES[a.rarity].order-ITEM_RARITIES[b.rarity].order||
+                    IMPERIAL_ITEMS.indexOf(a)-IMPERIAL_ITEMS.indexOf(b));
+            const rarityClass=item=>item.rarity==='legendary'?'border-amber-500 bg-amber-50':
+                item.rarity==='rare'?'border-violet-300 bg-violet-50':'border-stone-200 bg-white';
+            const targetValue=(target,item)=>Number(target?.[item.stat])||0;
+            const targetCap=(item,kind,person)=>['health','loyalty','affection'].includes(item.stat)?100:
+                kind==='royal'||person?.royalChildId!=null?ROYAL_ABILITY_CAP:null;
+            const applyItemToTarget=async (item,kind,id,label)=>{
+                const selectedPerson=kind==='minister'?(gameState.ministers||[]).find(person=>String(person.id)===String(id)):null;
+                const cap=targetCap(item,kind,selectedPerson);
+                if(!await requestGameConfirm(`確定對「${label}」使用${item.name}？\n效果：${item.effect}\n消耗：1件`,{title:'使用皇家寶物',danger:false}))return;
+                setGameState(previous=>{
+                    let next=normalizeInventoryState(previous);
+                    if((Number(next.inventory?.[item.id])||0)<1)return next;
+                    const improve=person=>{
+                        const current=Number(person[item.stat])||0;
+                        const value=cap==null?current+item.amount:Math.min(cap,current+item.amount);
+                        return {...person,[item.stat]:value};
+                    };
+                    if(kind==='emperor')next=improve(next);
+                    if(kind==='consort')next={...next,consorts:(next.consorts||[]).map(person=>String(person.id)===String(id)?improve(person):person)};
+                    if(kind==='minister'){
+                        const minister=(next.ministers||[]).find(person=>String(person.id)===String(id));
+                        next={...next,ministers:(next.ministers||[]).map(person=>String(person.id)===String(id)?improve(person):person)};
+                        if(minister?.royalChildId!=null)next={...next,childrenList:(next.childrenList||[]).map(child=>String(child.id)===String(minister.royalChildId)?improve(child):child)};
+                    }
+                    if(kind==='royal'){
+                        const child=(next.childrenList||[]).find(person=>String(person.id)===String(id));
+                        next={...next,childrenList:(next.childrenList||[]).map(person=>String(person.id)===String(id)?improve(person):person),
+                            ministers:(next.ministers||[]).map(person=>String(person.royalChildId)===String(id)?improve(person):person)};
+                        if(child?.royalId)next={...next,royalFamily:(next.royalFamily||[]).map(person=>String(person.id)===String(child.royalId)?improve(person):person)};
+                    }
+                    const quantity=(Number(next.inventory[item.id])||0)-1,bag={...next.inventory};
+                    if(quantity>0)bag[item.id]=quantity;else delete bag[item.id];
+                    return appendStateLog({...next,inventory:bag},`【皇家寶庫】對${label}使用${item.name}，${item.effect}。`);
+                });
+                setSelectedUseItemId(null);
+            };
+            const discardItem=async item=>{
+                const owned=Number(inventory[item.id])||0;
+                const raw=await requestGamePrompt(`要丟棄多少件「${item.name}」？（1～${owned}）`,'1',{title:'輸入丟棄數量',maxLength:6});
+                if(raw===null)return;const quantity=Math.floor(Number(raw));
+                if(!Number.isFinite(quantity)||quantity<1||quantity>owned){showMessage('丟棄數量不正確','error');return;}
+                if(!await requestGameConfirm(`確定永久丟棄${item.name}×${quantity}？此操作不可復原。`,{title:'永久丟棄物品'}))return;
+                if(item.rarity==='legendary'&&!await requestGameConfirm(`「${item.name}」是稀世物品。再次確認仍要丟棄？`,{title:'再次確認稀世物品'}))return;
+                setGameState(previous=>{const bag={...(previous.inventory||{})},left=(Number(bag[item.id])||0)-quantity;if(left>0)bag[item.id]=left;else delete bag[item.id];
+                    return appendStateLog({...previous,inventory:bag},`【皇家寶庫】永久丟棄${item.name}×${quantity}。`);});
+                if(selectedUseItemId===item.id)setSelectedUseItemId(null);
+            };
+            const buyCard=async card=>{
+                const item=IMPERIAL_ITEM_MAP[card.itemId];if(!item||card.sold)return;
+                if(gameState.treasury<item.price){showMessage(`國庫不足，需要${item.price}兩`,'error');return;}
+                if(!await requestGameConfirm(`購買${item.name}×1，支付${item.price.toLocaleString()}兩？`,{title:'皇家商店購買',danger:false}))return;
+                setGameState(previous=>{
+                    let next={...previous,treasury:previous.treasury-item.price,imperialShopStock:(previous.imperialShopStock||[]).map(entry=>entry.id===card.id?{...entry,sold:true}:entry)};
+                    return grantInventoryItem(next,item.id,'皇家商店購買',item.price);
+                });
+            };
+            const acceptPending=()=>setGameState(previous=>{
+                const reward=(previous.pendingItemRewards||[])[0];if(!reward)return previous;
+                if(!previous.inventory?.[reward.itemId]&&inventoryUsedSlots(previous.inventory)>=INVENTORY_CAPACITY)return previous;
+                const next={...previous,pendingItemRewards:(previous.pendingItemRewards||[]).slice(1)};
+                return grantInventoryItem(next,reward.itemId,reward.source,0);
+            });
+            const abandonPending=async ()=>{
+                if(!pending||!await requestGameConfirm(`放棄${IMPERIAL_ITEM_MAP[pending.itemId]?.name||'待領物品'}？放棄後不會重新抽取。`,{title:'放棄待領物品'}))return;
+                setGameState(previous=>{const reward=(previous.pendingItemRewards||[])[0];if(!reward)return previous;
+                    return appendStateLog({...previous,treasury:previous.treasury+(Number(reward.refundSilver)||0),pendingItemRewards:(previous.pendingItemRewards||[]).slice(1)},
+                        `【皇家寶庫】放棄待領${IMPERIAL_ITEM_MAP[reward.itemId]?.name||'物品'}。${reward.refundSilver?`退還交易銀兩${reward.refundSilver}。`:''}`);});
+            };
+            const targetRows=[];
+            if(selectedItem){
+                if(selectedItem.target==='emperor')targetRows.push({kind:'emperor',id:'emperor',label:`皇帝 ${gameState.playerName}`,person:gameState});
+                if(['minister','minister_or_royal'].includes(selectedItem.target))(gameState.ministers||[]).forEach(person=>targetRows.push({kind:'minister',id:person.id,label:`官員 ${person.name}`,person}));
+                if(['royal','minister_or_royal'].includes(selectedItem.target))(gameState.childrenList||[]).filter(person=>person.alive!==false&&!person.expelled).forEach(person=>targetRows.push({kind:'royal',id:person.id,label:`${person.gender==='female'?'公主':'皇子'} ${person.name}`,person}));
+                if(selectedItem.target==='consort')(gameState.consorts||[]).forEach(person=>targetRows.push({kind:'consort',id:person.id,label:`${person.rank||''} ${person.name}${person.inColdPalace?'（冷宮）':''}`,person}));
+            }
+            const targetIdentity=target=>target.kind==='emperor'?'現任皇帝':target.kind==='minister'?'在朝官員':target.kind==='consort'?(target.person.inColdPalace?'冷宮妃嬪':target.person.rank||'妃嬪'):(target.person.gender==='female'?'公主':'皇子');
+            const targetAge=target=>target.kind==='emperor'?gameState.age:target.kind==='minister'?inferMinisterAge(target.person,gameState):target.person.age;
+            const targetSecondaryValue=target=>target.kind==='emperor'?`健康 ${Math.round(Number(gameState.health)||0)}`:target.kind==='consort'?`好感 ${Math.round(Number(target.person.affection)||0)}`:target.kind==='minister'?`忠誠 ${Math.round(Number(target.person.loyalty)||0)}`:`資質 ${Math.round(Number(target.person.aptitude)||0)}`;
+            return <div className="h-full flex flex-col bg-stone-50 overflow-hidden"><div className="screen-modal-header shrink-0 bg-white border-b p-4 flex justify-between items-center"><div><h2 className="text-2xl font-serif font-bold text-amber-950">🎒 皇家寶庫</h2><p className="text-xs text-stone-500">背包與皇家商店</p></div><button onClick={()=>setCurrentView('THRONE')} className="bg-stone-700 text-white rounded px-4 py-2">返回</button></div>
+                <div className="shrink-0 p-3 border-b bg-white flex gap-2"><button onClick={()=>setTreasuryTab('BAG')} className={`flex-1 rounded p-2 font-bold ${treasuryTab==='BAG'?'bg-amber-700 text-white':'bg-stone-100'}`}>背包（{inventoryUsedSlots(inventory)}/{INVENTORY_CAPACITY}格）</button><button onClick={()=>setTreasuryTab('SHOP')} className={`flex-1 rounded p-2 font-bold ${treasuryTab==='SHOP'?'bg-amber-700 text-white':'bg-stone-100'}`}>皇家商店・{state.imperialShopYear}年</button></div>
+                <div className="flex-1 overflow-y-auto p-3 space-y-3">{pending&&<div className="border-2 border-red-500 bg-red-50 rounded p-3"><b>背包已滿・待領獎勵</b><p>{IMPERIAL_ITEM_MAP[pending.itemId]?.name}×{pending.quantity}（{pending.source}）</p><div className="flex gap-2 mt-2"><button onClick={acceptPending} disabled={!inventory[pending.itemId]&&inventoryUsedSlots(inventory)>=INVENTORY_CAPACITY} className="bg-emerald-700 text-white rounded px-3 py-2 disabled:opacity-40">領取原物品</button><button onClick={abandonPending} className="bg-red-800 text-white rounded px-3 py-2">放棄{pending.refundSilver?`並退還${pending.refundSilver}兩`:''}</button></div></div>}
+                {treasuryTab==='BAG'?<><div className="flex flex-wrap gap-2">{['全部','健康藥品','賞賜物品','文武培養','特殊物品'].map(category=><button key={category} onClick={()=>setInventoryFilter(category)} className={`rounded px-3 py-1 text-sm ${inventoryFilter===category?'bg-amber-700 text-white':'bg-white border'}`}>{category}</button>)}</div>
+                    {visibleItems.length?<div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3">{visibleItems.map(item=><div key={item.id} className={`border-2 rounded-lg p-3 ${rarityClass(item)}`}><div className="flex justify-between"><b>{item.name}</b><span>{ITEM_RARITIES[item.rarity].label}・×{inventory[item.id]}</span></div><p className="text-sm mt-1">{item.effect}</p><p className="text-xs text-stone-500">{item.category}</p><div className="flex gap-2 mt-3">{item.target!=='death'&&<button onClick={()=>setSelectedUseItemId(item.id)} className="flex-1 bg-emerald-700 text-white rounded px-2 py-1">使用</button>}<button onClick={()=>discardItem(item)} className="flex-1 bg-stone-700 text-white rounded px-2 py-1">丟棄</button></div></div>)}</div>:<div className="bg-white border rounded p-8 text-center text-stone-500">目前沒有符合篩選條件的物品。</div>}
+                    {selectedItem&&selectedItem.target!=='death'&&<div className="bg-white border-2 border-amber-400 rounded overflow-hidden"><div className="flex justify-between items-center gap-2 p-3 border-b bg-amber-50"><div><b>選擇「{selectedItem.name}」使用對象</b><p className="text-xs text-stone-600 mt-1">效果：{selectedItem.effect}；點擊最右側按鈕後仍會再次確認。</p></div><button onClick={()=>setSelectedUseItemId(null)} className="shrink-0 rounded bg-stone-200 px-3 py-1">關閉</button></div><div className="max-h-[52dvh] overflow-auto"><table className="w-full min-w-[850px] text-xs text-left"><thead className="sticky top-0 z-10 bg-slate-800 text-white"><tr><th className="p-2">人物</th><th className="p-2">身分／狀態</th><th className="p-2 text-center">年齡</th><th className="p-2 text-center">文治</th><th className="p-2 text-center">武力</th><th className="p-2 text-center">其他數值</th><th className="p-2 text-center">目前效果值</th><th className="p-2 text-center">使用後</th><th className="p-2 text-center">操作</th></tr></thead><tbody>{targetRows.map(target=>{const cap=targetCap(selectedItem,target.kind,target.person),value=targetValue(target.person,selectedItem),disabled=cap!=null&&value>=cap,after=cap==null?value+selectedItem.amount:Math.min(cap,value+selectedItem.amount);return <tr key={`${target.kind}_${target.id}`} className="border-b even:bg-stone-50"><td className="p-2 font-bold whitespace-nowrap">{target.label}</td><td className="p-2 whitespace-nowrap">{targetIdentity(target)}</td><td className="p-2 text-center">{targetAge(target)??'—'}</td><td className="p-2 text-center text-blue-700 font-bold">{Number.isFinite(Number(target.person.civil))?Math.round(Number(target.person.civil)):'—'}</td><td className="p-2 text-center text-red-700 font-bold">{Number.isFinite(Number(target.person.military))?Math.round(Number(target.person.military)):'—'}</td><td className="p-2 text-center">{targetSecondaryValue(target)}</td><td className="p-2 text-center font-bold">{value}</td><td className="p-2 text-center font-bold text-emerald-700">{disabled?'已達上限':after}</td><td className="p-2 text-center"><button disabled={disabled} onClick={()=>applyItemToTarget(selectedItem,target.kind,target.id,target.label)} className="rounded bg-emerald-700 text-white px-3 py-2 font-bold disabled:bg-stone-300 disabled:text-stone-500">{disabled?'不可使用':'使用1件'}</button></td></tr>})}</tbody></table>{!targetRows.length&&<p className="p-8 text-center text-stone-500">目前沒有符合條件的使用對象。</p>}</div></div>}</>:
+                    <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">{(state.imperialShopStock||[]).map(card=>{const item=IMPERIAL_ITEM_MAP[card.itemId];return <div key={card.id} className={`border rounded p-3 ${card.sold?'bg-stone-200 opacity-60':rarityClass(item)}`}><div className="flex justify-between"><b>{item.name}</b><span>{ITEM_RARITIES[item.rarity].label}</span></div><p className="text-sm">{item.effect}</p><button disabled={card.sold} onClick={()=>buyCard(card)} className="w-full mt-3 bg-amber-700 text-white rounded p-2 disabled:bg-stone-500">{card.sold?'已售出':`購買・${item.price.toLocaleString()}兩`}</button></div>})}</div>}
+                </div></div>;
+        };
+

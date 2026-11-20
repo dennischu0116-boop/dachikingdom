@@ -1,0 +1,1038 @@
+        const MultiDefenseView = () => {
+          const lines=gameState.pendingBattleLines||[];
+          const singleFront=lines.length===1;
+          const battleTroops=line=>line.abandon?0:singleFront?Math.max(0,Number(gameState.army)||0):Math.max(0,Number(line.assignedTroops)||0);
+          const totalAssigned=lines.reduce((sum,line)=>sum+battleTroops(line),0);
+          const remaining=Math.max(0,(Number(gameState.army)||0)-totalAssigned);
+          const updateLine=(id,patch)=>setGameState(prev=>({...prev,pendingBattleLines:(prev.pendingBattleLines||[]).map(line=>line.id===id?{...line,...patch}:line)}));
+          const usedElsewhere=(lineId,roleKey,ministerId)=>lines.some(line=>line.id!==lineId&&['commanderId','viceId','strategistId'].some(key=>String(line[key])===String(ministerId)))||
+              lines.some(line=>line.id===lineId&&['commanderId','viceId','strategistId'].some(key=>key!==roleKey&&String(line[key])===String(ministerId)));
+          const preview=line=>{
+              const cmd=getOfficialStats(line.commanderId),vice=getOfficialStats(line.viceId),strat=getOfficialStats(line.strategistId);
+              const weight=strat.specialId==='li_jing'?.75:strat.specialId==='han_xin'?.65:.5;
+              const raw=(cmd.military||0)*1.2+(vice.military||0)*.8+((strat.civil||0)+(strat.military||0))*weight;
+              const base=battleTroops(line)*(1+raw/100);
+              const regular=(cmd.specialId==='lu_bu'?1.15:1)*(vice.specialId==='wu_qi'?1.12:1);
+              const province=gameState.provinces.find(p=>String(p.id)===String(line.provinceId));
+              const defenseBonus=Math.min(.3,(Number(province?.development)||0)/400);
+               const powerBeforeLastStand=Math.floor(base*regular*(1+defenseBonus));
+              const enemyMultiplier=(vice.specialId==='zhang_fei'?.9:1)*(strat.specialId==='sun_wu'?.9:1);
+              const enemyPower=Math.max(1,line.coalitionStrength*enemyMultiplier);
+              const bonus=(cmd.specialId==='guan_yu'?5:0)+(strat.specialId==='zhang_liang'?5:0);
+               const preliminaryWinRate=Math.min(95,Math.round(powerBeforeLastStand/(enemyPower*1.8)*100)+emperorPolicyBonus(gameState,'military')+bonus);
+               const finalPower=Math.floor(powerBeforeLastStand*(cmd.specialId==='xiang_yu'&&preliminaryWinRate<50?1.25:1));
+              const winRate=Math.min(95,Math.round(finalPower/(enemyPower*1.8)*100)+emperorPolicyBonus(gameState,'military')+bonus);
+              return {cmd,vice,strat,finalPower,enemyPower,defenseBonus,winRate};
+          };
+          const settleAll=async ()=>{
+              if(battleSettlementRef.current)return;
+              if(!lines.length){setCurrentView('THRONE');return;}
+              const liveProvinceIds=new Set((gameState.provinces||[]).map(province=>String(province.id)));
+              const seenProvinceIds=new Set();
+              const invalidLines=lines.some(line=>{
+                  const provinceId=String(line.provinceId),duplicateProvince=seenProvinceIds.has(provinceId);
+                  seenProvinceIds.add(provinceId);
+                  const attackerIds=(line.attackers||[]).map(attacker=>String(attacker.enemyId||attacker.name));
+                  return !liveProvinceIds.has(provinceId)||duplicateProvince||!attackerIds.length||new Set(attackerIds).size!==attackerIds.length;
+              });
+              if(invalidLines){
+                  setGameState(prev=>({...prev,pendingBattleLines:normalizeBattleLines(prev.pendingBattleLines,prev.provinces)}));
+                  showMessage('已修復重複或失效的戰線資料，請重新確認部署','error');
+                  return;
+              }
+              if(totalAssigned>Number(gameState.army)){showMessage('各戰線分配兵力超過全國總兵力','error');return;}
+              if(lines.some(line=>!line.abandon&&battleTroops(line)<=0)){showMessage(singleFront?'目前沒有可投入的兵力':'每條戰線都必須分配兵力或明確選擇棄守','error');return;}
+              const allAssigned=lines.flatMap(line=>line.abandon?[]:[line.commanderId,line.viceId,line.strategistId].filter(Boolean).map(String));
+              if(new Set(allAssigned).size!==allAssigned.length){showMessage('同一名將領不能出現在兩條戰線或兼任兩個軍職','error');return;}
+              if(!await requestGameConfirm(singleFront?`確定以全軍${totalAssigned}千迎戰並結算？確認後不可更改。`:`確定鎖定${lines.length}條戰線並一次結算？已分配${totalAssigned}千兵力，確認後不可更改。`,{title:'確認戰事部署'}))return;
+              battleSettlementRef.current=true;
+              const results=lines.map(line=>{
+                  const info=preview(line);
+                  if(line.abandon){
+                      const year=Number(gameState.dynastyYear)||1,multiplier=year<=5?.5:year<=10?.75:1;
+                      const morale=Math.min(0,Math.round(-25*multiplier)+(activeSpecialConsort(gameState,'yu_ji')?3:0));
+                      return {line,info,outcome:{key:'abandon',label:'主動棄守',kind:'loss',casualty:0,morale:-25},damage:0,morale,cost:0};
+                  }
+                  const outcome=battleOutcome(info.winRate);
+                  const lossMultiplier=info.cmd.specialId==='yue_fei'?.8:info.cmd.specialId==='qi_jiguang'?.8:1;
+                  const damage=Math.floor(battleTroops(line)*outcome.casualty*lossMultiplier);
+                  let morale=outcome.morale;
+                  if(outcome.kind==='loss'&&info.vice.specialId==='zhao_yun')morale=Math.min(0,morale+5);
+                  if(morale<0){const year=Number(gameState.dynastyYear)||1;morale=Math.round(morale*(year<=5?.5:year<=10?.75:1));}
+                  if(outcome.kind==='loss'&&activeSpecialConsort(gameState,'yu_ji'))morale=Math.min(0,morale+3);
+                  if(outcome.kind==='win'&&info.vice.specialId==='guo_ziyi')morale+=3;
+                  return {line,info,outcome,damage,morale,cost:200};
+              });
+              setGameState(prev=>{
+                  let provinces=[...(prev.provinces||[])],lost=[...(prev.lostProvinces||[])],conquered=[...(prev.conqueredEnemies||[])];
+                  results.forEach(result=>{
+                      if(result.outcome.kind!=='loss')return;
+                      const province=provinces.find(p=>String(p.id)===String(result.line.provinceId));if(!province)return;
+                      const occupier=result.line.attackers.slice().sort((a,b)=>b.strength-a.strength)[0]?.name||'外敵';
+                      if(!lost.some(p=>sameTerritory(p,province)))lost.push({...province,occupier});
+                      provinces=provinces.filter(p=>!sameTerritory(p,province));
+                      const ownerIndex=ENEMIES.findIndex(e=>enemyTerritoryName(e.name)===province.name);
+                      if(ownerIndex>=0&&!provinces.some(p=>p.name===province.name))conquered=conquered.filter(index=>Number(index)!==ownerIndex);
+                  });
+                  const cost=Math.min(Math.max(0,Number(prev.treasury)||0),results.reduce((sum,r)=>sum+r.cost,0));
+                  const rememberedLine=results.find(result=>!result.line.abandon)?.line;
+                  const defenseSetup=rememberedLine?{
+                      commanderId:rememberedLine.commanderId||null,
+                      viceId:rememberedLine.viceId||null,
+                      strategistId:rememberedLine.strategistId||null
+                  }:(prev.defenseSetup||{commanderId:null,viceId:null,strategistId:null});
+                  return normalizeTerritoryState({...prev,provinces,lostProvinces:lost,conqueredEnemies:conquered,
+                      army:Math.max(0,(Number(prev.army)||0)-results.reduce((sum,r)=>sum+r.damage,0)),treasury:(Number(prev.treasury)||0)-cost,
+                      stability:(Number(prev.stability)||0)+results.reduce((sum,r)=>sum+r.morale,0),defenseSetup,
+                      pendingBattleLines:[],incomingInvasion:null});
+              });
+               const report=results.map(result=>{
+                   const coalition=result.line.attackers.map(a=>`${a.name}${a.strength}×${Math.round(a.ratio*100)}%＝${a.contribution}`).join('＋');
+                   if(result.line.abandon)return `${result.line.provinceName}｜${result.line.attackers.map(a=>a.name).join('、')}\n聯軍：${coalition}（合計${result.line.coalitionStrength}）\n主動棄守・未投入兵力・損兵0千・民心${result.morale}・省份失守`;
+                   return `${result.line.provinceName}｜${result.line.attackers.map(a=>a.name).join('、')}\n聯軍：${coalition}（合計${result.line.coalitionStrength}）\n我軍${battleTroops(result.line)}千・主將${result.info.cmd.name}／副將${result.info.vice.name}／軍師${result.info.strat.name}\n守城+${Math.round(result.info.defenseBonus*1000)/10}%・我軍戰力${result.info.finalPower}／敵軍有效戰力${Math.round(result.info.enemyPower)}・勝率${result.info.winRate}%\n${result.outcome.label}・損兵${result.damage}千・民心${result.morale>=0?'+':''}${result.morale}${result.outcome.kind==='loss'?'・省份失守':'・省份保全'}`;
+               }).join('\n\n');
+              const totalDamage=results.reduce((sum,r)=>sum+r.damage,0),totalMorale=results.reduce((sum,r)=>sum+r.morale,0),paid=Math.min(Math.max(0,Number(gameState.treasury)||0),results.reduce((sum,r)=>sum+r.cost,0));
+              setCurrentEvent({id:'MULTI_WAR_REPORT',title:singleFront?'年度防守戰報':'年度多線防守總戰報',description:`${report}\n\n全國總計：損兵${totalDamage}千、民心${totalMorale>=0?'+':''}${totalMorale}、防守支出${paid}兩。`,options:[{text:'朕知道了',effect:s=>s}]});setCurrentView('MEMORIAL');
+              setTimeout(()=>{battleSettlementRef.current=false;},500);
+          };
+          if(!lines.length)return <div className="h-full bg-stone-100 flex flex-col"><ResourceBar/><div className="p-6"><button onClick={()=>setCurrentView('THRONE')} className="screen-page-return font-bold">← 返回</button><p className="text-center mt-10">目前沒有待處理的入侵戰線。</p></div></div>;
+          return <div className="h-full bg-stone-100 flex flex-col overflow-hidden"><ResourceBar/><div className="p-4 flex-1 overflow-y-auto">
+            <h2 className="text-2xl text-center font-serif font-bold text-red-950 mb-2">兵部・{singleFront?'單一戰線防守':'多線防守部署'}</h2>
+            <div className="sticky top-0 z-30 bg-stone-900 text-white rounded p-3 mb-3 flex flex-wrap justify-around gap-2 text-sm"><b>全國兵力 {gameState.army}千</b><span>{singleFront?'本戰線全軍投入':`已分配 ${totalAssigned}千`}</span><span>{singleFront?'無須分兵':`預備兵 ${remaining}千`}</span></div>
+            <div className="space-y-4">{lines.map(line=>{const info=preview(line);const activeSkills=[['commanderId',info.cmd],['viceId',info.vice],['strategistId',info.strat]].filter(([role,m])=>m.specialId&&hasSpecialSkillForPost(m,role,'DEFEND'));return <section key={line.id} className={`rounded-xl border-2 p-4 ${line.abandon?'bg-stone-200 border-stone-500':'bg-red-50 border-red-300'}`}>
+              <div className="flex flex-wrap justify-between gap-2"><div><h3 className="font-bold text-lg">⚔️ {line.provinceName}戰線</h3><p className="text-xs text-red-900">{line.attackers.map(a=>`${a.name} ${a.strength}×${Math.round(a.ratio*100)}%=${a.contribution}`).join('＋')}</p></div><b>{line.attackers.length>1?'聯軍':'敵軍'} {line.coalitionStrength}</b></div>
+              <label className="mt-3 flex items-center gap-2 bg-white rounded border p-2 font-bold text-sm"><input type="checkbox" checked={!!line.abandon} onChange={e=>updateLine(line.id,{abandon:e.target.checked,assignedTroops:e.target.checked?0:line.assignedTroops,commanderId:e.target.checked?null:line.commanderId,viceId:e.target.checked?null:line.viceId,strategistId:e.target.checked?null:line.strategistId})}/>主動棄守（不交戰、不損兵，省份直接失守）</label>
+              {!line.abandon&&<>{singleFront?<div className="mt-3 bg-white rounded border p-3 text-sm flex justify-between"><b>投入兵力</b><span>全軍 {battleTroops(line)}千</span></div>:<div className="mt-3"><div className="flex justify-between text-sm"><b>投入兵力</b><span>{line.assignedTroops||0}千</span></div><input type="range" min="0" max={gameState.army} value={line.assignedTroops||0} onChange={e=>updateLine(line.id,{assignedTroops:Math.max(0,Number(e.target.value)||0)})} className="w-full"/><input type="number" min="0" max={gameState.army} value={line.assignedTroops||0} onChange={e=>updateLine(line.id,{assignedTroops:Math.max(0,Number(e.target.value)||0)})} className="w-full border rounded p-2 text-sm"/></div>}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-3">{[['commanderId','主將','military'],['viceId','副將','military'],['strategistId','軍師','civil']].map(([key,label,stat])=>{const current=gameState.ministers.find(m=>String(m.id)===String(line[key]));return <label key={key} className="text-xs font-bold">{label}{current&&hasSpecialSkillForPost(current,key,'DEFEND')?' ★':''}<select value={line[key]||''} onChange={e=>{const id=resolveMinisterSelectId(e.target.value);if(id&&usedElsewhere(line.id,key,id)){showMessage('同一將領不可重複指派','error');return;}updateLine(line.id,{[key]:id});}} className="block w-full border rounded p-2 mt-1"><option value="">無</option>{gameState.ministers.filter(m=>!gameState.provinces.some(p=>(p.officials||[]).some(id=>String(id)===String(m.id)))&&(!usedElsewhere(line.id,key,m.id)||String(line[key])===String(m.id))).sort((a,b)=>(Number(b[stat])||0)-(Number(a[stat])||0)).map(m=><option key={m.id} value={m.id}>{m.name}{hasSpecialSkillForPost(m,key,'DEFEND')?' ★':''}（文{Math.round(Number(m.civil)||0)}／武{Math.round(Number(m.military)||0)}）</option>)}</select></label>})}</div>
+              <p className="text-[11px] text-stone-600 mt-2">★ 表示該武將在目前防守軍職可觸發專屬技能。</p>{activeSkills.length>0&&<div className="mt-2 bg-amber-50 border border-amber-200 rounded p-2 text-xs text-amber-900">{activeSkills.map(([,m])=>`${m.name}・${getMinisterSkillText(m)}`).join('；')}</div>}
+              <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs"><div className="bg-white p-2 rounded">守城加成<b className="block">+{Math.round(info.defenseBonus*1000)/10}%</b></div><div className="bg-white p-2 rounded">我軍戰力<b className="block">{info.finalPower}</b></div><div className="bg-white p-2 rounded">敵軍有效<b className="block">{Math.round(info.enemyPower)}</b></div><div className="bg-white p-2 rounded">預估勝率<b className="block text-red-800">{info.winRate}%</b></div></div></>}
+            </section>})}</div>
+            {!singleFront&&totalAssigned>gameState.army&&<p className="text-red-700 font-bold mt-3">兵力超額 {totalAssigned-gameState.army}千，無法確認。</p>}
+            <button onClick={settleAll} disabled={totalAssigned>gameState.army} className="screen-bottom-return w-full mt-4 bg-red-900 text-white rounded py-3 font-bold disabled:opacity-40">{singleFront?'鎖定部署・結算防守':'鎖定所有部署・統一結算'}</button>
+          </div></div>;
+        };
+
+        const WarView = ({ mode = 'ATTACK' }) => {
+          const { commanderId, viceId, strategistId } = gameState.warSetup;
+          // 舊存檔可能以字串儲存目標索引；統一轉為整數以免選中與出征判定不同步。
+          const rawTargetIndex = Number(gameState.warSetup?.targetIndex);
+          const targetIndex = Number.isInteger(rawTargetIndex) && rawTargetIndex >= 0 && rawTargetIndex < ENEMIES.length ? rawTargetIndex : 0;
+          let target, title, btnText;
+          if (mode === 'DEFEND') { target = { name: gameState.incomingInvasion?.name, strength: gameState.incomingInvasion?.strength }; title = "防禦部署"; btnText = "誓死抵抗"; } 
+          else { target = ENEMIES[targetIndex] || ENEMIES[0]; title = "兵部點將台"; btnText = "全軍出擊"; }
+
+          const cmd = getOfficialStats(commanderId);
+          const vice = getOfficialStats(viceId);
+          const strat = getOfficialStats(strategistId);
+          const strategistWeight=strat.specialId==='li_jing'?0.75:strat.specialId==='han_xin'?0.65:0.5;
+          const rawPower = (cmd.military || 0) * 1.2 + (vice.military || 0) * 0.8 + ((strat.civil || 0) + (strat.military || 0)) * strategistWeight;
+          const leaderBonus = rawPower / 100;
+          const baseFinalPower = Math.floor(gameState.army * (1 + leaderBonus));
+          const regularPowerMultiplier=(cmd.specialId==='lu_bu'?1.15:1)*(vice.specialId==='wu_qi'?1.12:1)*(mode==='ATTACK'&&strat.specialId==='zhou_yu'?1.10:1);
+          const powerBeforeLastStand=Math.floor(baseFinalPower*regularPowerMultiplier);
+          const enemyPowerMultiplier=(vice.specialId==='zhang_fei'?0.9:1)*(strat.specialId==='sun_wu'?0.9:1)*(mode==='ATTACK'&&cmd.specialId==='bai_qi'?0.85:1)*(mode==='ATTACK'&&vice.specialId==='xu_da'?0.92:1);
+          const effectiveEnemyStrength=target?target.strength*enemyPowerMultiplier:0;
+          const specialWinBonus=(cmd.specialId==='guan_yu'?5:0)+(strat.specialId==='zhang_liang'?5:0);
+          const preliminaryWinRate=target?Math.min(95,Math.round((powerBeforeLastStand/(effectiveEnemyStrength*1.8))*100)+emperorPolicyBonus(gameState,'military')+specialWinBonus):0;
+          const lastStandActive=cmd.specialId==='xiang_yu'&&preliminaryWinRate<50;
+          const finalPower=Math.floor(powerBeforeLastStand*(lastStandActive?1.25:1));
+          const baseWinRate=target?(finalPower / (effectiveEnemyStrength * 1.8))*100:0;
+          const winRate=target?Math.min(95,Math.round(baseWinRate)+emperorPolicyBonus(gameState,'military')+specialWinBonus):0;
+
+          const renderSelect = (roleKey, roleLabel, sortKey) => {
+              const current=gameState.ministers.find(m=>String(m.id)===String(gameState.warSetup[roleKey]));
+              const currentHasSkill=current&&hasSpecialSkillForPost(current,roleKey,mode);
+              return <div className="bg-white p-2 rounded border shadow-sm">
+                  <div className="text-xs font-bold text-gray-500 mb-1">{roleLabel}{currentHasSkill?' ★':''}</div>
+                  <select className="w-full text-sm border rounded p-1" value={gameState.warSetup[roleKey] || ''} onChange={(e) => { const selectedId = resolveMinisterSelectId(e.target.value); if (selectedId && ['commanderId','viceId','strategistId'].some(k => k !== roleKey && gameState.warSetup[k] === selectedId)) { showMessage('同一官員不可重複擔任軍職', 'error'); return; } setGameState(p => ({...p, warSetup: {...p.warSetup, [roleKey]: selectedId}})); }}>
+                      <option value="">-- 無 --</option>
+                      {gameState.ministers.filter(m => m.id === gameState.warSetup[roleKey] || (isMinisterAvailable(m.id, true) && !Object.values(gameState.warSetup).includes(m.id))).sort((a, b) => { if (roleKey === 'strategistId') return (b.civil + b.military) - (a.civil + a.military); return b[sortKey] - a[sortKey]; }).map(m => <option key={m.id} value={m.id}>{m.name}{hasSpecialSkillForPost(m,roleKey,mode)?' ★':''} {inferMinisterAge(m, gameState)}歲 (文{Math.round(Number(m.civil) || 0)} 武{Math.round(Number(m.military) || 0)})</option>)}
+                  </select>
+              </div>;
+          };
+
+          return (
+            <div className="h-full bg-stone-100 flex flex-col overflow-hidden relative">
+              <ResourceBar />
+              <div className="p-6 flex-1 overflow-y-auto">
+                  {mode === 'ATTACK' && <button onClick={() => setCurrentView('THRONE')} className="screen-page-return font-bold mb-4">← 返回</button>}
+                  <h2 className="text-2xl text-center mb-6 font-serif">{title}</h2>
+                  {mode === 'ATTACK' && (
+                      <div className="bg-white p-4 rounded mb-4 shadow-sm">
+                      <h3 className="font-bold mb-2 flex items-center gap-2"><MapIcon/> 選擇目標 (難度極高)</h3>
+                      <div className="flex gap-2 overflow-x-auto pb-2">
+                          {ENEMIES.map((e, idx) => {
+                              const isOccupier = gameState.lostProvinces.some(p => p.occupier === e.name);
+                              return <button key={e.name} disabled={(gameState.conqueredEnemies || []).some(x => Number(x) === idx) && !isOccupier} onClick={() => setGameState(p => ({...p, warSetup: {...p.warSetup, targetIndex: Number(idx)}}))} className={`px-3 py-2 rounded whitespace-nowrap border flex flex-col items-center ${isOccupier ? (targetIndex === idx ? 'bg-red-700 text-white border-red-900 ring-2 ring-red-400' : 'bg-red-100 text-red-800 border-red-300') : (gameState.conqueredEnemies.includes(idx) ? 'bg-gray-300 text-gray-500' : (targetIndex === idx ? 'bg-red-800 text-white border-red-900' : 'bg-gray-100 border-gray-300'))}`}><span>{e.name}</span>{isOccupier && <span className="text-[10px] font-bold blink">(佔領: {gameState.lostProvinces.find(p => p.occupier === e.name).name})</span>}{!isOccupier && <span className="text-[10px]">{gameState.conqueredEnemies.includes(idx) ? '(已征服)' : `(強:${e.strength})`}</span>}</button>
+                          })}
+                      </div>
+                      </div>
+                  )}
+                  {mode === 'DEFEND' && <div className="bg-red-100 p-4 rounded mb-4 border border-red-300 text-red-900 text-center"><h3 className="font-bold text-xl">敵軍：{target.name}</h3><p>戰力: {target.strength} | 目標: {gameState.incomingInvasion?.provinceName}</p></div>}
+                  <div className="grid grid-cols-3 gap-2 mb-4">{renderSelect('commanderId', '主將 (武)', 'military')}{renderSelect('viceId', '副將 (武)', 'military')}{renderSelect('strategistId', '軍師 (文+武)', 'civil')}</div>
+                  <div className="text-xs text-gray-500 mb-4 text-center">* 註：中央官員可親自領兵出征，地方官員不可離開駐地。　★ 表示該武將在目前進攻／防守模式與軍職可觸發專屬技能。</div>
+                  <div className="bg-stone-200 p-4 rounded text-center">
+                  <div className="flex justify-around mb-4 text-sm"><div>我軍: {gameState.army}千</div><div>加成: +{(leaderBonus*100).toFixed(0)}%</div><div className="font-bold text-red-800">總戰力: {finalPower}</div></div>
+                  <div className="text-xs text-emerald-800 mb-2">皇帝武力 {gameState.military}：成功率 +{emperorPolicyBonus(gameState,'military')} 個百分點（最高95%）</div>
+                  <div className="text-[11px] text-amber-800 mb-2">{[cmd,vice,strat].filter(m=>m.specialId).map(m=>`${m.name}・${getMinisterSkillText(m)}`).join('；')}</div>
+                  <div className="text-xs text-gray-500 mb-4">對陣 {target ? target.name : '未知'} (強:{target ? target.strength : '?'}) | 預估勝率: {winRate}%<br/>出征費用: 銀兩500, 體力{val(20)}</div>
+                  <button onClick={async () => {
+                          // 出征前明確回報阻擋原因；原程式在已征服判斷直接 return，造成按鈕看似無效。
+                          if (!target || !target.name || !Number.isFinite(Number(target.strength))) {
+                              showMessage('出征目標無效，請重新選擇敵國。'); return;
+                          }
+                          if (mode === 'ATTACK') {
+                              if (Number(gameState.army) <= 0) { showMessage('沒有士兵，無法出征！'); return; }
+                              const alreadyConquered = (gameState.conqueredEnemies || []).some(
+                                  idx => Number(idx) === targetIndex
+                              );
+                              const hasLostLand = (gameState.lostProvinces || []).some(p => p.occupier === target.name);
+                              if (alreadyConquered && !hasLostLand) {
+                                  showMessage(`${target.name}已被征服，無須再次出征。`); return;
+                              }
+                              if (Number(gameState.treasury) < 500) {
+                                  showMessage(`國庫不足！攻打${target.name}需要500兩。`); return;
+                              }
+                              if (Number(gameState.energy) < val(20)) {
+                                  showMessage(`體力不足！攻打${target.name}需要${val(20)}體力。`); return;
+                              }
+                              if(!await confirmLowEnergySpend(val(20),`攻打${target.name}`))return;
+                          }
+                          const outcome=battleOutcome(winRate);
+                          const isWin=outcome.kind==='win',isDraw=outcome.kind==='draw';
+                          let damage = Math.floor(gameState.army * outcome.casualty);
+                          const lossMultiplier=cmd.specialId==='yue_fei'?0.8:mode==='ATTACK'&&cmd.specialId==='wei_qing'?0.85:mode==='DEFEND'&&cmd.specialId==='qi_jiguang'?0.8:1;
+                          damage=Math.floor(damage*lossMultiplier);
+                          const lootAmount=Math.floor(Number(target.loot||0)*outcome.loot*(cmd.specialId==='huo_qubing'?1.2:1));
+                          if (mode === 'ATTACK') {
+                              // 收復與新征服分開處理：一個敵國的固有領土只能獲得一次。
+                              // 一律從更新時的最新狀態計算，避免重複點擊產生相同地塊。
+                              const recoveredNames = isWin
+                                  ? (gameState.lostProvinces || []).filter(prov => prov.occupier === target.name).map(prov => prov.name)
+                                  : [];
+                              setGameState(p => {
+                                  let newProvinces = [...(p.provinces || [])];
+                                  let newLostProvinces = [...(p.lostProvinces || [])];
+                                  let conqueredEnemies = [...(p.conqueredEnemies || [])];
+                                  if (isWin) {
+                                      const result = reclaimOccupiedProvinces(p, target.name);
+                                      newProvinces = result.provinces;
+                                      newLostProvinces = result.lostProvinces;
+                                      const territoryName = enemyTerritoryName(target.name);
+                                      const territoryKnown = hasEnemyHomeland({...p, provinces:newProvinces, lostProvinces:newLostProvinces}, target.name);
+                                      const previouslyConquered = conqueredEnemies.some(idx => Number(idx) === targetIndex);
+                                      // 回收的是原地塊的 ID，不創造第二塊。只有真正首次征服才生成舊地。
+                                      const firstCapture = !territoryKnown && result.recovered.length === 0 && !previouslyConquered;
+                                      if (firstCapture) {
+                                          newProvinces.push({id:royalNewId('province'),name:territoryName,
+                                              development:20, officials:[null,null]});
+                                      }
+                                      // 若僅收復「本國」被敵軍佔據的地塊，並不等於征服該國本土。
+                                      // 曾經征服或已實際持有其舊地時，才恢復其征服標記。
+                                      if ((previouslyConquered || territoryKnown || firstCapture) &&
+                                          !conqueredEnemies.some(idx => Number(idx) === targetIndex)) {
+                                          conqueredEnemies.push(targetIndex);
+                                      }
+                                  }
+                                  const territories=normalizeTerritoryState({...p,provinces:newProvinces,
+                                      lostProvinces:newLostProvinces,conqueredEnemies});
+                                  const firstUnification = isWin && hasConqueredAllEnemies(territories) &&
+                                      !p.unificationGameId && !p.unificationAttributionUnknown && !p.gameWon;
+                                  return { ...p, treasury: p.treasury - 500 + (isWin?lootAmount:0),
+                                      energy: p.energy - val(20), army: Math.max(0, p.army - damage),
+                                      provinces: territories.provinces, lostProvinces: territories.lostProvinces,
+                                      stability: p.stability + (isWin||isDraw?-5:-10),
+                                      conqueredEnemies: territories.conqueredEnemies,
+                                      unificationGameId: firstUnification ? p.gameId : p.unificationGameId,
+                                      unificationYear: firstUnification ? p.year : p.unificationYear
+                                  };
+                              });
+                              if (isWin && recoveredNames.length > 0) { setCurrentEvent({ id: 'WAR_RESULT', title: "光復失土！", description: `大捷！擊潰${target.name}，收復${recoveredNames.join('、')}！\n原有土地歸還，不額外新增領土。\n損兵：${damage}千`, options: [{ text: "朕知道了", effect: (s) => ({ ...s, logsAdd: "光復失土！" }) }] }); setCurrentView('MEMORIAL'); } 
+                              else { 
+                                  const description=isWin?`${outcome.label}！攻下${target.name}，獲銀${lootAmount}${cmd.specialId==='huo_qubing'?'（霍去病技能加成）':''}！\n損兵：${damage}千`:isDraw?`與${target.name}兩軍相持，未能征服，亦未失去領土。\n損兵：${damage}千`:`${outcome.label}！在${target.name}出征失利。\n損兵：${damage}千`;
+                                  setCurrentEvent({ id: 'WAR_RESULT', title: outcome.label, description, options: [{ text: "朕知道了", effect: (s) => ({ ...s, logsAdd: isWin?`出征${outcome.label}`:isDraw?'出征相持':`出征${outcome.label}` }) }] }); setCurrentView('MEMORIAL');
+                              }
+                          } else {
+                              let newLostProvinces = gameState.lostProvinces, newProvinces = gameState.provinces, newConquered = gameState.conqueredEnemies;
+                              if (!isWin && gameState.incomingInvasion) {
+                                  const lostProv = gameState.provinces.find(p => p.id === gameState.incomingInvasion.provinceId);
+                                  if (lostProv) {
+                                      // 同一地塊失土只記錄一次；以 ID 精準搬移，保留其他同名地塊。
+                                      if (!newLostProvinces.some(prov => sameTerritory(prov, lostProv)))
+                                          newLostProvinces = [...newLostProvinces, {...lostProv, occupier: target.name}];
+                                      newProvinces = newProvinces.filter(prov => !sameTerritory(prov, lostProv));
+                                      const territoryOwnerIndex = ENEMIES.findIndex(e => enemyTerritoryName(e.name) === lostProv.name);
+                                      // 只在該敵國「所有」同名舊地均已失去時移除征服標記。
+                                      if (territoryOwnerIndex !== -1 && !newProvinces.some(prov => prov.name === lostProv.name))
+                                          newConquered = newConquered.filter(idx => Number(idx) !== territoryOwnerIndex);
+                                  }
+                              }
+                              const defenseStabilityLoss=Math.max(0,(!isWin&&vice.specialId==='zhao_yun'?15:20)-
+                                  (activeSpecialConsort(gameState,'yu_ji')?3:0));
+                              const defenseVictoryStability=isWin&&vice.specialId==='guo_ziyi'?8:5;
+                              setGameState(p => ({ ...p, ...normalizeTerritoryState({...p,provinces:newProvinces,lostProvinces:newLostProvinces,conqueredEnemies:newConquered}), army: Math.max(0, p.army - damage), treasury: p.treasury - 200, incomingInvasion: null, stability: p.stability + (isWin?defenseVictoryStability:-defenseStabilityLoss) }));
+                              setCurrentEvent({ id: 'WAR_RESULT', title: isWin?"防禦成功！":"防禦失敗！", description: isWin?`擊退${target.name}，保住領土。\n損兵：${damage}千`:`領土淪陷！敵軍長驅直入。\n損兵：${damage}千`, options: [{ text: "朕知道了", effect: (s) => ({ ...s, logsAdd: isWin?"防禦成功":"防禦失敗" }) }] }); setCurrentView('MEMORIAL');
+                          }
+                  }} className="w-full py-3 bg-red-900 text-white font-bold rounded shadow hover:bg-red-800 active:scale-95 transform transition"><Sword/> {btnText}</button>
+            </div>
+        </div>
+      </div>
+    );
+  };
+
+  const WorksView = () => {
+    return (
+        <div className="h-full bg-slate-50 flex flex-col overflow-hidden relative">
+            <ResourceBar />
+            <div className="p-4 flex-1 overflow-y-auto">
+                <button onClick={() => setCurrentView('THRONE')} className="screen-page-return font-bold mb-4 text-slate-700">← 返回</button>
+                <h2 className="text-2xl text-center mb-4 font-serif text-slate-900">工部 - 改革變法</h2>
+                <div className="text-center text-xs text-slate-500 mb-2">* 科技需分 5 階段投入資源，研發完成後永久生效。</div>
+                {Object.values(gameState.centralOfficials||{}).some(id=>gameState.ministers.some(m=>String(m.id)===String(id)&&m.specialId==='wang_an_shi')) &&
+                  <div className="text-center text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 rounded p-2 mb-4">王安石「變法圖強」生效：目前每階段科技研發銀兩成本降低10%，體力不變。</div>}
+                <div className="grid grid-cols-1 gap-4">
+                    {TECHNOLOGIES.map(tech => {
+                        const isUnlocked = (gameState.unlockedTechs || []).includes(tech.id);
+                        const progress = (gameState.techProgress || {})[tech.id] || 0;
+                        const baseStepSilver = tech.totalSilver / 5;
+                        const wangAnshiActive = Object.values(gameState.centralOfficials||{}).some(id=>gameState.ministers.some(m=>String(m.id)===String(id)&&m.specialId==='wang_an_shi'));
+                        const stepSilver = Math.floor(baseStepSilver*(wangAnshiActive?0.9:1));
+                        const stepEnergy = val(tech.totalEnergy / 5);
+                        const canInvest = Number(gameState.dynastyYear||gameState.year) >= tech.reqYear && gameState.treasury >= stepSilver && gameState.energy >= stepEnergy;
+                        
+                        return (
+                            <div key={tech.id} className={`p-4 rounded border shadow-sm ${isUnlocked ? 'bg-green-50 border-green-300' : 'bg-white border-gray-300'}`}>
+                                <div className="flex justify-between items-start mb-2">
+                                    <div>
+                                        <h3 className="font-bold text-lg flex items-center gap-2">
+                                            {tech.name}
+                                            {isUnlocked && <span className="bg-green-600 text-white text-xs px-2 py-1 rounded">已完成</span>}
+                                        </h3>
+                                        <p className="text-sm text-gray-600 mt-1">{tech.desc}</p>
+                                        {!isUnlocked && <p className="text-xs text-orange-600 mt-1">王朝第 {tech.reqYear} 年起可研發</p>}
+                                    </div>
+                                    <div>{isUnlocked ? <Wrench/> : <div className="text-xl font-bold text-slate-300">{progress}%</div>}</div>
+                                </div>
+                                {!isUnlocked && (
+                                    <div className="w-full bg-gray-200 rounded-full h-2.5 mb-2">
+                                        <div className="bg-blue-600 h-2.5 rounded-full" style={{ width: `${progress}%` }}></div>
+                                    </div>
+                                )}
+                                {!isUnlocked && (
+                                    <button 
+                                        disabled={!canInvest}
+                                        onClick={() => {
+                                            handleAction(stepEnergy, stepSilver, `研發${tech.name}`, s => {
+                                                const newProgress = ((s.techProgress || {})[tech.id] || 0) + 20;
+                                                const newUnlocked = newProgress >= 100 ? [...(s.unlockedTechs || []), tech.id] : (s.unlockedTechs || []);
+                                                if(newProgress >= 100) addLog(`【工部】${tech.name} 研發完成！`);
+                                                return {
+                                                    ...s,
+                                                    treasury: s.treasury - stepSilver,
+                                                    techProgress: { ...(s.techProgress || {}), [tech.id]: newProgress },
+                                                    unlockedTechs: newUnlocked
+                                                };
+                                            });
+                                        }}
+                                        className={`w-full py-2 rounded font-bold text-sm flex items-center justify-center gap-2 ${canInvest ? 'bg-slate-800 text-white hover:bg-slate-700' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
+                                    >
+                                        <span>投入資源 (+20%)</span>
+                                        <span className="text-xs font-normal opacity-80">銀{stepSilver}{wangAnshiActive&&<span className="line-through opacity-60 ml-1">{baseStepSilver}</span>} 體{stepEnergy}</span>
+                                    </button>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+        </div>
+    );
+  };
+
+  const HaremView = () => {
+    return (
+    <div className="h-full bg-pink-50 flex flex-col overflow-hidden relative">
+      <ResourceBar />
+      <div className="p-6 flex-1 overflow-y-auto">
+        <button onClick={() => setCurrentView('THRONE')} className="screen-page-return font-bold mb-4 text-pink-900">← 返回</button>
+        <h2 className="text-2xl text-center mb-3 font-serif text-pink-900 mt-2">御花園</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3">
+            <button onClick={()=>setShowPalaceCases(true)} className="py-2.5 bg-red-900 text-white rounded font-bold text-sm">📜 內廷案件簿（{(gameState.palaceCases||[]).filter(c=>c.status!=='closed').length} 未結）</button>
+            <button onClick={()=>setShowBeautyRegistry(true)} className="py-2.5 bg-amber-600 text-white rounded font-bold text-sm">🌸 佳人錄（{acquiredSpecialConsortIds(gameState).size}/10）</button>
+            <button onClick={()=>{setManualTab('PALACE');setShowGameManual(true);}} className="py-2.5 bg-pink-200 text-pink-950 rounded font-bold text-sm">❓ 後宮玩法說明</button>
+        </div>
+        <div className="text-center bg-white border border-pink-200 rounded-lg p-3 mb-5 text-sm font-bold text-pink-900">妃嬪總數 {gameState.consorts.length} 人　／　冷宮 {gameState.consorts.filter(c => c.inColdPalace).length} 人　／　在世皇子女 {aliveRoyalChildren(gameState).length} 人</div>
+        <div className="grid grid-cols-1 gap-4">
+            {sortConsortsByRank(gameState.consorts).map(c => (
+            <div key={c.id} className={`bg-white p-4 rounded-lg shadow-sm border ${c.inColdPalace ? 'border-gray-300 opacity-70 bg-gray-50' : 'border-pink-100'}`}>
+                <div className="flex justify-between items-start mb-3">
+                <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                        {c.inColdPalace && <span className="bg-gray-200 text-gray-600 text-xs px-2 rounded">冷宮</span>}
+                        {c.pregnancy && <span className="bg-rose-100 text-rose-800 text-xs px-2 rounded">🤰 有孕・次年生產</span>}
+                        {Number(c.injuredUntil||0)>gameState.dynastyYear && <span className="bg-red-100 text-red-800 text-xs px-2 rounded">重傷休養</span>}
+                        {c.specialConsortId&&<span className={`text-xs px-2 py-1 rounded font-bold ${c.specialRarity==='legendary'?'bg-purple-700 text-white':'bg-amber-200 text-amber-950'}`}>{c.specialRarity==='legendary'?'傳奇佳人':'歷史佳人'}</span>}
+                        {renderAvatar(c.title + c.rank, c.avatar)}
+                        <span className="font-bold text-lg text-pink-950">{c.title}{c.rank}</span>
+                        <span className="font-bold text-gray-600 text-sm">({c.name})</span>
+                        {c.affection < 20 && !c.inColdPalace && <span className="text-red-500 text-xs animate-pulse flex items-center gap-1"><AlertTriangle/> 危</span>}
+                    </div>
+                    <div className={`text-xs mt-1 ${c.affection < 20 ? 'text-red-600 font-bold' : 'text-gray-500'}`}>好感: {c.affection} | {c.bio}</div>
+                    <div className="text-xs text-gray-600 mt-1">年齡：{getConsortAge(c)} 歲</div>
+                    <div className="text-xs text-fuchsia-800 mt-1">生育能力：{c.fertilityKnown ? `${getFertility(c)} / 100` : c.fertilityCheckExpired ? '舊診脈結果已過期，請太醫重新診脈' : '尚未診脈（隱藏）'}</div>
+                    <div className="text-xs text-purple-800 mt-1">性格：{c.personalityKnown ? c.personality : '尚未揭露（隱藏）'}</div>
+                    {c.specialConsortId&&<div className={`text-xs mt-2 rounded p-2 ${activeSpecialConsort(gameState,c.specialConsortId,{empressOnly:c.specialConsortId==='zhangsun'})?'bg-emerald-50 text-emerald-900':'bg-stone-100 text-stone-500'}`}><b>{SPECIAL_CONSORT_MAP[c.specialConsortId].skillName}</b>：{SPECIAL_CONSORT_MAP[c.specialConsortId].skillEffect}<br/>狀態：{activeSpecialConsort(gameState,c.specialConsortId,{empressOnly:c.specialConsortId==='zhangsun'})?'生效中':'未生效（需在世、非冷宮、好感60以上'+(c.specialConsortId==='zhangsun'?'且冊立皇后':'')+'）'}</div>}
+                </div>
+                </div>
+                <button type="button" onClick={() => openConsortRankEditor(c)}
+                    className="w-full mb-2 py-2.5 rounded-lg border border-amber-400 bg-amber-50 text-amber-950 font-bold text-sm hover:bg-amber-100 flex items-center justify-center gap-2">
+                    <span>📜</span> 冊封／調整位分與封號
+                </button>
+                {!c.inColdPalace ? (
+                <div className="flex gap-2 mt-2">
+                    <button onClick={async () => {
+                        if (consortVisitProcessingRef.current || consortVisitTransition || Number(c.injuredUntil||0)>gameState.dynastyYear) return;
+                        const cost=val(5);
+                        if(gameState.energy < cost){showMessage('體力不足');return;}
+                        if(!await confirmLowEnergySpend(cost,c.pregnancy?'探望孕妃':'翻牌子'))return;
+                        consortVisitProcessingRef.current=true;
+                        setConsortVisitTransition({mode:c.pregnancy?'visit':'flip',consortId:c.id,name:c.name,title:c.title,rank:c.rank,avatar:c.avatar,specialRarity:c.specialRarity});
+                        const transitionDelay=window.matchMedia?.('(prefers-reduced-motion: reduce)').matches?180:(c.pregnancy?900:1250);
+                        setTimeout(()=>{
+                            setGameState(prev=>{
+                                const current=prev.consorts.find(con=>String(con.id)===String(c.id));
+                                if (!current||current.inColdPalace||Number(current.injuredUntil||0)>prev.dynastyYear) return prev;
+                                const fertility=getFertility(current);
+                                const conception=!current.pregnancy && Math.random()<Math.min(.70,.04+Math.max(0,current.affection)/600+fertility/200);
+                                const monarchId=rulerIdOf(prev);
+                                const pregnancy=conception?{id:royalNewId('pregnancy'),conceivedDynastyYear:prev.dynastyYear,
+                                    dueDynastyYear:prev.dynastyYear+1,fatherId:monarchId,fatherName:prev.playerName,
+                                    motherId:royalConsortIdOf(current,monarchId),motherName:palacePersonLabel(current),care:false}:current.pregnancy;
+                                const affectionGain=activeSpecialConsort(prev,'zhao_feiyan')&&current.specialConsortId==='zhao_feiyan'?15:10;
+                                let next={...prev,energy:prev.energy-cost,consorts:prev.consorts.map(con=>String(con.id)===String(c.id)?
+                                    {...con,affection:Math.min(100,con.affection+affectionGain),pregnancy}:con)};
+                                if(!conception)return next; // 未受孕及探望孕妃均靜默，不彈通知。
+                                return palaceNote({...next,pendingHaremNews:[...(next.pendingHaremNews||[]),
+                                    {id:royalNewId('haremNews'),title:'太醫報喜・傳出喜脈',
+                                     text:`太醫院奏報，${current.name}脈象有喜，已懷皇嗣，預計來年生產。內務府將妥善照料，恭請皇上御覽。`}]},
+                                    `【喜脈】${current.name}已懷龍嗣，預計下一年生產。`);
+                            });
+                            consortVisitProcessingRef.current=false;
+                            setConsortVisitTransition(null);
+                        },transitionDelay);
+                    }} disabled={!!consortVisitTransition||Number(c.injuredUntil||0)>gameState.dynastyYear}
+                    className="flex-1 py-3 bg-pink-600 text-white rounded font-bold text-sm hover:bg-pink-700 disabled:opacity-40">
+                        {c.pregnancy?'探望孕妃':'翻牌子'} (-{val(5)}體)
+                    </button>
+                    <button onClick={() => handleAction(5, 100, `賞賜${c.title}`, s => ({...s, treasury: s.treasury - 100, consorts: s.consorts.map(con => con.id === c.id ? {...con, affection: con.affection + 5} : con)}))} className="w-24 py-3 bg-yellow-100 text-yellow-800 rounded font-bold flex items-center justify-center transform active:scale-95 transition shadow-md" title="賞賜(銀100)"><Gift/></button>
+                    <button onClick={async () => { if(!await requestGameConfirm(`確定將${c.title}${c.rank}（${c.name}）打入冷宮？${c.pregnancy?' 此妃已有身孕，將承擔冷宮保胎風險。':''}`,{title:'打入冷宮'}))return; addLog(`將${c.title}${c.rank}打入冷宮。`); setGameState(p => ({...p, consorts: p.consorts.map(con => con.id === c.id ? {...con, inColdPalace: true, affection: Math.max(0, con.affection - 50)} : con)})); }} className="w-24 py-3 bg-blue-100 text-blue-800 rounded font-bold flex items-center justify-center transform active:scale-95 transition shadow-md" title="打入冷宮"><Snowflake/></button>
+                </div>
+                ) : ( <button onClick={async () => { if(!await requestGameConfirm(`是否恩准${c.title}${c.rank}（${c.name}）離開冷宮？`,{title:'離開冷宮',danger:false}))return; addLog(`接${c.title}${c.rank}出冷宮。`); setGameState(p => ({...p, consorts: p.consorts.map(con => con.id === c.id ? {...con, inColdPalace: false} : con)})); }} className="w-full py-3 bg-gray-200 text-gray-700 rounded text-sm font-bold">接出冷宮</button> )}
+                {c.pregnancy && c.inColdPalace && !c.pregnancy.care && <button onClick={()=>{
+                    if(gameState.treasury<200){showMessage('安胎需200兩銀');return;}
+                    setGameState(prev=>palaceNote({...prev,treasury:prev.treasury-200,
+                        consorts:prev.consorts.map(con=>String(con.id)===String(c.id)?
+                            {...con,pregnancy:con.pregnancy?{...con.pregnancy,care:true}:null}:con)},
+                        `【太醫安胎】花費200兩為冷宮孕妃${c.name}安胎，冷宮流產風險降為5%。`));
+                }} className="w-full mt-2 py-2 bg-rose-100 text-rose-900 border border-rose-300 rounded font-bold text-sm">🩺 太醫安胎（銀-200，冷宮流產20%→5%）</button>}
+                {c.pregnancy && c.inColdPalace && c.pregnancy.care && <p className="text-xs text-green-700 my-2">✓ 已請太醫安胎，冷宮流產風險為5%</p>}
+                <button onClick={async () => {
+                    const cost=Math.max(0,val(5)-(c.specialConsortId==='zhao_feiyan'&&activeSpecialConsort(gameState,'zhao_feiyan')?1:0));
+                    if (gameState.energy < cost || gameState.treasury < 100) { showMessage(`請太醫需要 100 兩銀與 ${cost} 體力`); return; }
+                    if(!await confirmLowEnergySpend(cost,'請太醫診脈'))return;
+                    const fertility=getFertility(c);
+                    setGameState(p=>({...p,energy:p.energy-cost,treasury:p.treasury-100,consorts:p.consorts.map(con=>con.id===c.id?{...con,fertility,fertilityKnown:true,fertilityCheckExpired:false}:con)}));
+                    setNotifications(q=>[...q,{title:'🩺 太醫診脈',text:`太醫回奏：${c.title || ''}${c.rank}（${c.name}），年齡 ${getConsortAge(c)} 歲，當前生育能力為 ${fertility}/100。此數值逐年下降，往後須重新診脈確認。`}]);
+                    addLog(`召太醫替${c.name}診脈，獲知生育能力，耗銀100。`);
+                }} className="w-full mt-2 py-2 bg-emerald-50 text-emerald-900 border border-emerald-200 rounded text-xs font-bold hover:bg-emerald-100">{c.fertilityCheckExpired ? '請太醫重新診脈' : '請太醫診脈'}（銀-100、體-{Math.max(0,val(5)-(c.specialConsortId==='zhao_feiyan'&&activeSpecialConsort(gameState,'zhao_feiyan')?1:0))}）</button>
+            </div>
+            ))}
+        </div>
+      </div>
+    </div>
+  );};
+
+  const activeConsort = editingConsortId === null ? null : gameState.consorts.find(c => c.id === editingConsortId);
+  const empressTaken = !!activeConsort && gameState.consorts.some(c => c.id !== activeConsort.id && c.rank === '皇后');
+  const ministerHallEntries=[
+      ...(gameState.ministers||[]).map(m=>({...m,_hallCurrent:true,_hallStatus:'active',_hallLabel:'任職中'})),
+      ...(gameState.retiredMinisters||[]).slice().reverse().map(m=>({...m,_hallCurrent:false,
+          _hallStatus:m.alive===false?'dead':m.reason==='loyalty'?'resigned':['expelled','corruption'].includes(m.reason)?'expelled':'retired',
+          _hallLabel:archiveMinisterReason(m)}))
+  ];
+  const filteredMinisterHallEntries=ministerHallEntries.filter(m=>ministerArchiveFilter==='all'||m._hallStatus===ministerArchiveFilter);
+
+  return (
+    <div onScrollCapture={rememberScrollPosition} className="min-h-screen bg-[#fdfbf7] text-gray-800 font-sans selection:bg-red-200 flex flex-col relative">
+      {activeConsort && (
+        <div className="fixed inset-0 bg-black/75 z-[120] flex items-center justify-center p-3 sm:p-5" role="dialog" aria-modal="true" aria-label="后妃冊封">
+          <div className="w-full max-w-lg max-h-[92vh] overflow-y-auto bg-amber-50 border-4 border-amber-500 rounded-xl shadow-2xl p-4 sm:p-6">
+            <h3 className="font-serif text-2xl font-bold text-red-900 text-center mb-1">📜 冊封后妃</h3>
+            <p className="text-center text-sm text-stone-600 mb-4">{activeConsort.name} · 現任 {activeConsort.title}{activeConsort.rank}</p>
+            <label className="font-bold text-amber-950 block mb-2" htmlFor="consort-title-draft">封號（可自行輸入）</label>
+            <div className="flex gap-2 mb-4">
+              <input id="consort-title-draft" className="min-w-0 flex-1 border-2 border-amber-300 rounded-lg px-3 py-2 bg-white text-base"
+                  maxLength={8} placeholder="例如：慧、珍、孝賢" value={draftConsortTitle} onChange={e => setDraftConsortTitle(e.target.value)} />
+              <button type="button" onClick={() => setDraftConsortTitle(SUGGESTED_TITLES[Math.floor(Math.random() * SUGGESTED_TITLES.length)])}
+                  className="px-3 py-2 bg-purple-100 text-purple-900 border border-purple-300 rounded-lg font-bold">🎲 隨機</button>
+              <button type="button" onClick={() => setDraftConsortTitle('')}
+                  className="px-3 py-2 bg-stone-100 text-stone-700 border rounded-lg">清除</button>
+            </div>
+            <p className="font-bold text-amber-950 mb-2">選擇位分</p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
+              {CONSORT_RANKS.map(rank => {
+                  const disabled = rank === '皇后' && empressTaken;
+                  return <button key={rank} type="button" disabled={disabled} onClick={() => setDraftConsortRank(rank)}
+                      className={`py-3 px-2 rounded-lg border-2 font-bold text-sm transition ${draftConsortRank === rank
+                          ? 'bg-red-900 text-amber-50 border-red-900 shadow-md'
+                          : 'bg-white text-amber-950 border-amber-200 hover:bg-amber-100'} ${disabled ? 'opacity-40 cursor-not-allowed' : ''}`}>{rank}</button>;
+              })}
+            </div>
+            {empressTaken && <p className="text-xs text-red-800 mb-3">後宮已有皇后；如要改立，請先調整現任皇后位分。</p>}
+            <div className="bg-white/80 border border-amber-200 rounded-lg p-3 mb-4 text-sm text-center">
+              <span className="text-stone-500">聖旨預覽：</span> <strong className="text-red-900">{draftConsortTitle.trim()}{draftConsortRank}</strong>
+              <span className="text-stone-600">（{activeConsort.name}）</span>
+              {CONSORT_RANKS.indexOf(draftConsortRank)<CONSORT_RANKS.indexOf(activeConsort.rank||'答應')&&<div className="text-emerald-700 font-bold mt-1">晉封成功後好感 +10</div>}
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <button type="button" onClick={() => setEditingConsortId(null)}
+                  className="py-3 bg-stone-200 text-stone-700 font-bold rounded-lg hover:bg-stone-300">取消</button>
+              <button type="button" onClick={issueConsortAppointment}
+                  className="py-3 bg-red-900 text-amber-50 font-bold rounded-lg hover:bg-red-800">確認冊封・頒布聖旨</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {bulkAppointmentDraft && (
+        <div className="fixed inset-0 bg-black/75 z-[150] flex items-center justify-center p-3" role="dialog" aria-modal="true" aria-label="百官任命總詔預覽">
+          <div className="bg-[#fff7df] border-4 border-amber-600 w-full max-w-3xl max-h-[92vh] overflow-y-auto rounded-xl shadow-2xl p-4 sm:p-6">
+            <h3 className="text-center text-2xl font-bold text-red-900 font-serif mb-1">📜 百官統籌任命總詔</h3>
+            <p className="text-center text-sm text-amber-950 mb-3">勾選本次要套用的官職；未勾選官職與原任官員完全不動。</p>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-3">
+              {BULK_APPOINTMENT_SCOPE_OPTIONS.map(([key,label])=><label key={key} className={`flex items-center gap-2 rounded border p-2 text-xs font-bold cursor-pointer ${bulkAppointmentDraft.scope?.[key]?'bg-amber-100 border-amber-400':'bg-stone-100 border-stone-300 text-stone-500'}`}><input type="checkbox" checked={!!bulkAppointmentDraft.scope?.[key]} onChange={e=>updateBulkAppointmentScope(key,e.target.checked)}/>{label}</label>)}
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center mb-3">
+              <div className="bg-white border border-amber-200 rounded p-2"><p className="text-[11px] text-stone-500">異動官職</p><strong>{bulkAppointmentDraft.changeCount}</strong></div>
+              <div className="bg-white border border-amber-200 rounded p-2"><p className="text-[11px] text-stone-500">任職總數</p><strong>{bulkAppointmentDraft.occupied}</strong></div>
+              <div className="bg-white border border-amber-200 rounded p-2"><p className="text-[11px] text-stone-500">所需體力</p><strong className="text-red-900">{bulkAppointmentDraft.energyCost}</strong></div>
+              <div className="bg-white border border-amber-200 rounded p-2"><p className="text-[11px] text-stone-500">銀兩</p><strong>0</strong></div>
+            </div>
+            <div className="max-h-[47vh] overflow-y-auto border border-amber-300 rounded bg-white">
+              <table className="w-full text-xs sm:text-sm text-left border-collapse">
+                <thead className="sticky top-0 bg-amber-100 text-red-950"><tr><th className="p-2">官職</th><th className="p-2">原任</th><th className="p-2">擬任（能力）</th><th className="p-2">狀態</th></tr></thead>
+                <tbody>{bulkAppointmentDraft.changes.map(job=><tr key={job.key} className={`border-t border-amber-100 ${job.changed?'bg-amber-50':''}`}>
+                  <td className="p-2 font-bold">{job.label}</td>
+                  <td className="p-2">{job.oldMinister?.name || '空缺'}</td>
+                  <td className="p-2">{job.newMinister ? `${job.newMinister.name}（${job.stat==='civil'?'文':'武'}${Math.round(Number(job.newMinister[job.stat])||0)}）` : '空缺'}</td>
+                  <td className="p-2">{job.changed?<span className="text-red-800 font-bold">調整</span>:<span className="text-stone-500">不變</span>}</td>
+                </tr>)}</tbody>
+              </table>
+            </div>
+            <p className="text-xs text-stone-600 my-3">本視窗同時是套用選擇、任命預覽與合併總詔；確認一次即完成，不再另開第二張聖旨。不按忠誠或高齡減分，軍事出征任命不變。</p>
+            {gameState.energy < bulkAppointmentDraft.energyCost && <p className="text-sm text-red-800 font-bold mb-2">體力不足：現有{gameState.energy}，需要{bulkAppointmentDraft.energyCost}。</p>}
+            <div className="grid grid-cols-2 gap-3 sticky bottom-0 bg-[#fff7df] pt-3 pb-1 border-t border-amber-300">
+              <button type="button" className="rounded-lg py-3 bg-stone-200 text-stone-700 font-bold hover:bg-stone-300" onClick={()=>setBulkAppointmentDraft(null)}>{bulkAppointmentDraft.changeCount===0 ? '完成・返回吏部' : '暫緩施行'}</button>
+              <button type="button" className="rounded-lg py-3 bg-red-900 text-amber-50 font-bold disabled:opacity-40 disabled:cursor-not-allowed" disabled={gameState.energy < bulkAppointmentDraft.energyCost || bulkAppointmentDraft.changeCount===0} onClick={confirmBulkAppointment}>欽准總詔・一次完成任命</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {imperialEdict && (
+        <div className="fixed inset-0 bg-black/75 z-[115] flex items-center justify-center p-3 sm:p-4" role="dialog" aria-modal="true" aria-label="任命聖旨">
+          <div className={`bg-[#fff7df] border-4 border-amber-600 w-full ${imperialEdict.bulk ? 'max-w-2xl' : 'max-w-md'} max-h-[92dvh] rounded-xl shadow-2xl flex flex-col overflow-hidden text-center`}>
+            <div className="shrink-0 px-4 sm:px-7 pt-4 sm:pt-6">
+              <p className="text-amber-900 text-xs tracking-widest mb-2">御筆親書</p>
+              <h3 className="text-2xl font-serif font-bold text-red-900 mb-3">📜 {imperialEdict.title}</h3>
+              {imperialEdict.bulk && <p className="text-xs text-stone-600">任命已生效，請查閱結果後按下方「欽此・收旨」繼續遊戲。</p>}
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 sm:px-7">
+              <div className="border-y-2 border-amber-400 py-4 my-3">
+                <p className={`text-amber-950 font-serif whitespace-pre-wrap text-left ${imperialEdict.bulk ? 'text-sm leading-7' : 'text-lg leading-9'}`}>{imperialEdict.text}</p>
+              </div>
+              <p className="text-xs text-amber-900 mb-3">{imperialEdict.date}</p>
+            </div>
+            <div className="shrink-0 px-4 sm:px-7 py-3 sm:py-4 border-t border-amber-300 bg-[#fff7df]">
+              <button type="button" onClick={() => setImperialEdict(null)}
+                className="w-full bg-red-900 text-amber-50 rounded-lg font-bold py-3 hover:bg-red-800">欽此・收旨・返回遊戲</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showReleaseNotes && <div className="fixed inset-0 z-[145] bg-black/75 flex items-center justify-center p-3" role="dialog" aria-modal="true" aria-label="版本更新說明">
+          <div className="bg-amber-50 border-4 border-amber-600 rounded-xl shadow-2xl w-full max-w-xl max-h-[88vh] overflow-y-auto p-5">
+              <div className="screen-modal-header flex justify-between items-center gap-2 mb-3"><h3 className="font-serif text-xl font-bold text-red-900">📜 版本更新說明</h3><button onClick={()=>setShowReleaseNotes(false)} className="font-bold bg-stone-200 rounded px-3 py-1">關閉</button></div>
+              {PALACE_RELEASE_NOTES.map(entry=><section key={entry.version} className="mb-4 bg-white border border-amber-200 rounded-lg p-3">
+                  <h4 className="font-bold text-lg text-red-900 mb-2">{entry.version}｜{entry.title}</h4>
+                  <ul className="list-disc pl-5 space-y-2 text-sm text-stone-800">{entry.details.map((x,i)=><li key={i}>{x}</li>)}</ul>
+              </section>)}
+          </div>
+      </div>}
+      {showGameManual && <div className="fixed inset-0 z-[145] bg-black/75 flex items-center justify-center p-3" role="dialog" aria-modal="true" aria-label="遊戲玩法說明">
+          <div className="bg-amber-50 border-4 border-amber-500 rounded-xl shadow-2xl w-full max-w-xl max-h-[88dvh] flex flex-col overflow-hidden p-5">
+              <div className="screen-modal-header shrink-0 flex justify-between items-center gap-2 mb-3"><h3 className="font-serif text-xl font-bold text-red-900">📖 完整玩法說明</h3><button onClick={()=>setShowGameManual(false)} className="font-bold bg-stone-200 rounded px-3 py-1">關閉</button></div>
+              <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+              <div className="grid grid-cols-3 gap-2 mb-4">{[
+                  ['PALACE','宮鬥案件'],['HAREM','懷孕後宮'],['BEAUTIES','特殊佳人'],['BUREAU','宗人府'],['SCHOOL','賜名上書房'],['TREASURY','皇家寶庫'],['FINANCE','財政貪腐'],['CORRUPTION','軍機密查'],['RECRUIT','綜合十連招募'],['COURT','上朝聽政'],['MINISTERS','中央與百官'],['DIPLOMACY','外交和親'],['WAR','戰爭'],['IMPERIAL_STUDY','御書房'],['INTRO','新手']
+              ].map(([id,label])=><button key={id} onClick={()=>setManualTab(id)} className={`py-2 text-xs rounded border font-bold ${manualTab===id?'bg-red-900 text-white':'bg-white text-red-900'}`}>{label}</button>)}</div>
+              <h4 className="text-lg font-bold text-amber-900 mb-3">{TUTORIAL_CONTENT[manualTab]?.title||'玩法說明'}</h4>
+              <p className="whitespace-pre-line leading-7 text-sm text-stone-800">{TUTORIAL_CONTENT[manualTab]?.desc}</p>
+              {manualTab==='PALACE' && <p className="mt-4 text-xs text-red-800">宮鬥採可信證據制度：未查明重大罪行不能賜死。案件可在後宮或宗人府中查看，舊案不因皇帝繼位而消失。</p>}
+              </div>
+          </div>
+      </div>}
+      {academyBatchOpen && <div className="fixed inset-0 z-[160] bg-black/75 flex items-center justify-center p-3" role="dialog" aria-modal="true" aria-label="皇家書院批量入學">
+          <div className="bg-indigo-50 border-4 border-indigo-700 rounded-xl max-w-lg w-full p-4 max-h-[91vh] flex flex-col">
+            <div className="screen-modal-header flex items-center justify-between"><h3 className="font-serif font-bold text-indigo-950 text-xl">🏫 皇家書院・批量入學</h3><button onClick={()=>setAcademyBatchOpen(false)} className="bg-stone-200 px-3 py-1 rounded">關閉</button></div>
+            <p className="text-sm text-slate-700 my-2">勾選6～15歲尚未入學的皇嗣；書院會依每人的天生傾向自動安排經世、騎射或文武兼修。</p>
+            <div className="overflow-y-auto flex-1 min-h-0 bg-white rounded border p-2 space-y-2">
+              {[...aliveRoyalChildren(gameState),...(Number(gameState.age)>=6&&Number(gameState.age)<16?[{id:'emperor',royalId:rulerIdOf(gameState),name:gameState.playerName,age:gameState.age,alive:true,_emperor:true}]:[])].filter(c=>schoolEligible(gameState,c)).map(c=>{
+                const id=getAcademyKey(gameState,c);
+                const talent=getChildEducationTalent(c),course=ACADEMY_COURSES[childTalentCourse(c)];
+                return <label key={id} className="flex items-center gap-2 p-2 border-b text-sm"><input type="checkbox" checked={academyBatchIds.includes(id)} onChange={e=>setAcademyBatchIds(prev=>e.target.checked?[...new Set([...prev,id])]:prev.filter(x=>x!==id))}/><span className="flex-1">{c._emperor?'👑 皇帝':'皇嗣'} {c.name}・{c.age}歲<br/><small>{CHILD_TALENTS[talent].name} → {course.name}</small></span><small>1,500兩</small></label>;
+              })}
+              {![...aliveRoyalChildren(gameState)].some(c=>schoolEligible(gameState,c)) && !(Number(gameState.age)>=6&&Number(gameState.age)<16&&!getAcademyRecord(gameState,rulerIdOf(gameState)))&&<p className="text-center text-gray-500">目前沒有可新入學的皇嗣。</p>}
+            </div>
+            <div className="flex gap-2 mt-3"><button className="bg-indigo-100 p-2 rounded text-xs" onClick={()=>setAcademyBatchIds([...aliveRoyalChildren(gameState).filter(c=>schoolEligible(gameState,c)).map(c=>getAcademyKey(gameState,c)),...(Number(gameState.age)>=6&&Number(gameState.age)<16&&!getAcademyRecord(gameState,rulerIdOf(gameState))?[rulerIdOf(gameState)]:[])])}>全選</button><button className="bg-stone-100 p-2 rounded text-xs" onClick={()=>setAcademyBatchIds([])}>取消全選</button></div>
+            <p className="font-bold text-center text-sm mb-2">已選 {academyBatchIds.length} 人・總費用 {(academyBatchIds.length*1500).toLocaleString()} 兩</p>
+            <button disabled={!academyBatchIds.length || gameState.treasury<academyBatchIds.length*1500} onClick={()=>enrollStudent(academyBatchIds)} className="w-full bg-indigo-800 text-white rounded p-3 font-bold disabled:opacity-40">確認批量入學</button>
+          </div>
+      </div>}
+      {showBeautyRegistry && <div className="fixed inset-0 z-[150] bg-black/75 flex items-center justify-center p-3" role="dialog" aria-modal="true" aria-label="佳人錄">
+          <div className="bg-[#fff7ed] border-4 border-pink-700 rounded-xl max-w-3xl w-full max-h-[90dvh] flex flex-col p-4">
+              <div className="screen-modal-header flex justify-between items-center gap-2"><h3 className="font-serif text-xl font-bold text-pink-950">🌸 佳人錄・已相遇 {acquiredSpecialConsortIds(gameState).size}/10</h3><button onClick={()=>setShowBeautyRegistry(false)} className="bg-stone-200 rounded px-3 py-2 font-bold">返回</button></div>
+              <p className="text-xs text-stone-600 my-2">特殊佳人一旦納入便不會再次出現，身故後也不會回池；若相遇時未納入，未來仍可能再次相遇。技能需本人在世、仍在本朝後宮、未入冷宮且好感至少60才生效。</p>
+              <div className="overflow-y-auto flex-1 min-h-0 grid grid-cols-1 sm:grid-cols-2 gap-3 pr-1">{SPECIAL_CONSORTS.map(special=>{const info=specialConsortStatus(gameState,special.id),known=info.status!=='unknown',active=activeSpecialConsort(gameState,special.id,{empressOnly:special.id==='zhangsun'});return <div key={special.id} className={`rounded-xl border-2 p-4 ${known?'bg-white '+(special.rarity==='legendary'?'border-purple-400':'border-amber-400'):'bg-stone-200 border-stone-400 text-stone-500'}`}>
+                  <div className="flex justify-between gap-2"><b className="text-lg">{known?`${special.avatar} ${special.name}`:'◼ 尚未相遇'}</b><span className="text-xs font-bold">{special.rarity==='legendary'?'傳奇':'歷史'}</span></div>
+                  <p className="text-xs mt-1">狀態：{info.label}{known&&info.person?`・${info.person.title||''}${info.person.rank||''}`:''}</p>
+                  {known?<div className={`text-sm mt-2 rounded p-2 ${active?'bg-emerald-50 text-emerald-900':'bg-stone-100'}`}><b>{special.skillName}</b><br/>{special.skillEffect}<br/><small>{active?'● 效果生效中':'○ 目前未生效'}</small></div>:<p className="text-xs mt-2">能力與專屬效果將在相遇後揭露。</p>}
+              </div>})}</div>
+          </div>
+      </div>}
+      {showMinisterArchive && <div className="fixed inset-0 z-[146] bg-black/75 flex items-center justify-center p-3" role="dialog" aria-modal="true" aria-label="官員名人堂">
+          <div className="bg-[#fff8e8] border-4 border-amber-700 rounded-xl max-w-3xl w-full max-h-[90vh] flex flex-col p-4">
+              <div className="screen-modal-header flex justify-between items-center"><h3 className="font-serif text-xl font-bold text-red-950">🏛️ 官員名人堂</h3><button onClick={()=>setShowMinisterArchive(false)} className="bg-stone-200 rounded p-2">返回</button></div>
+              <p className="text-xs text-stone-600 my-2">集中查看現任、退休、辭官、逐出與已故官員。退休者每年依年齡判定自然死亡；已故特殊人才會重新加入招賢池。</p>
+              <div className="flex flex-wrap gap-2 mb-3">{[['all','全部'],['active','任職中'],['retired','退休'],['dead','已故'],['resigned','辭官'],['expelled','逐出／革職']].map(([k,label])=><button key={k} onClick={()=>setMinisterArchiveFilter(k)} className={`text-xs rounded px-3 py-2 ${ministerArchiveFilter===k?'bg-red-900 text-white':'bg-white border'}`}>{label}</button>)}</div>
+              <div className="overflow-y-auto flex-1 min-h-0 space-y-3">
+                {filteredMinisterHallEntries.map(m=><div key={`${m._hallCurrent?'active':'archive'}-${m.id}-${m.retiredAt||m.dynastyYear||''}`} className={`bg-white rounded border p-3 text-sm ${m._hallStatus==='dead'?'border-stone-400 opacity-85':m._hallCurrent?'border-emerald-300':'border-amber-200'}`}>
+                    <div className="flex flex-wrap justify-between gap-2"><b className="text-red-900">{m.name}（{m._hallCurrent?inferMinisterAge(m,gameState):(m.age||'?')}歲）{m.specialId?' ★':''}</b><span className={`text-xs rounded px-2 py-1 font-bold ${m._hallCurrent?'bg-emerald-100 text-emerald-900':m._hallStatus==='dead'?'bg-stone-200 text-stone-700':'bg-amber-100 text-amber-900'}`}>{m._hallLabel}</span></div>
+                    <p className="text-xs text-stone-600 my-1">文治 {m.civil??'?'}／武力 {m.military??'?'}／忠誠 {m.loyalty??'?'}／資質 {m.aptitude??'—'}{m._hallCurrent?`　·　${getMinisterPostLabels(gameState,m.id).join('、')||'目前閒置'}`:`　·　${m.eraName||'未知年號'}${m.retiredAtYear||'?'}年離任`}</p>
+                    {!m._hallCurrent&&<p className="text-xs text-stone-700">{m.retirementRetained?`曾蒙${m.retainedByEmperor||'皇帝'}慰留至73歲。`:''}{m.alive===false?`${m.deathReason||'退休後壽終正寢'}；卒於${m.diedEraName||m.eraName||'未知年號'}${m.diedAtYear||'?'}年。`:''}{m.alive===false&&m.specialId&&(gameState.recruitableSpecialIds||[]).includes(m.specialId)?' 此特殊人才目前可由科舉單抽或十連再次招募。':''}</p>}
+                    {!m._hallCurrent&&(m.postHistory||[]).length>0&&<details className="mt-2 bg-amber-50 p-2 rounded"><summary className="cursor-pointer font-bold text-xs">查看歷任官職（{m.postHistory.length} 段）</summary><div className="mt-1 space-y-1">{m.postHistory.map((h,i)=><div key={i} className="text-xs">{h.post}：{h.startEraName||'未知'}{h.startYear||'?'}年 ～ {h.endEraName||h.startEraName||'未知'}{h.endYear||'?'}年</div>)}</div></details>}
+                  </div>)}
+                {filteredMinisterHallEntries.length===0&&<p className="text-center text-stone-500 py-8">此狀態目前沒有官員。</p>}
+              </div>
+          </div>
+      </div>}
+      {showPalaceCases && <div className="fixed inset-0 z-[140] bg-black/75 flex items-center justify-center p-3" role="dialog" aria-modal="true" aria-label="內廷案件簿">
+          <div className="bg-[#fff8e8] border-4 border-amber-700 rounded-xl max-w-2xl w-full max-h-[88vh] overflow-y-auto p-5">
+              <div className="screen-modal-header flex justify-between items-center gap-2 mb-2"><h3 className="text-xl font-bold text-red-950">📜 內廷案件簿</h3><button onClick={()=>setShowPalaceCases(false)} className="bg-stone-200 font-bold px-3 py-2 rounded">返回</button></div>
+              <p className="text-xs text-stone-600 mb-3">所有未破案可跨代調查；每案每年最多重查一次，調查不會產生假證據。</p>
+              {(gameState.palaceCases||[]).length===0?<p className="py-5 text-center text-stone-500">目前沒有內廷案件。</p>:
+                  [...gameState.palaceCases].reverse().map(item=><div key={item.id} className="bg-white border border-amber-300 rounded-lg p-3 mb-3 text-sm">
+                      <div className="flex justify-between gap-2"><b className="text-red-900">{item.title}</b><span className="text-xs font-bold">{item.status==='closed'?'已結案':item.status==='sentence'?'待裁決':'未破案件'}</span></div>
+                      <p className="text-xs text-gray-500 mb-2">{item.eraName}{item.year}年 · 受害者：{item.victimName}</p>
+                      <p className="text-sm text-stone-700 mb-2">{item.notes||'尚待調查'}</p>
+                      {item.truthKnown && <p className="text-xs text-green-800">可靠結論：{item.culpritName?`犯案者 ${item.culpritName}`:'意外或誤會，無人蓄意犯罪'}</p>}
+                      {item.verdict && <p className="text-xs font-bold text-amber-800">裁決：{item.verdict}</p>}
+                      {item.status==='unresolved'&&<p className="text-xs text-rose-900 mb-2">擱置 {getPalaceInvestigationRates(gameState,item).years} 年・曾產生好感損失 {item.affectionPenalty||0} 點{item.clueAvailable?'・新線索加成 +20%（限下次）':''}</p>}
+                      {item.status==='unresolved' && <div className="grid grid-cols-2 gap-2 mt-2">
+                          <button disabled={item.lastInvestigatedYear===gameState.dynastyYear || !!gameState.pendingPalaceEvent} onClick={()=>recheckPalaceCase(item.id,'simple')} className="py-2 rounded bg-amber-100 border border-amber-300 disabled:opacity-40">簡單查問（{getPalaceInvestigationRates(gameState,item).simple}%）</button>
+                          <button disabled={item.lastInvestigatedYear===gameState.dynastyYear || !!gameState.pendingPalaceEvent || gameState.treasury<200 || gameState.energy<10} onClick={()=>recheckPalaceCase(item.id,'full')} className="py-2 rounded bg-red-900 text-white disabled:opacity-40">徹查（{getPalaceInvestigationRates(gameState,item).full}%・銀200／體10）</button>
+                      </div>}
+                  </div>)}
+              <h4 className="font-bold text-amber-900 mt-3 mb-2">後宮紀事</h4>
+              <div className="text-xs text-gray-700 space-y-2 max-h-44 overflow-y-auto">{(gameState.palaceChronicle||[]).slice(-30).reverse().map(x=><p key={x.id}>{x.eraName}{x.year}年・{x.text}</p>)}</div>
+          </div>
+      </div>}
+      {(birthNaming || editingRoyalChildId) && isGameStarted && !isTransitioning && (
+        <div className="fixed inset-0 z-[165] bg-black/85 flex items-center justify-center p-3" role="dialog" aria-modal="true" aria-label={birthNaming?'皇子女出生請賜名':'皇子女改名'}>
+          <div className="bg-[#fff7e6] w-full max-w-md border-4 border-amber-600 rounded-xl shadow-2xl p-5 sm:p-7">
+            <div className="text-center mb-4">
+              <p className="text-amber-900 text-xs tracking-widest">御前呈奏・毋須銀兩與體力</p>
+              <h3 className="font-serif text-red-950 text-2xl font-bold mt-2">{birthNaming?'👶 皇室添丁・請皇上賜名':'✏️ 皇室賜名／改名'}</h3>
+              {birthNaming && <p className="text-amber-800 text-sm mt-2">本次尚有 {namingQueue.length} 位新生皇子女待賜名</p>}
+            </div>
+            <div className="border-y-2 border-amber-300 py-3 text-sm text-stone-800 leading-7 mb-4">
+              {birthNaming ? <>
+                <p><b>新生身分：</b>{birthNaming.gender==='male'?'皇子':'公主'}</p>
+                <p><b>生母：</b>{birthNaming.motherName||'後宮'}</p>
+                <p><b>父皇：</b>{birthNaming.fatherName||'先帝'}</p>
+                <p><b>天生傾向：</b>{CHILD_TALENTS[getChildEducationTalent(birthNaming)].name}</p>
+                <p><b>初始能力：</b>資質 {birthNaming.aptitude??'—'}・文治 {birthNaming.civil??'—'}・武力 {birthNaming.military??'—'}</p>
+                <p className="text-xs text-amber-900">孩子已平安出生，請御筆賜下姓名後收入皇室族譜。</p>
+              </> : <p>為{namingMember?.gender==='male'?'皇子':'公主'}「{namingMember?.name||''}」賜下新名。只修改姓名，不改變身分、能力與親屬關係。</p>}
+            </div>
+            <label htmlFor="royal-child-name" className="block text-sm font-bold text-red-950 mb-2">御賜姓名（1～12 個中文字）</label>
+            <input id="royal-child-name" type="text" maxLength={12} autoComplete="off"
+                className="w-full p-3 rounded border-2 border-amber-400 bg-white text-stone-900 text-lg text-center font-bold focus:outline-none focus:ring-2 focus:ring-red-700"
+                value={draftRoyalChildName} onChange={e=>{setDraftRoyalChildName(e.target.value);setRoyalNamingError('');}}
+                onKeyDown={e=>{if(e.key==='Enter') confirmRoyalChildName();}} placeholder="請輸入皇子／公主姓名" />
+            {royalNamingError && <p role="alert" className="text-red-700 text-sm font-bold mt-2">{royalNamingError}</p>}
+            <div className="grid grid-cols-2 gap-3 mt-4">
+              <button type="button" onClick={()=>{setDraftRoyalChildName(suggestRoyalChildName(gameState,namingMember?.gender||birthNaming?.gender||'male',namingRoyalId));setRoyalNamingError('');}}
+                className="rounded-lg bg-amber-100 border border-amber-400 text-amber-900 py-3 font-bold">🎲 隨機建議姓名</button>
+              {!birthNaming && <button type="button" onClick={()=>{setEditingRoyalChildId(null);setRoyalNamingError('');}}
+                className="rounded-lg bg-stone-200 text-stone-700 py-3 font-bold">取消改名</button>}
+              <button type="button" onClick={confirmRoyalChildName}
+                className={`${birthNaming?'col-span-1':'col-span-2'} rounded-lg bg-red-900 text-amber-50 py-3 font-bold hover:bg-red-800`}>📜 {birthNaming?'御筆賜名・確認':'確認更名'}</button>
+            </div>
+            {birthNaming && <p className="text-xs text-stone-500 text-center mt-3">新生賜名需完成才能進入下一年；可保留建議姓名直接確認。免費，不消耗體力。</p>}
+          </div>
+        </div>
+      )}
+      {(gameState.pendingConsortIllnesses||[]).length>0 && !isTransitioning && <div className="fixed inset-0 z-[190] bg-black/85 flex items-center justify-center p-3" role="dialog" aria-modal="true" aria-label="妃嬪病危御前裁決">
+        <div className="bg-[#fff8e8] rounded-xl border-4 border-red-900 shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-5">
+          <h3 className="text-xl font-serif font-bold text-red-950 text-center">🩺 太醫急奏・后妃病危</h3>
+          <p className="text-sm my-4 leading-7">{(() => {const c=gameState.consorts.find(c=>String(c.id)===String(gameState.pendingConsortIllnesses[0]));return c?`${consortIdentity(c)}，現年${getConsortAge(c)}歲，年高染疾，恐有性命之危。請皇上速決救治方式；獲救後元氣虧損，生育能力亦將永久下降。`:'宮中病患待確認。';})()}</p>
+          <div className="space-y-2 text-sm">
+            <button disabled={gameState.treasury<500||gameState.energy<10} onClick={()=>decideConsortIllness('imperial')} className="w-full text-left p-3 rounded bg-emerald-50 border border-emerald-300 text-emerald-950 disabled:opacity-40">御召名醫・精心救治（銀500、體力10，90%救回；生育-12）</button>
+            <button disabled={gameState.treasury<150||gameState.energy<5} onClick={()=>decideConsortIllness('ordinary')} className="w-full text-left p-3 rounded bg-amber-100 border border-amber-300 text-amber-950 disabled:opacity-40">太醫院例行搶救（銀150、體力5，60%救回；生育-22）</button>
+            <button onClick={()=>decideConsortIllness('none')} className="w-full text-left p-3 rounded bg-red-100 border border-red-300 text-red-950">不予救治（免費，病故）</button>
+          </div>
+        </div>
+      </div>}
+      {(gameState.pendingHaremNews||[]).length>0 && !isTransitioning && <div className="fixed inset-0 z-[171] bg-black/80 flex items-center justify-center p-3" role="dialog" aria-modal="true" aria-label="後宮重要結果請旨">
+          <div className="bg-amber-50 rounded-xl border-4 border-amber-700 p-5 max-w-md w-full"><h3 className="text-xl text-red-950 font-serif font-bold text-center">📜 {gameState.pendingHaremNews[0].title}</h3>
+            <p className="text-sm my-4 leading-7 whitespace-pre-line">{gameState.pendingHaremNews[0].text}</p>
+            <button className="w-full rounded bg-red-900 text-white p-3 font-bold" onClick={()=>setGameState(prev=>({...prev,pendingHaremNews:(prev.pendingHaremNews||[]).slice(1)}))}>朕已知悉・收旨</button>
+          </div>
+      </div>}
+      {(gameState.pendingConsortCrises||[]).length>0 && !isTransitioning && !(gameState.pendingHaremNews||[]).length && <div className="fixed inset-0 z-[170] bg-black/80 flex items-center justify-center p-3" role="dialog" aria-modal="true" aria-label="後宮危急待聖裁">
+        <div className="bg-amber-50 border-4 border-red-900 rounded-xl p-5 max-w-md w-full">
+          <h3 className="text-xl text-red-950 font-bold text-center mb-3">⚠️ 後宮危急・御前聖裁</h3>
+          <p className="text-sm leading-7 mb-3">內務府密奏，{(() => {const c=gameState.consorts.find(c=>String(c.id)===String(gameState.pendingConsortCrises[0]));return c?consortValues(c):'一位妃嬪';})()}因久失聖眷，近日心緒低落，甚至流露輕生之念。此事事關人命，請皇上親自決定如何照料。</p>
+          <div className="space-y-2 text-sm"><button disabled={gameState.energy<10} onClick={()=>decideConsortCrisis('visit')} className="w-full bg-amber-100 border rounded p-3 text-left disabled:opacity-35">親臨探望・溫言開解（體力10，好感+20）</button>
+            <button disabled={gameState.treasury<200} onClick={()=>decideConsortCrisis('care')} className="w-full bg-amber-100 border rounded p-3 text-left disabled:opacity-35">賜銀並命宮人悉心照料（銀200，好感+15）</button>
+            <button onClick={()=>decideConsortCrisis('ignore')} className="w-full bg-red-100 border rounded p-3 text-left">暫不追加照料（免費，30%機率不幸身故）</button></div>
+        </div>
+      </div>}
+      {!!gameState.pendingPalaceEvent && !showPalaceCases && !showGameManual && !showReleaseNotes && !isTransitioning && currentView==='THRONE' && !gameState.gameOver && !showVictoryModal && !showHeirSelection && <div className="fixed inset-0 z-[125] bg-black/80 flex items-center justify-center p-3" role="dialog" aria-modal="true" aria-label="後宮宮鬥事件">
+          <div className="bg-[#fff8e8] border-4 border-red-900 rounded-xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto p-5">
+              <h3 className="font-serif text-center text-2xl font-bold text-red-950 mb-3">📜 {gameState.pendingPalaceEvent.title}</h3>
+              <p className="text-sm text-stone-700 mb-3 leading-relaxed whitespace-pre-line">{
+                  ['rescueResult','investigationResult','decisionResult'].includes(gameState.pendingPalaceEvent.step)?
+                     gameState.pendingPalaceEvent.resultText:
+                  gameState.pendingPalaceEvent.step==='sentence'?`罪證確鑿，已查明${gameState.pendingPalaceEvent.culpritName}涉及「${gameState.pendingPalaceEvent.title}」。請皇上親自裁定。`:
+                  gameState.pendingPalaceEvent.step==='investigation'?`【${gameState.pendingPalaceEvent.title}】疑點尚未釐清；立即查問可能揭露真相，也可將案件保留到日後，但懸案會留下長期影響。`:
+                  (PALACE_EVENT_COPY[gameState.pendingPalaceEvent.type]?.(gameState.pendingPalaceEvent)||'內務府奏報，後宮有事待皇上聖裁。')
+              }</p>
+              {!!palacePersonDetails(gameState.pendingPalaceEvent,gameState) && <div className="mb-3 px-3 py-2 rounded border border-rose-200 bg-rose-50 text-xs sm:text-sm text-rose-950 whitespace-pre-line leading-relaxed font-semibold">{palacePersonDetails(gameState.pendingPalaceEvent,gameState)}</div>}
+              <div className="space-y-2">
+                  {gameState.pendingPalaceEvent.step==='peaceful' && <>
+                      <button disabled={gameState.treasury < ({homeVisit:100,giftWish:180,familyLetter:80,festival:160,charity:200,illnessCare:0}[gameState.pendingPalaceEvent.type]||0)} onClick={()=>decidePalaceEvent('approve')} className="w-full p-3 bg-rose-100 border border-rose-300 text-left rounded disabled:opacity-40">欣然恩准（好感+8～12，依事件支付銀兩）</button>
+                      <button disabled={gameState.treasury < ({giftWish:60,festival:40,charity:60}[gameState.pendingPalaceEvent.type]||0)} onClick={()=>decidePalaceEvent('modest')} className="w-full p-3 bg-amber-100 border text-left rounded disabled:opacity-40">從簡辦理（好感+4～5，減少開支）</button>
+                      <button onClick={()=>decidePalaceEvent('refuse')} className="w-full p-3 bg-stone-200 border text-left rounded">婉言推辭（好感下降）</button>
+                  </>}
+                  {gameState.pendingPalaceEvent.step==='ordinary' && <>
+                      {['favor','garden'].includes(gameState.pendingPalaceEvent.type) ? <>
+                        <button onClick={()=>decidePalaceEvent('calm')} className="w-full p-3 bg-amber-100 text-left rounded border">安撫雙方（好感各+2）</button>
+                        <button onClick={()=>decidePalaceEvent('favor')} className="w-full p-3 bg-amber-100 text-left rounded border">偏袒{gameState.pendingPalaceEvent.attackerName}（+10／另一人-10）</button>
+                        <button onClick={()=>decidePalaceEvent('favorOther')} className="w-full p-3 bg-amber-100 text-left rounded border">偏袒{gameState.pendingPalaceEvent.victimName}（+10／另一人-10）</button>
+                        <button onClick={()=>decidePalaceEvent('warn')} className="w-full p-3 bg-stone-200 text-left rounded border">申斥雙方（好感各-5，三年內兩人不再起口角）</button>
+                      </>:gameState.pendingPalaceEvent.type==='promotion'?<>
+                        <button onClick={()=>decidePalaceEvent('approve')} className="w-full p-3 bg-amber-100 rounded border text-left">恩准晉升一級（若已是皇后或會造成雙皇后則不可）</button>
+                        <button onClick={()=>decidePalaceEvent('encourage')} className="w-full p-3 bg-amber-100 rounded border text-left">溫言勉勵（好感+2，不晉封）</button>
+                        <button onClick={()=>decidePalaceEvent('rebuke')} className="w-full p-3 bg-stone-200 rounded border text-left">申斥妄求位分（好感-5，三年不得再請封）</button>
+                      </>:gameState.pendingPalaceEvent.type==='rumor'?<>
+                        <button onClick={()=>decidePalaceEvent('clarify')} className="w-full p-3 bg-amber-100 rounded border text-left">召見雙方，當面釐清（好感+2／+5）</button>
+                        <button onClick={()=>decidePalaceEvent('silence')} className="w-full p-3 bg-amber-100 rounded border text-left">禁止宮人傳播流言（雙方好感-2）</button>
+                        <button onClick={()=>decidePalaceEvent('ignore')} className="w-full p-3 bg-stone-200 rounded border text-left">暫不介入（受疑者好感-3）</button>
+                      </>:<>
+                        <button onClick={()=>decidePalaceEvent('keep')} className="w-full p-3 bg-amber-100 rounded border text-left">維持現有儲位，不改立</button>
+                        <button onClick={()=>decidePalaceEvent('comfort')} className="w-full p-3 bg-amber-100 rounded border text-left">溫言安撫，勉其教子（好感+3）</button>
+                        <button onClick={()=>decidePalaceEvent('reviewHeir')} className="w-full p-3 bg-amber-100 rounded border text-left">查看宗人府資質（不自動冊立）</button>
+                      </>}
+                  </>}
+                  {gameState.pendingPalaceEvent.step==='rescue' && <>
+                      <button disabled={gameState.treasury<300 || gameState.energy<10} onClick={()=>decidePalaceEvent('rescueFull')} className="w-full p-3 bg-green-100 text-green-900 text-left rounded border disabled:opacity-40">召太醫全力救治（銀300、體力10；成功率依事件類型90%～95%）</button>
+                      <button disabled={gameState.treasury<100} onClick={()=>decidePalaceEvent('rescueBasic')} className="w-full p-3 bg-amber-100 text-left rounded border disabled:opacity-40">一般救治（銀100；成功率依事件類型75%～80%）</button>
+                      <button onClick={()=>decidePalaceEvent('rescueNone')} className="w-full p-3 bg-red-100 text-red-900 text-left rounded border">暫不追加救治（免費；成功率依事件類型50%～60%）</button>
+                      <p className="text-xs text-gray-500">救治失敗：70% 重傷、30% 死亡；孕妃危機失敗則流產。</p>
+                  </>}
+                  {gameState.pendingPalaceEvent.step==='investigation' && <>
+                      <button onClick={()=>decidePalaceEvent('investigateSimple')} className="w-full p-3 bg-amber-100 text-left rounded border">簡單查問（免費，{getPalaceInvestigationRates(gameState,(gameState.palaceCases||[]).find(c=>String(c.id)===String(gameState.pendingPalaceEvent.id))||{}).simple}%）</button>
+                      <button disabled={gameState.treasury<200||gameState.energy<10} onClick={()=>decidePalaceEvent('investigateFull')} className="w-full p-3 bg-amber-100 text-left rounded border disabled:opacity-40">徹查內廷（銀200、體力10，{getPalaceInvestigationRates(gameState,(gameState.palaceCases||[]).find(c=>String(c.id)===String(gameState.pendingPalaceEvent.id))||{}).full}%）</button>
+                      <button onClick={()=>decidePalaceEvent('postpone')} className="w-full p-3 bg-stone-200 text-left rounded border">暫時擱置，保留舊案</button>
+                  </>}
+                  {['rescueResult','investigationResult','decisionResult'].includes(gameState.pendingPalaceEvent.step)&&<button onClick={()=>decidePalaceEvent('ack')} className="w-full p-3 bg-red-900 text-white font-bold rounded">📜 朕已知悉・繼續</button>}
+                  {gameState.pendingPalaceEvent.step==='sentence' && <>
+                      <button onClick={()=>decidePalaceEvent('demote')} className="w-full p-3 bg-amber-100 text-left rounded border">降位一級</button>
+                      <button onClick={()=>decidePalaceEvent('cold')} className="w-full p-3 bg-amber-100 text-left rounded border">打入冷宮</button>
+                      {['food','poison','heirDanger','pregnancy','blood'].includes(gameState.pendingPalaceEvent.type) && <button onClick={()=>decidePalaceEvent('execute')} className="w-full p-3 bg-red-900 text-white text-left rounded border">賜死（重大罪行確證・需二次確認）</button>}
+                      <button onClick={()=>decidePalaceEvent('forgive')} className="w-full p-3 bg-stone-200 text-left rounded border">從輕赦免</button>
+                  </>}
+              </div>
+          </div>
+      </div>}
+      {!!gameState.pendingAnnualDraft && !gameState.pendingPalaceEvent && !showPalaceCases && !showGameManual && !showReleaseNotes && !isTransitioning && currentView==='THRONE' && !gameState.gameOver && !showVictoryModal && !showHeirSelection &&
+        <div className="fixed inset-0 z-[120] bg-black/75 flex items-center justify-center p-3" role="dialog" aria-modal="true" aria-label="三年一度選秀">
+            <div className="bg-amber-50 border-4 border-amber-700 shadow-2xl rounded-xl max-w-md w-full p-5">
+                <h3 className="font-serif text-center text-2xl font-bold text-red-950 mb-3">🌸 三年一度選秀</h3>
+                <p className="text-sm text-stone-800 mb-2">禮部呈上{gameState.pendingAnnualDraft.specialConsortId?(gameState.pendingAnnualDraft.rarity==='legendary'?'傳奇佳人':'歷史佳人'):'秀女'}「{gameState.pendingAnnualDraft.name}」，請皇上決定是否納入後宮。此次選秀已記入年度待辦，與邊疆入侵、宮鬥不會互相覆蓋。</p>
+                {gameState.pendingAnnualDraft.specialConsortId&&<div className="rounded border border-purple-300 bg-purple-50 p-3 mb-3 text-sm"><b>{SPECIAL_CONSORT_MAP[gameState.pendingAnnualDraft.specialConsortId].skillName}</b>：{SPECIAL_CONSORT_MAP[gameState.pendingAnnualDraft.specialConsortId].skillEffect}</div>}
+                <div className="grid gap-3">
+                    <button disabled={gameState.treasury<500||gameState.energy<val(10)} onClick={()=>decideAnnualDraft(true)} className="bg-red-900 text-amber-50 py-3 rounded font-bold disabled:opacity-40">納入後宮（銀-500、體-{val(10)}）</button>
+                    <button onClick={()=>decideAnnualDraft(false)} className="bg-amber-200 text-amber-950 py-3 rounded font-bold">遣散回家（民心+5）</button>
+                </div>
+            </div>
+        </div>}
+      {notifications.length > 0 && <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100] p-4">
+          <div className="bg-amber-50 border-4 border-amber-500 rounded-xl max-w-md w-full max-h-[88dvh] p-6 text-center shadow-2xl flex flex-col overflow-hidden">
+              <h3 className="shrink-0 text-2xl font-bold text-red-900 mb-3">{notifications[0].title}</h3>
+              <p className="min-h-0 overflow-y-auto text-lg text-stone-800 whitespace-pre-wrap mb-5">{notifications[0].text}</p>
+              <div className="shrink-0 flex flex-wrap justify-center gap-2 mb-3">
+                  {notifications[0].actionView&&<button onClick={()=>{const target=notifications[0].actionView;setNotifications(q=>q.slice(1));setYearReport(null);setCurrentView(target);}} className="bg-indigo-800 text-white font-bold rounded px-4 py-2">{notifications[0].actionLabel||'前往查看'}</button>}
+                  {(notifications[0].posts||[]).some(post=>post.kind==='central')&&<button onClick={()=>{setNotifications(q=>q.slice(1));setCurrentView('MINISTERS');}} className="bg-blue-800 text-white font-bold rounded px-4 py-2">前往吏部任命</button>}
+                  {(notifications[0].posts||[]).filter(post=>post.kind==='province').filter((post,index,list)=>list.findIndex(item=>String(item.provinceId)===String(post.provinceId))===index).map(post=><button key={String(post.provinceId)} onClick={()=>{setNotifications(q=>q.slice(1));goToProvinceAppointment(post.provinceId,post.slot);}} className="bg-emerald-800 text-white font-bold rounded px-4 py-2">前往{post.provinceName}任命</button>)}
+              </div>
+              <button onClick={() => setNotifications(q => q.slice(1))} className="shrink-0 bg-red-900 text-white font-bold rounded px-8 py-2">朕知道了{notifications.length > 1 ? `（尚有 ${notifications.length - 1} 則）` : ''}</button>
+          </div>
+      </div>}
+      {(appBooting||cloudSessionChecking)&&<AppLoadingScreen checking={cloudSessionChecking}/>} 
+      {!isGameStarted && <StartScreen onStart={handleStartGame} onSettings={()=>setShowSystemSettings(true)} onHelp={()=>{setManualTab('PALACE');setShowGameManual(true);}} onUpdates={()=>setShowReleaseNotes(true)} onCloud={()=>setShowCloudPanel(true)} cloudStatus={cloudUser?(cloudSlot?`雲端槽位 ${cloudSlot}`:'雲端已登入'):'Google 登入／雲端存檔'} pendingCloudSlot={pendingCloudNewGameSlot} />}
+      {activeTutorial && <TutorialModal />}
+      {isTransitioning && <TransitionScreen />}
+      {consortVisitTransition && <ConsortVisitTransition />}
+      {recruitReveal && <RecruitRevealModal />}
+      {examResult && <ExamResultModal />}
+      {yearReport && !isTransitioning && <YearReportModal />}
+      {deathEvent && <DeathModal />}
+      {retireEvent && !getPendingRetirementMinisters(gameState).length && <RetireModal />}
+      {isGameStarted && !isTransitioning && !!gameState.pendingRetirementPlan && <RetentionPetitionModal />}
+      
+      {showVictoryModal && <VictoryModal />}
+      {(gameState.pendingDeathCandidates||[]).length>0&&<div className="fixed inset-0 z-[190] bg-black/80 flex items-center justify-center p-3" role="dialog" aria-modal="true" aria-label="九轉還魂救治"><div className="bg-white border-4 border-amber-500 rounded-xl max-w-2xl w-full max-h-full flex flex-col overflow-hidden"><div className="screen-modal-header shrink-0 p-4 border-b bg-amber-50"><h2 className="text-2xl font-serif font-bold text-red-900">☯ 生死待決・九轉還魂</h2><p className="text-sm">現有九轉還魂丹：{Number(gameState.inventory?.revival_pill)||0}顆。每救一人消耗一顆；未選者將正式死亡。</p></div><div className="flex-1 overflow-y-auto p-4 space-y-2">{(gameState.pendingDeathCandidates||[]).map(candidate=>{const checked=deathRescueSelection.includes(candidate.id);return <label key={candidate.id} className={`block border rounded p-3 ${checked?'bg-emerald-50 border-emerald-500':'bg-white'}`}><input type="checkbox" checked={checked} onChange={event=>{if(event.target.checked&&deathRescueSelection.length>=(Number(gameState.inventory?.revival_pill)||0)){showMessage('九轉還魂丹數量不足','error');return;}setDeathRescueSelection(list=>event.target.checked?[...list,candidate.id]:list.filter(id=>id!==candidate.id));}} /> <b>{candidate.name}</b><span className="block text-sm text-stone-600 ml-5">{candidate.cause}・{candidate.kind==='emperor'?'皇帝':candidate.kind==='consort'?'妃嬪':candidate.kind==='royal'?'皇室子女':'退休官員'}</span></label>})}</div><div className="shrink-0 border-t bg-white p-3"><button onClick={resolvePendingDeaths} className="w-full bg-red-900 text-white rounded p-3 font-bold">確認救治名單並裁定生死</button></div></div></div>}
+      {!(gameState.pendingDeathCandidates||[]).length&&(gameState.pendingItemRewards||[]).length>0&&currentView!=='TREASURY'&&<div className="fixed inset-0 z-[185] bg-black/75 flex items-center justify-center p-3" role="dialog" aria-modal="true" aria-label="背包已滿"><div className="bg-white border-4 border-red-600 rounded-xl max-w-md w-full p-5"><h2 className="text-xl font-bold text-red-900">🎒 背包已滿・獎勵待領</h2><p className="my-3">抽中{IMPERIAL_ITEM_MAP[gameState.pendingItemRewards[0].itemId]?.name}，原物品已固定保存，不會重新抽取。請前往皇家寶庫整理或放棄。</p><button onClick={()=>setCurrentView('TREASURY')} className="w-full bg-red-900 text-white rounded p-3 font-bold">前往皇家寶庫整理</button></div></div>}
+      {!(gameState.pendingDeathCandidates||[]).length&&!(gameState.pendingItemRewards||[]).length&&(gameState.pendingItemNotices||[]).length>0&&<div className="fixed inset-0 z-[180] bg-black/70 flex items-center justify-center p-3" role="dialog" aria-modal="true" aria-label="獲得物品"><div className="bg-amber-50 border-4 border-amber-500 rounded-xl max-w-sm w-full p-5 text-center"><h2 className="text-2xl font-bold text-red-900">🎁 獲得物品</h2><p className="text-xl font-bold my-3">{IMPERIAL_ITEM_MAP[gameState.pendingItemNotices[0].itemId]?.name} ×{gameState.pendingItemNotices[0].quantity}</p><p className="text-sm text-stone-600 mb-4">{gameState.pendingItemNotices[0].source}</p><button onClick={()=>setGameState(previous=>({...previous,pendingItemNotices:(previous.pendingItemNotices||[]).slice(1)}))} className="w-full bg-amber-700 text-white rounded p-3 font-bold">收入皇家寶庫</button></div></div>}
+      {showHeirSelection && !(gameState.pendingDeathCandidates||[]).length && <HeirSelectionModal />}
+      {gameState.gameOver && !showHeirSelection && <GameOverScreen />}
+      {showLeaderboard && <LeaderboardModal />}
+      {showAchievements && <AchievementModal />}
+      {showImportModal && <ImportModal onClose={() => setShowImportModal(false)} onImport={processImport} />}
+      {showSystemSettings && <SystemSettingsModal onClose={()=>setShowSystemSettings(false)} onSave={handleSave} onLoad={handleLoad}
+          onExport={handleExportSave} onDownload={handleDownloadBackup} onImport={()=>{setShowSystemSettings(false);setShowImportModal(true);}}
+          onRestart={restartGame} autoSaveStatus={autoSaveStatus} isGameStarted={isGameStarted} />}
+      {showCloudPanel && CloudSavePanel()}
+      {showRestartConfirm && <RestartConfirmModal onCancel={()=>setShowRestartConfirm(false)} onConfirm={confirmRestartGame} />}
+      <CloudGuardModal />
+      <GameDialogModal />
+      <FeedbackMsg />
+      
+      <div className="bg-stone-900 text-amber-50 p-2 shadow-md sticky top-0 z-40">
+         <div className="max-w-6xl mx-auto flex flex-wrap justify-between items-center gap-2">
+            <div className="flex items-center gap-2 font-serif text-lg">
+               <span className="bg-red-800 px-2 rounded border border-yellow-600">{gameState.eraName}{gameState.year}年</span>
+               <span className="text-sm opacity-80">{gameState.age}歲</span>
+               <button onClick={()=>setShowReleaseNotes(true)} className="text-[11px] text-amber-200 underline whitespace-nowrap" title="查看更新說明">{APP_VERSION} 更新</button>
+               <button onClick={()=>{setManualTab('PALACE');setShowGameManual(true);}} className="text-[11px] bg-amber-800 rounded px-2 py-1 whitespace-nowrap">❓ 玩法</button>
+               <button onClick={()=>setShowSystemSettings(true)} className="text-[11px] bg-stone-700 rounded px-2 py-1 whitespace-nowrap">⚙ 系統設定</button>
+               <button onClick={()=>setShowCloudPanel(true)} className="text-[11px] bg-sky-700 rounded px-2 py-1 whitespace-nowrap">☁ {cloudUser?(cloudSlot?`槽位 ${cloudSlot}`:'雲端已登入'):'Google 登入'}</button>
+               {(gameState.pendingPalaceEvent||gameState.pendingAnnualDraft||getPendingRetirementMinisters(gameState).length>0) && !['THRONE','MEMORIAL','DEFEND'].includes(currentView) && <button onClick={()=>setCurrentView('THRONE')} className="bg-red-700 text-xs font-bold px-2 py-1 rounded">⚠️ 待決宮廷事件</button>}
+               {gameState.activeTitle && <span className="bg-yellow-500 text-stone-900 text-xs px-2 py-0.5 rounded-full font-bold flex items-center gap-1 animate-pulse"><Award/> {gameState.activeTitle}</span>}
+            </div>
+            <div className="flex gap-4 flex-1 justify-end text-sm">
+               <div className="flex items-center gap-1"><Activity/> 健康 {gameState.health}</div>
+               <div className="flex items-center gap-1" title="體力上限隨健康下降，最低80"><Zap/> 體力 {gameState.energy}/{getMaxEnergy(gameState.health)}</div>
+            </div>
+         </div>
+      </div>
+
+      <div className="flex-1 max-w-6xl mx-auto w-full p-2 md:p-4 flex flex-col">
+        {currentView === 'THRONE' && (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 mb-4 text-xs md:text-sm">
+            <div className="bg-yellow-50 p-2 rounded border border-yellow-200 flex items-center gap-2 overflow-hidden"><Coins/> <span className="font-bold truncate">國庫 {gameState.treasury}</span></div>
+            <div className="bg-violet-50 p-2 rounded border border-violet-200 flex items-center gap-2 overflow-hidden"><span>👥</span><span className="font-bold truncate">人口 {formatPopulation(gameState.population)}萬</span></div>
+            <div className="bg-red-50 p-2 rounded border border-red-200 flex items-center gap-2 overflow-hidden"><span>❤️</span><span className="font-bold truncate">民心 {gameState.stability}</span></div>
+            <div className="bg-stone-100 p-2 rounded border border-stone-200 flex items-center gap-2 overflow-hidden"><Sword/> <span className="font-bold truncate">軍力 {gameState.army}千</span></div>
+            <div className="bg-emerald-50 p-2 rounded border border-emerald-200 flex items-center gap-2 overflow-hidden"><MapIcon/> <span className="font-bold truncate">{gameState.provinces.length}省</span></div>
+          </div>
+        )}
+
+        <main className="flex-1 relative bg-[url('https://www.transparenttextures.com/patterns/cream-paper.png')] bg-amber-50 border-4 border-double border-stone-300 rounded-xl shadow-xl overflow-hidden">
+           {currentView === 'THRONE' && (
+             <div className="throne-columns grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-3 md:p-4 h-full overflow-y-auto">
+                {getOpenGovernmentPosts(gameState).length > 0 && <div className="col-span-1 md:col-span-2 lg:col-span-3"><VacantPostsBanner /></div>}
+                {(gameState.pendingBattleLines||[]).length > 0 && <div className="col-span-1 md:col-span-2 lg:col-span-3 bg-red-100 border-l-4 border-red-700 p-4 rounded shadow-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-3"><div><b className="text-red-900">⚔️ 邊疆有 {(gameState.pendingBattleLines||[]).length} 條戰線待部署</b><p className="text-xs text-red-800 mt-1">必須完成分兵、指派將領或明確棄守，才能繼續下一年。</p></div><button onClick={()=>setCurrentView('DEFEND')} className="bg-red-900 text-white rounded px-4 py-2 font-bold">前往兵部部署</button></div>
+                </div>}
+                {(dangerousMinisters.length > 0 || dangerousConsorts.length > 0) && (
+                   <div className="col-span-1 md:col-span-2 lg:col-span-3 bg-red-100 border-l-4 border-red-500 p-4 rounded shadow-sm mb-2">
+                       <div className="flex items-center gap-2 font-bold text-red-800 mb-2"><AlertTriangle/> <span>危機預警</span></div>
+                       <div className="space-y-1 text-sm text-red-700">
+                           {dangerousMinisters.length > 0 && <div><span className="font-bold">官員忠誠告急：</span>{dangerousMinisters.map(m => `${m.name}(${Math.round(Number(m.loyalty) || 0)})`).join('、')}</div>}
+                           {dangerousConsorts.length > 0 && <div><span className="font-bold">後宮怨氣沖天：</span>{sortConsortsByRank(dangerousConsorts).map(c => `${consortIdentity(c)}（好感 ${c.affection}）`).join('、')}</div>}
+                       </div>
+                   </div>
+                )}
+
+                <div className="throne-column">
+                   <div className="bg-white/60 p-3 rounded border border-amber-100">
+                      <h3 className="font-bold text-amber-900 mb-2 flex items-center gap-2"><Coins/> 戶部</h3>
+                      <div className={`mb-2 rounded border p-2 ${gameState.annualTaxRate>=8?'bg-red-50 border-red-300':gameState.annualTaxRate>=6?'bg-amber-50 border-amber-300':'bg-white border-amber-200'}`}>
+                        <div className="flex items-center justify-between gap-2"><label className="font-bold text-sm" htmlFor="annual-tax-rate">年度人口稅率</label><select id="annual-tax-rate" value={normalizeAnnualTaxRate(gameState.annualTaxRate)} onChange={e=>setGameState(s=>({...s,annualTaxRate:normalizeAnnualTaxRate(e.target.value)}))} className="border rounded px-2 py-1 bg-white font-bold">{Object.keys(ANNUAL_TAX_POLICIES).map(rate=><option key={rate} value={rate}>{rate}成</option>)}</select></div>
+                        <div className="mt-1 text-[11px] leading-5">預估人口稅 <b>{calculateYearlyIncome(gameState).pop}</b>兩・年度民心 <b>{signedNumber(getAnnualTaxPolicy(gameState.annualTaxRate).stability)}</b>・人口成長 <b>{signedNumber(getAnnualTaxPolicy(gameState.annualTaxRate).populationGrowth)}%</b></div>
+                        {gameState.annualTaxRate>=6&&<div className={`text-[11px] font-bold ${gameState.annualTaxRate>=8?'text-red-700':'text-amber-700'}`}>{gameState.annualTaxRate>=8?'嚴重苛稅：民心與人口將大幅下降':'苛稅：將降低民心與人口成長'}</div>}
+                      </div>
+                      <button disabled={Number(gameState.lastForcedTaxDynastyYear)===Number(gameState.dynastyYear||gameState.year)} onClick={() => { const taxAmt = calculateTaxAmount(); handleAction(5, 0, "強徵稅賦", s => ({...s, treasury: s.treasury+taxAmt, stability: s.stability-5,lastForcedTaxDynastyYear:Number(s.dynastyYear||s.year)})); }} className="w-full bg-white border p-2 rounded mb-2 text-left hover:bg-gray-50 flex justify-between items-center disabled:opacity-50 disabled:cursor-not-allowed"><span>{Number(gameState.lastForcedTaxDynastyYear)===Number(gameState.dynastyYear||gameState.year)?'本年已強制徵稅':'強徵稅賦'}</span><span className="text-[10px] text-gray-500 flex items-center gap-1">銀+{calculateTaxAmount()} 民-5 <span className={getCostMultiplier()<1 ? 'text-green-600 font-bold' : 'text-blue-500'}>(體力-{val(5)})</span></span></button>
+                      <button onClick={() => handleAction(8, 100, "賑糧", s => ({...s, treasury: s.treasury - 100, stability:s.stability+improvePositive(5,s,'civil')}))} className="w-full bg-white border border-green-200 text-green-800 p-2 rounded mb-2 text-left hover:bg-green-50 flex justify-between items-center"><span>開倉賑糧</span><span className="text-[10px] text-gray-500 flex items-center gap-1">銀-100 民+{improvePositive(5,gameState,'civil')} <span className={getCostMultiplier()<1 ? 'text-green-600 font-bold' : 'text-blue-500'}>(體力-{val(8)})</span></span></button>
+                      <button onClick={() => setCurrentView('PROVINCES')} className="w-full bg-emerald-100 border-emerald-200 border p-2 rounded text-left text-emerald-900">管理疆域 (建設/官員)</button>
+                   </div>
+                   
+                   <div className="bg-white/60 p-3 rounded border border-slate-300">
+                      <h3 className="font-bold text-slate-800 mb-2 flex items-center gap-2"><Hammer/> 工部 (改革)</h3>
+                      <button onClick={() => setCurrentView('WORKS')} className="w-full bg-slate-700 text-white p-2 rounded text-left text-sm flex justify-between items-center hover:bg-slate-600 shadow"><span>改革變法 / 科技研發</span><span className="text-xs bg-slate-500 px-1 rounded">{gameState.unlockedTechs?.length || 0}項</span></button>
+                   </div>
+
+                   <div className="bg-white/60 p-3 rounded border border-blue-100">
+                      <h3 className="font-bold text-blue-900 mb-2 flex items-center gap-2"><Briefcase/> 吏部</h3>
+                      <button onClick={() => setCurrentView('MINISTERS')} className="w-full bg-blue-100 border-blue-200 border p-2 rounded text-left text-blue-900">中央與百官 (任命/科舉)</button>
+                      <button onClick={() => setCurrentView('CORRUPTION')} className="w-full bg-red-100 border-red-300 border p-2 rounded text-left text-red-900 mt-2">🏮 軍機處・貪官密查 ({(gameState.corruptionCases||[]).filter(c=>['uninvestigated','investigating','evidence'].includes(c.status)).length} 件待查)</button>
+                   </div>
+                </div>
+
+                <div className="throne-column">
+                   <div className="bg-white/60 p-3 rounded border border-stone-100">
+                      <h3 className="font-bold text-stone-900 mb-2 flex items-center gap-2"><Sword/> 兵部</h3>
+                      <button onClick={() => { const recruitment=calculateRecruitment(gameState); if(recruitment.actual<=0){showMessage('人口不足，無法募兵','error');return;} handleAction(10, 200, "募兵", s => { const result=calculateRecruitment(s); return {...s, treasury:s.treasury-200,army:s.army+result.actual,population:roundPopulation(s.population-result.populationCost)}; }); }} className="w-full bg-white border p-2 rounded mb-2 text-left hover:bg-gray-50 flex justify-between items-center"><span>招兵買馬</span><span className="text-[10px] text-gray-500">軍+{calculateRecruitment(gameState).actual}千・人口-{formatPopulation(calculateRecruitment(gameState).populationCost)}萬・銀-200 (體{val(10)})</span></button>
+                      <button onClick={() => { if (gameState.army <= 0) { showMessage("無兵可遣散", 'error'); return; } handleAction(5, 0, "遣散", s => {const dismissed=Math.min(10,Math.max(0,Number(s.army)||0));return {...s,army:s.army-dismissed,population:roundPopulation(s.population+dismissed/10)};}); }} className="w-full bg-gray-100 border border-gray-300 p-1 rounded mb-2 text-xs text-center text-gray-600 hover:bg-gray-200">遣散兵馬 (軍-{Math.min(10,Math.max(0,Number(gameState.army)||0))}千、人口+{formatPopulation(Math.min(10,Math.max(0,Number(gameState.army)||0))/10)}萬、體-{val(5)})</button>
+                      <button onClick={() => setCurrentView('WAR')} className="w-full bg-stone-800 border-stone-900 border p-2 rounded text-left text-stone-50 shadow-md hover:bg-stone-700">御駕親征 (戰爭)</button>
+                   </div>
+                   <div className="bg-white/60 p-3 rounded border border-amber-200">
+                      <h3 className="font-bold text-amber-950 mb-2">🤝 禮部</h3>
+                      <button onClick={() => setCurrentView('DIPLOMACY')} className="w-full bg-amber-100 border-amber-300 border p-2 rounded text-left text-amber-950">邦交、贈禮與公主和親</button>
+                   </div>
+                   <div className="bg-white/60 p-3 rounded border border-pink-100">
+                      <h3 className="font-bold text-pink-900 mb-2 flex items-center gap-2"><User/> 內廷</h3>
+                      <button onClick={() => setCurrentView('HAREM')} className="w-full bg-pink-100 border-pink-200 border p-2 rounded text-left text-pink-900">后宮管理・深宮秘聞</button>
+                      <button onClick={() => setCurrentView('SCHOOL')} className="w-full bg-indigo-100 border-indigo-200 border p-2 rounded text-left text-indigo-900 mt-2">上書房・皇家書院（入學／快速培養）</button>
+                      <div className="grid grid-cols-2 gap-2 mt-2">
+                        <button onClick={() => setCurrentView('IMPERIAL_STUDY')} className="bg-amber-100 border-amber-300 border p-2 rounded text-left text-xs text-amber-950">📚 御書房<br/>文{gameState.civil}／武{gameState.military}</button>
+                        <button onClick={() => {setBureauTab('TREE');setCurrentView('BUREAU');}} className="bg-amber-100 border-amber-300 border p-2 rounded text-left text-xs text-amber-950">🏯 宗人府<br/>族譜與歷代皇帝</button>
+                      </div>
+                   </div>
+                   
+                </div>
+
+                <div className="throne-column">
+                   <div className="compact-actions">
+                       <button onClick={handleCourt} className="w-full py-2.5 px-2 bg-amber-700 text-white rounded font-bold text-sm shadow hover:bg-amber-600"><Crown/> 上朝聽政 <span className="text-xs">（體-{val(10)}）</span></button>
+                      <button onClick={handleAdventure} className="w-full py-2.5 px-2 bg-teal-700 text-white rounded font-bold text-sm shadow hover:bg-teal-600"><Compass/> 微服私訪 <span className="text-xs">（體-{Math.max(0,val(15)-(activeSpecialConsort(gameState,'xi_shi')?2:0))}）</span></button>
+                   </div>
+                   <button onClick={nextYear} disabled={!!gameState.pendingRetirementPlan || getPendingRetirementMinisters(gameState).length>0}
+                     className="w-full py-3 bg-red-900 text-white rounded font-bold text-xl shadow hover:bg-red-800 flex items-center justify-center gap-2 disabled:opacity-50"><RefreshCw/> {getPendingRetirementMinisters(gameState).length?'請先裁決老臣告老':'結束本年'}</button>
+                   <div className="compact-actions">
+                       <button onClick={fetchLeaderboard} className="flex-1 py-2 bg-blue-800 text-white rounded font-bold flex items-center justify-center gap-1 hover:bg-blue-700 text-sm shadow"><BarChart2/> 排行榜</button>
+                       <button onClick={() => setShowAchievements(true)} className="flex-1 py-2 bg-yellow-600 text-white rounded font-bold text-sm flex items-center justify-center gap-1 hover:bg-yellow-500 shadow"><Medal/> 成就 ({gameState.unlockedAchievements?.length || 0})</button>
+                   </div>
+                   <button onClick={()=>setCurrentView('TREASURY')} className="w-full py-2 bg-amber-800 text-white rounded font-bold text-sm shadow">🎒 皇家寶庫（{inventoryUsedSlots(gameState.inventory)}/{INVENTORY_CAPACITY}）</button>
+                   
+                    <div className="throne-log-panel bg-white/80 border rounded p-2 flex flex-col flex-1 transition-all duration-300">
+                      <div className="flex justify-between items-center mb-1 cursor-pointer" onClick={() => setLogExpanded(!logExpanded)}><div className="text-xs font-bold text-gray-400 uppercase tracking-wider">起居注</div>{logExpanded ? <ChevronDown/> : <ChevronUp/>}</div>
+                      <div ref={logScrollRef} data-scroll-key="throne-log" onScroll={event=>{const element=event.currentTarget;logWasAtBottomRef.current=element.scrollHeight-element.scrollTop-element.clientHeight<12;}} className="flex-1 text-sm space-y-1 font-serif overflow-y-auto">{(logExpanded ? logs : logs.slice(-100)).map((log, i) => <div key={`${logExpanded?'all':'recent'}-${i}`} className="border-b border-dashed border-gray-100 pb-1">{log}</div>)}<div /></div>
+                   </div>
+                </div>
+             </div>
+           )}
+
+           {currentView === 'MEMORIAL' && (
+                <div className="flex items-center justify-center h-full p-4 overflow-y-auto">
+                    <div className="bg-white p-6 rounded-lg shadow-2xl border-t-4 border-red-800 max-w-md w-full max-h-full overflow-y-auto">
+                        <h2 className="text-2xl font-bold text-red-900 mb-4 border-b pb-2 text-center">{currentEvent?.title}</h2>
+                        <p className="mb-6 text-lg font-serif leading-relaxed whitespace-pre-line">{currentEvent?.description}</p>
+                        {currentEvent?.eventType === 'COURT' && currentEvent?.result ? (
+                            <div className="space-y-4">
+                                <div className={`rounded-lg border p-4 text-center ${currentEvent.result.kind === 'check' && !currentEvent.result.success ? 'bg-red-50 border-red-200' : 'bg-emerald-50 border-emerald-200'}`}>
+                                    <div className={`text-xl font-bold ${currentEvent.result.kind === 'check' && !currentEvent.result.success ? 'text-red-800' : 'text-emerald-800'}`}>
+                                        {currentEvent.result.kind === 'check' ? (currentEvent.result.success ? '✓ 處理成功' : '✕ 處理未成功') : '✓ 已依聖旨處置'}
+                                    </div>
+                                    {currentEvent.result.kind === 'check' && (
+                                        <div className="text-sm text-stone-600 mt-2">
+                                            {currentEvent.result.statName}判定成功率：{currentEvent.result.chance}%
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="rounded-lg bg-amber-50 border border-amber-200 p-4">
+                                    <div className="font-bold text-amber-950 mb-2">御前處理結果</div>
+                                    <p className="text-sm leading-relaxed text-stone-800 whitespace-pre-line">{currentEvent.result.detail}</p>
+                                </div>
+                                {currentEvent.result.effects?.length > 0 && (
+                                    <div className="rounded-lg border border-stone-200 p-3">
+                                        <div className="font-bold text-stone-800 mb-2">本次數值變化</div>
+                                        <div className="grid grid-cols-2 gap-2 text-sm">
+                                            {currentEvent.result.effects.map((item, idx) => (
+                                                <div key={idx} className="flex justify-between gap-2 bg-stone-50 rounded px-2 py-1">
+                                                    <span className="text-stone-600">{item.label}</span>
+                                                    <span className={`font-bold ${item.positive ? 'text-emerald-700' : 'text-red-700'}`}>{item.value}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                                <button onClick={() => {setCurrentEvent(null);setCurrentView('THRONE');}} className="screen-bottom-return w-full p-3 rounded font-bold text-white bg-red-900 hover:bg-red-800 shadow">返回朝堂</button>
+                            </div>
+                        ) : (
+                            <div className="space-y-3">
+                            {getPlayableEventOptions(currentEvent).map((opt, idx) => (
+                                <button key={idx} disabled={opt.disabled} className={`w-full p-3 border rounded font-bold text-left ${opt.disabled ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-amber-50 border-amber-200 hover:bg-amber-100 text-stone-800'}`} onClick={() => {
+                                    const { logsAdd: _ignore, ...cleanState } = gameState;
+                                    const result = opt.effect(cleanState);
+                                     const { logsAdd, _courtOutcome, _newRecruits, _recruitTitle, ...newState } = result;
+                                    setGameState(newState);
+                                    const detail = logsAdd || `批閱：${opt.text.split('(')[0]}`;
+                                    if(logsAdd) addLog(logsAdd); else addLog(detail);
+                                     if(Array.isArray(opt.recruits)&&opt.recruits.length)setExamResult({source:'event',title:opt.recruitTitle||'新官入朝',results:opt.recruits});
+                                     else if(Array.isArray(_newRecruits)&&_newRecruits.length)setExamResult({source:'event',title:_recruitTitle||'新官入朝',results:_newRecruits});
+                                    if (currentEvent?.eventType === 'COURT') {
+                                        const numberEffects = [
+                                            {key:'treasury',label:'國庫',unit:'兩',digits:0},
+                                            {key:'stability',label:'民心',unit:'點',digits:0},
+                                            {key:'army',label:'軍力',unit:'',digits:0}
+                                        ];
+                                        const effects = numberEffects.map(item => ({...item,delta:(Number(newState[item.key])||0)-(Number(gameState[item.key])||0)}))
+                                            .filter(item => item.delta !== 0)
+                                            .map(item => ({label:item.label,value:`${item.delta>0?'+':''}${item.delta.toFixed(item.digits)}${item.unit}`,positive:item.delta>0}));
+                                        const corruptionDelta = (Number(newState.corruptionRate)||0)-(Number(gameState.corruptionRate)||0);
+                                        if (corruptionDelta !== 0) effects.push({label:'貪腐率',value:`${corruptionDelta>0?'+':''}${(corruptionDelta*100).toFixed(2)} 個百分點`,positive:corruptionDelta<0});
+                                        setCurrentEvent(prev => ({...prev,options:[],result:{
+                                            kind:_courtOutcome?.kind || 'direct',
+                                            success:_courtOutcome?.success !== false,
+                                            chance:_courtOutcome?.chance,
+                                            statName:_courtOutcome?.statName,
+                                            detail,
+                                            effects
+                                        }}));
+                                        return;
+                                    }
+                                    setCurrentEvent(null);
+                                    if (currentEvent.id === 'WAR_RESULT' || currentEvent.id === 888) {
+                                        if(currentEvent.id === 888) setCurrentView('DEFEND'); else setCurrentView('THRONE');
+                                    } else setCurrentView('THRONE');
+                                }}>{opt.text}</button>
+                            ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+           )}
+
+           {currentView === 'MINISTERS' && MinisterView()}
+           {currentView === 'RECRUIT' && <RecruitView />}
+           {currentView === 'CORRUPTION' && <CorruptionView />}
+           {currentView === 'PROVINCES' && ProvinceView()}
+           {currentView === 'SCHOOL' && <SchoolView />}
+           {currentView === 'IMPERIAL_STUDY' && <ImperialStudyView />}
+           {currentView === 'BUREAU' && <RoyalBureauView />}
+           {currentView === 'WAR' && WarView({mode:'ATTACK'})}
+           {currentView === 'DEFEND' && MultiDefenseView()}
+           {currentView === 'DIPLOMACY' && <DiplomacyView />}
+           {currentView === 'HAREM' && HaremView()}
+           {currentView === 'WORKS' && <WorksView />}
+           {currentView === 'TREASURY' && <RoyalTreasuryView />}
+        </main>
+      </div>
+    </div>
+  )
+}
+      const root = ReactDOM.createRoot(document.getElementById('root'));
+      root.render(<App />);

@@ -1,0 +1,101 @@
+      /* 隱藏滾動條但保留滾動功能，讓 UI 更乾淨 */
+      ::-webkit-scrollbar { width: 6px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+      ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        /* v1.1.4：保留宣紙、朱紅、琥珀主題，優化三欄視覺對齊與操作密度。 */
+        .throne-columns { align-items: stretch; }
+        .throne-column { min-width:0; display:flex; flex-direction:column; gap:12px; padding:12px; border:1px solid #e7d8bd; border-radius:12px; background:rgba(255,251,235,.42); }
+        .throne-column > div { min-width:0; }
+        .throne-log-panel { min-height:160px; overflow:hidden; }
+        .throne-column button { min-width:0; white-space:normal; overflow-wrap:anywhere; line-height:1.45; }
+        .throne-column button span { min-width:0; }
+        .throne-column .compact-actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+        .screen-page-return { position:sticky; top:8px; z-index:35; display:flex; align-items:center; width:max-content; max-width:100%; padding:8px 12px; border:1px solid rgba(120,113,108,.3); border-radius:8px; background:rgba(255,255,255,.94); box-shadow:0 2px 8px rgba(0,0,0,.12); backdrop-filter:blur(6px); }
+        .screen-modal-header { position:sticky; top:0; z-index:45; background-color:inherit; }
+        .screen-icon-close { position:sticky; top:8px; z-index:50; float:right; display:flex; padding:6px; border-radius:999px; background:rgba(255,255,255,.94); box-shadow:0 2px 8px rgba(0,0,0,.14); }
+        .screen-bottom-return { position:sticky; bottom:8px; z-index:35; }
+        .screen-fixed-actions { position:fixed; left:50%; bottom:0; transform:translateX(-50%); width:min(calc(100% - 1rem),72rem); z-index:90; padding:10px 14px; background:rgba(255,255,255,.98); border:2px solid rgba(51,65,85,.55); border-bottom:0; border-radius:12px 12px 0 0; box-shadow:0 -4px 14px rgba(0,0,0,.18); backdrop-filter:blur(8px); }
+        @media(min-width:1024px) {
+          .throne-column { min-height:0; }
+          .throne-log-panel { min-height:0; contain:size; }
+        }
+        @media(max-width:1023px) { .throne-column { gap:12px; } }
+
+        /* v1.3.4：科舉名帖與敬事房翻牌動畫。 */
+        .recruit-reveal-shell {
+          background:
+            radial-gradient(circle at 50% 0%,rgba(180,83,9,.30),transparent 38%),
+            linear-gradient(145deg,#21130d,#35130f 55%,#170e0b);
+        }
+        .recruit-flip-card {
+          width:100%; max-width:180px; aspect-ratio:.72; margin:auto; padding:0;
+          border:0; border-radius:12px; background:transparent; perspective:1100px;
+          color:inherit; cursor:pointer;
+        }
+        .recruit-flip-card.is-single { max-width:270px; }
+        .recruit-flip-inner {
+          position:relative; display:block; width:100%; height:100%; min-height:210px;
+          transform-style:preserve-3d; transition:transform .68s cubic-bezier(.2,.75,.25,1);
+        }
+        .recruit-flip-card.is-single .recruit-flip-inner { min-height:360px; }
+        .recruit-flip-card.is-revealed .recruit-flip-inner { transform:rotateY(180deg); }
+        .recruit-flip-face {
+          position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+          padding:10px; border-radius:12px; overflow:hidden; backface-visibility:hidden; -webkit-backface-visibility:hidden;
+          box-shadow:0 10px 24px rgba(0,0,0,.42);
+        }
+        .recruit-flip-back {
+          color:#ffedb5; border:3px double #d69e2e;
+          background:
+            linear-gradient(45deg,transparent 46%,rgba(251,191,36,.16) 48% 52%,transparent 54%),
+            radial-gradient(circle,#7f1d1d,#450a0a 72%);
+        }
+        .recruit-flip-back::before,.recruit-flip-back::after {
+          content:""; position:absolute; inset:8px; border:1px solid rgba(251,191,36,.55); border-radius:8px; pointer-events:none;
+        }
+        .recruit-flip-back::after { inset:14px; border-style:dotted; }
+        .recruit-flip-back b { position:relative; z-index:1; font-family:serif; font-size:1.15rem; letter-spacing:.12em; }
+        .recruit-flip-back span,.recruit-flip-back small { position:relative; z-index:1; margin-top:6px; font-size:.7rem; opacity:.82; }
+        .recruit-flip-front { transform:rotateY(180deg); border:3px double #a16207; color:#292524; }
+        .recruit-flip-front.rarity-common { background:linear-gradient(145deg,#fffdf3,#f5e6be); }
+        .recruit-flip-front.rarity-historical { background:linear-gradient(145deg,#eff6ff,#dbeafe 55%,#fef3c7); border-color:#2563eb; box-shadow:0 0 24px rgba(59,130,246,.6),0 10px 24px rgba(0,0,0,.42); }
+        .recruit-flip-front.rarity-legendary { background:linear-gradient(145deg,#fff7ed,#fde68a 52%,#fecaca); border-color:#dc2626; box-shadow:0 0 32px rgba(250,204,21,.85),0 10px 24px rgba(0,0,0,.42); }
+        .recruit-flip-front small { display:-webkit-box; overflow:hidden; -webkit-box-orient:vertical; -webkit-line-clamp:2; font-size:.67rem; line-height:1.25; }
+
+        .consort-transition {
+          overflow:hidden; background:
+            radial-gradient(circle at 50% 48%,rgba(251,191,36,.18),transparent 34%),
+            linear-gradient(rgba(55,12,20,.94),rgba(25,7,12,.98));
+        }
+        .consort-transition::before {
+          content:""; position:absolute; inset:0; opacity:.16; pointer-events:none;
+          background-image:repeating-linear-gradient(90deg,transparent 0 48px,rgba(251,191,36,.35) 49px 50px);
+        }
+        .consort-lantern { position:absolute; top:7%; font-size:4rem; filter:drop-shadow(0 0 18px #f59e0b); animation:consortLantern 1.8s ease-in-out infinite alternate; transform-origin:top center; }
+        .consort-lantern-left { left:6%; } .consort-lantern-right { right:6%; animation-delay:-.7s; }
+        .consort-plaque-wrap { width:min(68vw,250px); height:340px; margin:auto; perspective:1200px; }
+        .consort-plaque-inner { position:relative; width:100%; height:100%; transform-style:preserve-3d; animation:consortPlaqueReveal 1.05s cubic-bezier(.2,.75,.2,1) both; }
+        .consort-plaque-face { position:absolute; inset:0; border-radius:22px 22px 50px 50px; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:24px; backface-visibility:hidden; -webkit-backface-visibility:hidden; box-shadow:0 18px 35px rgba(0,0,0,.5); }
+        .consort-plaque-back { border:6px double #d97706; color:#fde68a; background:linear-gradient(145deg,#7f1d1d,#3f0b12); }
+        .consort-plaque-back span { display:grid; place-items:center; width:90px; height:90px; border:2px solid #fbbf24; border-radius:999px; font:700 3rem serif; }
+        .consort-plaque-back small { margin-top:20px; letter-spacing:.35em; }
+        .consort-plaque-front { transform:rotateY(180deg); border:6px double #b45309; color:#451a03; background:linear-gradient(145deg,#fff7ed,#fde7b0); }
+        .consort-plaque-wrap.is-historical .consort-plaque-front { border-color:#d97706; box-shadow:0 0 34px rgba(251,191,36,.72),0 18px 35px rgba(0,0,0,.5); }
+        .consort-plaque-wrap.is-legendary .consort-plaque-front { border-color:#7e22ce; background:linear-gradient(145deg,#faf5ff,#f3e8ff 55%,#fde68a); box-shadow:0 0 42px rgba(192,132,252,.85),0 18px 35px rgba(0,0,0,.5); }
+        .consort-visit-panel { width:min(86vw,360px); margin:auto; padding:26px; border:4px double #d97706; border-radius:18px; background:linear-gradient(145deg,#fff7ed,#ffe4e6); box-shadow:0 18px 40px rgba(0,0,0,.45); animation:consortVisitFade .75s ease-out both; }
+        @keyframes consortPlaqueReveal { 0%,28%{transform:translateY(28px) rotateY(0);opacity:0} 42%{opacity:1} 100%{transform:translateY(0) rotateY(180deg);opacity:1} }
+        @keyframes consortLantern { from{transform:rotate(-4deg)} to{transform:rotate(4deg)} }
+        @keyframes consortVisitFade { from{transform:translateY(18px) scale(.96);opacity:0} to{transform:none;opacity:1} }
+        @media(max-width:480px) {
+          .recruit-flip-inner { min-height:190px; }
+          .recruit-flip-card.is-single .recruit-flip-inner { min-height:330px; }
+          .consort-lantern { top:4%; font-size:3rem; }
+          .consort-plaque-wrap { height:315px; }
+        }
+        @media(prefers-reduced-motion:reduce) {
+          .recruit-flip-inner { transition-duration:.01ms; }
+          .consort-plaque-inner { animation-duration:.01ms; }
+          .consort-lantern { animation:none; }
+          .consort-visit-panel { animation-duration:.01ms; }
+        }

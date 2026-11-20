@@ -1,0 +1,987 @@
+      const CENTRAL_POST_NAMES = {
+          primeMinister: '丞相', revenueMinister: '戶部尚書', warMinister: '兵部尚書'
+      };
+      const MILITARY_POST_NAMES = {
+          commanderId: '出征主將', viceId: '出征副將', strategistId: '出征軍師'
+      };
+      const getMinisterPostLabels = (state, ministerId) => {
+          const labels=[];
+          Object.entries(CENTRAL_POST_NAMES).forEach(([key,label])=>{
+              if(String(state.centralOfficials?.[key])===String(ministerId))labels.push(label);
+          });
+          (state.provinces||[]).forEach(province=>{
+              (province.officials||[]).forEach((id,slot)=>{
+                  if(id!=null&&String(id)===String(ministerId))labels.push(`${province.name}${slot===0?'總督':'巡撫'}`);
+              });
+          });
+          Object.entries(MILITARY_POST_NAMES).forEach(([key,label])=>{
+              if(String(state.warSetup?.[key])===String(ministerId))labels.push(label);
+          });
+          return labels;
+      };
+      const processAnnualCorruption = (state, annualIncome, rate, dynastyYear) => {
+          const records={...(state.corruptionRecords||{})};
+          let cases=[...(state.corruptionCases||[])];
+          let groups=[...(state.corruptionGroups||[])];
+          const logs=[];
+          const appointedIds=new Set([
+              ...Object.values(state.centralOfficials||{}).filter(x=>x!=null).map(String),
+              ...(state.provinces||[]).flatMap(p=>(p.officials||[]).filter(x=>x!=null).map(String)),
+              ...['commanderId','viceId','strategistId'].map(k=>state.warSetup?.[k]).filter(x=>x!=null).map(String)
+          ]);
+          const appointed=(state.ministers||[]).filter(m=>appointedIds.has(String(m.id)));
+          const activeRate=normalizeCorruptionRate(rate);
+          const pool=calculateAnnualCorruptionCost(annualIncome,activeRate);
+          let offenders=[];
+
+          // 每年只擲一次全國案件骰：機率直接等於同一個國家貪腐率。
+          const caseTriggered=Math.random()<activeRate;
+          if(caseTriggered&&appointed.length){
+              const first=pickWeightedCorruptionOfficial(appointed);
+              if(first)offenders=[first];
+              // 保留原本貪腐集團玩法：觸發案件後有35%機率牽出同黨，總人數最多3人。
+              if(first&&appointed.length>1&&Math.random()<0.35){
+                  const remaining=appointed.filter(m=>String(m.id)!==String(first.id));
+                  const extraCount=remaining.length>1&&Math.random()<0.25?2:1;
+                  while(remaining.length&&offenders.length<1+extraCount){
+                      const next=pickWeightedCorruptionOfficial(remaining);
+                      if(!next)break;
+                      offenders.push(next);
+                      const index=remaining.findIndex(m=>String(m.id)===String(next.id));
+                      if(index>=0)remaining.splice(index,1);
+                  }
+              }
+              logs.push(`【年度貪腐判定】本年國家貪腐率${formatCorruptionPercentage(activeRate)}，已觸發新貪污案件；依官員忠誠加權抽選涉案者。`);
+          }else if(caseTriggered&&!appointed.length){
+              logs.push(`【年度貪腐判定】本年觸發貪污風險，但目前沒有具名在任官員可列入涉案名單；歲入仍按貪腐率損耗${pool.toLocaleString()}兩。`);
+          }else{
+              logs.push(`【年度貪腐判定】本年未觸發具名貪污案件；國家歲入仍按${formatCorruptionPercentage(activeRate)}計算貪腐損耗${pool.toLocaleString()}兩。`);
+          }
+
+          const share=offenders.length?Math.floor(pool/offenders.length):0;
+          offenders.forEach((minister,index)=>{
+              const key=String(minister.id);
+              const old=records[key]||{ministerId:minister.id,name:minister.name,totalStolen:0,totalRecovered:0,offenseCount:0,discoveredCount:0,lastOffenseYear:null,groupId:null,history:[]};
+              const amount=index===offenders.length-1?Math.max(0,pool-share*(offenders.length-1)):share;
+              const repeatCount=Number(old.offenseCount)||0;
+              const postLabels=getMinisterPostLabels(state,minister.id);
+              const ageAtOffense=inferMinisterAge(minister,state);
+              const officialSnapshot={...minister,age:ageAtOffense,ageAtOffense,
+                  civil:Number(minister.civil)||0,military:Number(minister.military)||0,
+                  loyalty:Number(minister.loyalty)||0,aptitude:Number(minister.aptitude)||0};
+              const offenseEntry={dynastyYear,amount,officialSnapshot,postLabels};
+              const existing=cases.find(c=>String(c.officialId)===key&&['uninvestigated','investigating','evidence'].includes(c.status)&&c.trueOffense===true);
+              let caseId;
+              if(existing){
+                  caseId=existing.id;
+                  cases=cases.map(c=>String(c.id)===String(existing.id)?{...c,
+                      amount:(Number(c.amount)||0)+amount,
+                      scale:getCorruptionScale((Number(c.amount)||0)+amount),
+                      offenseYears:[...(c.offenseYears||[c.dynastyYear]),dynastyYear],
+                      offenseHistory:[...(c.offenseHistory||[]),offenseEntry],
+                      officialSnapshot,postLabels,repeatOffenseCount:repeatCount+1,lastOffenseYear:dynastyYear}:c);
+              }else{
+                  caseId=`corrupt_${dynastyYear}_${key}_${Math.floor(Math.random()*1000000)}`;
+                  const item={id:caseId,officialId:minister.id,officialName:minister.name,officialSnapshot,
+                      postLabels,year:state.year,dynastyYear,amount,recoveredAmount:0,
+                      scale:getCorruptionScale(amount),status:'uninvestigated',evidenceLevel:'none',evidenceScore:0,
+                      trueOffense:true,isFalseAccusation:false,groupId:null,repeatOffenseCount:repeatCount,
+                      lastOffenseYear:dynastyYear,lastInvestigatedYear:null,investigationHistory:[],offenseHistory:[offenseEntry],
+                      rateReductionApplied:0,verdict:null,accuserName:null};
+                  cases.push(item);
+              }
+              records[key]={...old,ministerId:minister.id,name:minister.name,
+                  totalStolen:(Number(old.totalStolen)||0)+amount,offenseCount:repeatCount+1,
+                  lastOffenseYear:dynastyYear,postLabels,officialSnapshot,
+                  history:[...(old.history||[]),{dynastyYear,amount,caseId,officialSnapshot,postLabels}]};
+              logs.push(`【吏部密報】${minister.name}（${postLabels.join('、')||'在任官員'}）疑有貪墨，涉案銀兩約${amount.toLocaleString()}兩，已列入軍機處待查。`);
+          });
+
+          // 同一宗年度案件牽涉多人時建立集團；每組最多3人，成員仍須分別調查及裁決。
+          if(offenders.length>=2){
+              const groupId=`group_${dynastyYear}_${Math.floor(Math.random()*1000000)}`;
+              const memberIds=offenders.map(m=>m.id);
+              groups.push({id:groupId,leaderId:memberIds[0],members:memberIds,memberNames:offenders.map(m=>m.name),
+                  createdYear:dynastyYear,revealed:false,revealedMembers:[],status:'suspected',lastInvestigatedYear:null});
+              const memberSet=new Set(memberIds.map(String));
+              cases=cases.map(c=>memberSet.has(String(c.officialId))&&['uninvestigated','investigating','evidence'].includes(c.status)
+                  ?{...c,groupId}:c);
+              for(const m of offenders){const k=String(m.id);if(records[k])records[k]={...records[k],groupId};}
+              logs.push(`【軍機密報】本宗案件牽涉${offenders.length}名官員，已建立待查貪腐集團（每組上限3人）。`);
+          }
+
+          // 誣告密奏維持既有較高頻率；密奏不等於真實貪污，須獨立調查。
+          if(appointed.length>=2&&Math.random()<0.25){
+              const target=appointed[Math.floor(Math.random()*appointed.length)];
+              const accusers=appointed.filter(m=>String(m.id)!==String(target.id));
+              const accuser=accusers.length?accusers[Math.floor(Math.random()*accusers.length)]:null;
+              const postLabels=getMinisterPostLabels(state,target.id);
+              const ageAtOffense=inferMinisterAge(target,state);
+              const officialSnapshot={...target,age:ageAtOffense,ageAtOffense,
+                  civil:Number(target.civil)||0,military:Number(target.military)||0,
+                  loyalty:Number(target.loyalty)||0,aptitude:Number(target.aptitude)||0};
+              const accusation={id:`accusation_${dynastyYear}_${Math.floor(Math.random()*1000000)}`,
+                  officialId:target.id,officialName:target.name,officialSnapshot,postLabels,
+                  year:state.year,dynastyYear,amount:0,recoveredAmount:0,
+                  scale:'small',status:'uninvestigated',evidenceLevel:'none',evidenceScore:0,trueOffense:false,
+                  isFalseAccusation:true,groupId:null,repeatOffenseCount:0,lastOffenseYear:dynastyYear,
+                  lastInvestigatedYear:null,investigationHistory:[],rateReductionApplied:0,verdict:null,
+                  accuserId:accuser?.id??null,accuserName:accuser?.name||'匿名密奏'};
+              cases.push(accusation);
+              logs.push(`【匿名密奏】有人密奏${target.name}（${postLabels.join('、')||'在任官員'}）涉嫌貪墨，尚無確切罪證，請皇上交軍機處查明。`);
+          }
+          return {records,cases,groups,logs,annualPool:pool,offenderCount:offenders.length,caseTriggered};
+      };
+      const getOpenGovernmentPosts = (state) => {
+          const result = [];
+          for (const [role, label] of Object.entries(CENTRAL_POST_NAMES)) {
+              if ((state.centralOfficials || {})[role] == null) {
+                  result.push({key:`central:${role}`, label, kind:'central', view:'MINISTERS'});
+              }
+          }
+          for (const province of (state.provinces || [])) {
+              const officials = province.officials || [null, null];
+              for (let slot = 0; slot < 2; slot++) {
+                  if (officials[slot] == null) {
+                      result.push({key:`province:${province.id}:${slot}`,
+                          label:`${province.name}${slot === 0 ? '總督' : '巡撫'}`,
+                          kind:'province', view:'PROVINCES', provinceId:province.id, provinceName:province.name, slot});
+                  }
+              }
+          }
+          return result;
+      };
+      // 所有事件必須至少有一個可執行選項；舊存檔或新增事件若漏設免費退路，顯示層仍能安全離開。
+      const getPlayableEventOptions = event => {
+          const options=Array.isArray(event?.options)?event.options:[];
+          if(!options.length||options.some(option=>!option.disabled))return options;
+          return [...options,{
+              text:'資源不足，暫緩處理（免費、民心-2）',
+              isResourceFallback:true,
+              effect:s=>({...s,stability:Math.max(0,(Number(s.stability)||0)-2),
+                  logsAdd:`${event?.title||'御前事件'}因資源不足暫緩處理，民心-2。`,
+                  _courtOutcome:{kind:'direct',success:true,label:'資源不足，暫緩處理'}})
+          }];
+      };
+      // 官員離職、逐出時記錄先前擔任的職務，供吏部奏報顯示。
+      const getPostsHeldByMinisters = (state, ministerIds) => {
+          const ids = new Set(Array.from(ministerIds, id => String(id)));
+          if (!ids.size) return [];
+          const posts = [];
+          for (const [role, label] of Object.entries(CENTRAL_POST_NAMES)) {
+              const appointedId = (state.centralOfficials || {})[role];
+              if (appointedId != null && ids.has(String(appointedId))) posts.push(label);
+          }
+          for (const province of (state.provinces || [])) {
+              (province.officials || [null, null]).forEach((id, slot) => {
+                  if (id != null && ids.has(String(id))) {
+                      posts.push(`${province.name}${slot === 0 ? '總督' : '巡撫'}`);
+                  }
+              });
+          }
+          for (const [role, label] of Object.entries(MILITARY_POST_NAMES)) {
+              const appointedId = (state.warSetup || {})[role];
+              if (appointedId != null && ids.has(String(appointedId))) posts.push(label);
+          }
+          return posts;
+      };
+
+      // 舊存檔若存在重複任命，保留第一個職務，其餘職務清空。
+      const sanitizeAppointments = (state) => {
+          const valid = new Map((state.ministers || []).map(m => [String(m.id),m.id]));
+          const occupied = new Set();
+          const centralOfficials = Object.fromEntries(Object.entries(state.centralOfficials || INITIAL_STATE.centralOfficials).map(([role,id]) => {
+              const key=id==null?'':String(id),resolved=valid.get(key);
+              if (resolved==null || occupied.has(key)) return [role, null];
+              occupied.add(key);
+              return [role, resolved];
+          }));
+          const provinces = (state.provinces || []).map(prov => ({
+              ...prov,
+              officials: (prov.officials || [null, null]).map(id => {
+                  const key=id==null?'':String(id),resolved=valid.get(key);
+                  if (resolved==null || occupied.has(key)) return null;
+                  occupied.add(key);
+                  return resolved;
+              })
+          }));
+          const localIds=new Set(provinces.flatMap(prov=>(prov.officials||[]).filter(id=>id!=null).map(String)));
+          const sanitizeMilitarySetup=source=>{
+              const result={...(source||{})},used=new Set();
+              for (const role of ['commanderId','viceId','strategistId']) {
+                  const raw=source?.[role],key=raw==null?'':String(raw),resolved=valid.get(key);
+                  if(resolved==null||localIds.has(key)||used.has(key))result[role]=null;
+                  else{result[role]=resolved;used.add(key);}
+              }
+              return result;
+          };
+          const warSetup=sanitizeMilitarySetup(state.warSetup||INITIAL_STATE.warSetup);
+          // v1.3.2以前只有一套出征記憶；第一次讀取時沿用為防守預設。
+          const defenseSetup=sanitizeMilitarySetup(state.defenseSetup||state.warSetup||INITIAL_STATE.defenseSetup);
+          return { ...state, centralOfficials, provinces, warSetup, defenseSetup };
+      };
+      // === v1.1.2 帝王能力與皇家書院（不改動既有臣子或後宮能力公式） ===
+      const ROYAL_ACADEMY_FEE = 1500;
+      const ROYAL_ACADEMY_GRADUATION_AGE = 16;
+      const ROYAL_ABILITY_CAP = 999;
+      const ACADEMY_COURSES = {
+          civil:{name:'經世之學',civil:12,military:0},
+          military:{name:'騎射之學',civil:0,military:12},
+          balanced:{name:'文武兼修',civil:6,military:6}
+      };
+      // v1.1.8：成年官員皇家書院訓練，與皇嗣皇家書院學籍分開保存。
+      // 每年每人總成長固定6點；訓練不受資質影響，也不設100點能力上限。
+      const MINISTER_TRAINING_LIMIT = 10;
+      const MINISTER_TRAINING_COURSES = {
+          civil:{name:'經世之學',civil:6,military:0},
+          military:{name:'騎射之學',civil:0,military:6},
+          balanced:{name:'文武兼修',civil:3,military:3}
+      };
+      const getAcademyCourseGrowth = (state, courseKey, minister = false) => {
+          const courses = minister ? MINISTER_TRAINING_COURSES : ACADEMY_COURSES;
+          const base = courses[courseKey] || courses.balanced;
+          const multiplier = (state?.unlockedTechs || []).includes('modern_academy') ? 1.2 : 1;
+          return {...base,civil:Math.round(base.civil*multiplier),military:Math.round(base.military*multiplier)};
+      };
+      // 手動進修固定成長1點，再依資質進行7次獨立加成判定；皇家書院年度訓練不受此公式影響。
+      const getMinisterStudyTier = minister => {
+          const aptitude = Math.max(0, Math.min(100, Number(minister?.aptitude) || 0));
+          const label = aptitude < 20 ? '基礎' : aptitude < 40 ? '普通' : aptitude < 60 ? '良好' : aptitude < 80 ? '優秀' : '卓越';
+          return {label,aptitude,minGain:1,maxGain:8,expectedGain:1+7*(aptitude/100)};
+      };
+      const rollMinisterStudyGain = minister => {
+          const probability = getMinisterStudyTier(minister).aptitude / 100;
+          let gain = 1;
+          for (let i=0;i<7;i++) if (Math.random()<probability) gain++;
+          return gain;
+      };
+      const settleMinisterTrainingYear = (state, ministers, nextDynastyYear) => {
+          const targetYear = Math.max(1, Number(nextDynastyYear) || 1);
+          const lastSettled = Math.max(1, Number(state.ministerTrainingLastSettledYear) || Number(state.dynastyYear) || Number(state.year) || 1);
+          const sourceRoster = state.ministerTrainingRoster && typeof state.ministerTrainingRoster === 'object'
+              ? state.ministerTrainingRoster : {};
+          const validIds = new Set((ministers || []).filter(m => Number(m.age) >= 16).map(m => String(m.id)));
+          const roster = Object.fromEntries(Object.entries(sourceRoster)
+              .filter(([id, course]) => validIds.has(String(id)) && !!MINISTER_TRAINING_COURSES[course])
+              .slice(0, MINISTER_TRAINING_LIMIT));
+          if (lastSettled >= targetYear) {
+              return {ministers, roster, lastSettledYear:lastSettled,
+                  summary:state.ministerTrainingAnnualReport || {trained:[],totalCivil:0,totalMilitary:0,dynastyYear:lastSettled}};
+          }
+          const summary = {trained:[],totalCivil:0,totalMilitary:0,dynastyYear:targetYear};
+          const updated = (ministers || []).map(minister => {
+              const courseKey = roster[String(minister.id)];
+              const course = MINISTER_TRAINING_COURSES[courseKey];
+              if (!course || Number(minister.age) < 16) return minister;
+              const growth = getAcademyCourseGrowth(state,courseKey,true);
+              const civilBefore = Math.round(Number(minister.civil) || 0);
+              const militaryBefore = Math.round(Number(minister.military) || 0);
+              const civilGain = growth.civil;
+              const militaryGain = growth.military;
+              summary.trained.push({id:minister.id,name:minister.name,course:course.name,civilGain,militaryGain,
+                  civilBefore,militaryBefore,civilAfter:civilBefore+civilGain,militaryAfter:militaryBefore+militaryGain});
+              summary.totalCivil += civilGain;
+              summary.totalMilitary += militaryGain;
+              return {...minister,
+                  civil:civilBefore+civilGain,
+                  military:militaryBefore+militaryGain};
+          });
+          return {ministers:updated,roster,lastSettledYear:targetYear,summary};
+      };
+      const emperorPolicyBonus = (state, stat) => Math.min(20,Math.floor(Math.max(0, Number(state?.[stat])||0)/10));
+      const improvePositive = (amount, state, stat) => Math.round(Math.max(0,Number(amount)||0)*(1+emperorPolicyBonus(state,stat)/100));
+      const getAcademyKey = (state,child) => String(child?.royalId || royalIdOf(child,state));
+      const getAcademyRecord = (state, royalId) => (state.academyRecords||{})[String(royalId)] || null;
+      const royalAcademyEligibilityIssue = (state, child) => {
+          if (!child) return {code:'missing',label:'資料異常'};
+          if (child.alive===false) return {code:'deceased',label:'已故'};
+          if (child.expelled) return {code:'expelled',label:'已逐出宮廷'};
+          const record=getAcademyRecord(state,getAcademyKey(state,child));
+          if (record) return record.graduated ? {code:'graduated',label:'已畢業'} : {code:'enrolled',label:'已入學'};
+          if (Number(child.age)<6) return {code:'tooYoung',label:'未滿6歲'};
+          if (Number(child.age)>=ROYAL_ACADEMY_GRADUATION_AGE) return {code:'tooOld',label:'已滿16歲'};
+          return null;
+      };
+      const schoolEligible = (state, child) => !royalAcademyEligibilityIssue(state,child);
+      const createAcademyRecord = (state,key,person) => {
+          const course=childTalentCourse(person);
+          return ({
+          royalId:String(key), name:person.name, entryAge:Number(person.age),
+          entryDynastyYear:Number(state.dynastyYear)||Number(state.year)||1,
+          course, nextCourse:course, currentYear:null, lastSettledDynastyYear:Number(state.dynastyYear)||Number(state.year)||1,
+          effectiveYears:0,missedYears:0,earnedCivil:0,earnedMilitary:0,graduated:false,
+          history:[{kind:'入學',dynastyYear:state.dynastyYear||state.year,eraName:state.eraName,age:Number(person.age),course}]
+          });
+      };
+      const enrollRoyalAcademy = (state,royalIds) => {
+          const people=[...(state.childrenList||[])];
+          if (Number(state.age)>=6 && Number(state.age)<16) people.push({id:'emperor',royalId:rulerIdOf(state),
+              age:state.age,name:state.playerName,alive:state.health>0});
+          const requested=new Set(royalIds.map(String));
+          const selected=people.filter(c=>requested.has(getAcademyKey(state,c)) && schoolEligible(state,c));
+          const cost=selected.length*ROYAL_ACADEMY_FEE;
+          if (!selected.length || state.treasury<cost) return state;
+          const nextRecords={...(state.academyRecords||{})};
+          selected.forEach(c=>{const id=getAcademyKey(state,c);nextRecords[id]=createAcademyRecord(state,id,c);});
+          return {...state,treasury:state.treasury-cost,academyRecords:nextRecords};
+      };
+      const settleAcademyYear = (state,updatedChildren,nextDynastyYear,newEmperorAge) => {
+          const records={...(state.academyRecords||{})};
+          const summary={trained:[],missed:[],graduated:[],eligible:[],newEligible:[],inSchool:0};
+          let emperorCivil=Number(state.civil)||0, emperorMilitary=Number(state.military)||0;
+          const all=updatedChildren.map(c=>({...c}));
+          // 先帝皇子成為現任皇帝的兄弟後，不應因為離開現任 childrenList 而被迫停學。
+          const activeKeys=new Set(all.map(c=>getAcademyKey(state,c)));
+          (state.royalFamily||[]).forEach(r=>{
+              const key=String(r.id);
+              if(!records[key]||records[key].graduated||key===String(rulerIdOf(state))||activeKeys.has(key))return;
+              all.push({...r,royalId:key,age:r.alive===false?r.age:Number(r.age)+1,_isDynastyRelative:true});
+              activeKeys.add(key);
+          });
+          if ((state.academyRecords||{})[rulerIdOf(state)]) all.push({
+              royalId:rulerIdOf(state),name:state.playerName,age:newEmperorAge,
+              civil:emperorCivil,military:emperorMilitary,injuredUntil:state.emperorInjuredUntil||0,
+              alive:state.health>0,_isEmperor:true});
+          const result=all.map(person=>{
+              const key=person._isEmperor?rulerIdOf(state):getAcademyKey(state,person);
+              const rec=records[key];
+              if (!rec || rec.graduated || Number(person.age)>ROYAL_ACADEMY_GRADUATION_AGE || person.alive===false) return person;
+              if (Number(rec.lastSettledDynastyYear)>=Number(nextDynastyYear)) return person;
+              const courseKey=childTalentCourse(person);
+              const prog=getAcademyCourseGrowth(state,courseKey,false);
+              const missed=Number(person.injuredUntil||0)>=Number(nextDynastyYear);
+              const civilGain=missed?0:Math.max(0,Math.min(prog.civil,ROYAL_ABILITY_CAP-(Number(person.civil)||0)));
+              const martialGain=missed?0:Math.max(0,Math.min(prog.military,ROYAL_ABILITY_CAP-(Number(person.military)||0)));
+              const graduated=Number(person.age)>=ROYAL_ACADEMY_GRADUATION_AGE;
+              const recNext={...rec,course:courseKey,nextCourse:courseKey,lastSettledDynastyYear:nextDynastyYear,
+                  effectiveYears:(rec.effectiveYears||0)+(missed?0:1),missedYears:(rec.missedYears||0)+(missed?1:0),
+                  earnedCivil:(rec.earnedCivil||0)+civilGain,earnedMilitary:(rec.earnedMilitary||0)+martialGain,graduated,
+                  history:[...(rec.history||[]),{kind:missed?'重傷停課':'年度培養',dynastyYear:nextDynastyYear,
+                      eraName:state.eraName,age:person.age,course:courseKey,civilGain,militaryGain:martialGain},
+                      ...(graduated?[{kind:'畢業',dynastyYear:nextDynastyYear,eraName:state.eraName,age:person.age}]:[])]};
+              records[key]=recNext;
+              if(missed)summary.missed.push(person.name);
+              else summary.trained.push({name:person.name,civil:civilGain,military:martialGain});
+              if(graduated)summary.graduated.push({name:person.name,civil:recNext.earnedCivil,military:recNext.earnedMilitary});
+              return {...person,civil:(Number(person.civil)||0)+civilGain,military:(Number(person.military)||0)+martialGain};
+          });
+          const emperor=result.find(c=>c._isEmperor);
+          if(emperor){emperorCivil=emperor.civil;emperorMilitary=emperor.military;}
+          const children=result.filter(c=>!c._isEmperor&&!c._isDynastyRelative);
+          const relatives=Object.fromEntries(result.filter(c=>c._isDynastyRelative).map(c=>[String(c.royalId),c]));
+          // 畢業當年先結算最後一學年，再停止後續成長。
+          for(const c of children){
+              const rec=getAcademyRecord({...state,academyRecords:records},getAcademyKey(state,c));
+              if(Number(c.age)>=6&&Number(c.age)<16 && c.alive!==false){
+                  if(!rec) {summary.eligible.push(c.name);if(Number(c.age)===6)summary.newEligible.push(c.name);}
+                  else if(!rec.graduated) summary.inSchool++;
+              }
+          }
+          if(Number(newEmperorAge)>=6&&Number(newEmperorAge)<16){
+              const rec=records[rulerIdOf(state)];
+              if(!rec)summary.eligible.push(state.playerName);
+              else if(!rec.graduated)summary.inSchool++;
+          }
+          return {children,relatives,academyRecords:records,emperorCivil,emperorMilitary,summary};
+      };
+
+      // === v1.1.2 官員職涯留存；任官時刻錄入，不因同年多次重新渲染而重複建立 ===
+      const archiveMinisterReason = m => m.alive===false?'已故':m.reason==='expelled'?'逐出朝廷':m.reason==='corruption'?(m.departureLabel||'革職查辦'):m.reason==='loyalty'?'辭官歸鄉':m.retirementRetained || Number(m.age)>=73?'特恩致仕':'榮退致仕';
+      const retiredMinisterDeathChance = age => Number(age)<70 ? 0 : Math.min(.8,.02+(Number(age)-70)*.02);
+      const careerPostsOf = (state,ministerId) => getPostsHeldByMinisters(state,[ministerId]);
+      const syncMinisterCareers = state => {
+          let updated=false;
+          const ministers=(state.ministers||[]).map(m=>{
+              const now=careerPostsOf(state,m.id);
+              const old=Array.isArray(m.postHistory)?m.postHistory:[];
+              const open=old.filter(h=>h.endDynastyYear==null).map(h=>h.post);
+              const toClose=open.filter(post=>!now.includes(post));
+              const toOpen=now.filter(post=>!open.includes(post));
+              if(!toClose.length&&!toOpen.length) return m;
+              updated=true;
+              const history=old.map(h=>h.endDynastyYear==null&&toClose.includes(h.post)
+                  ?{...h,endDynastyYear:Number(state.dynastyYear||1),endEraName:state.eraName,endYear:state.year}:h);
+              toOpen.forEach(post=>history.push({post,startDynastyYear:Number(state.dynastyYear||1),
+                  startEraName:state.eraName,startYear:state.year,endDynastyYear:null}));
+              return {...m,postHistory:history};
+          });
+          return updated?{...state,ministers}:state;
+      };
+      const createMinisterArchiveRecord=(state,minister,reason,departureAge,yearOverride=null)=>{
+          const person={...minister,age:departureAge,reason,alive:true,
+              retiredAtYear:yearOverride??state.year,eraName:state.eraName,
+              emperorName:state.playerName,emperorId:rulerIdOf(state),
+              dynastyYear:Number(state.dynastyYear||1)+(yearOverride!=null?1:0),
+              gameId:state.gameId,retiredAt:new Date().toISOString(),
+              vacatedPosts:careerPostsOf(state,minister.id)};
+          const history=(minister.postHistory||[]).map(h=>h.endDynastyYear==null?
+              {...h,endDynastyYear:person.dynastyYear,endEraName:state.eraName,endYear:person.retiredAtYear}:h);
+          return {...person,postHistory:history,departureLabel:archiveMinisterReason(person),
+              wasRetained:!!person.retirementRetained};
+      };
+      const ministerPreviouslyDeparted=(state,child)=>{
+          const id=String(child.id),name=String(child.name||'');
+          return (state.retiredMinisters||[]).some(m=>
+              (m.royalChildId!=null && String(m.royalChildId)===id) ||
+              (isRoyalChildMinister(m) && String(m.name||'').endsWith(' '+name)));
+      };
+
+      // 生育值為 1～100，舊存檔以妃嬪 ID 固定推算，不會每次重開改變。
+      const getFertility = (consort) => {
+          if (Number.isFinite(Number(consort.fertility)) && consort.fertility !== undefined && consort.fertility !== null) return Math.max(1, Math.min(100, Math.round(Number(consort.fertility))));
+          const seed = String(consort.id ?? consort.name ?? 'unknown');
+          let hash = 2166136261;
+          for (let i = 0; i < seed.length; i++) hash = Math.imul(hash ^ seed.charCodeAt(i), 16777619);
+          return 20 + (hash >>> 0) % 81;
+      };
+      // 舊后妃沒有年齡時，以永久 ID 產生穩定的初始年齡；升級後保存於存檔。
+      const getConsortAge = (consort) => {
+          if (consort.age !== undefined && consort.age !== null && Number.isFinite(Number(consort.age)))
+              return Math.max(16, Math.floor(Number(consort.age)));
+          const id = String(consort.id ?? consort.name ?? 'consort');
+          let hash = 2166136261;
+          for (let i=0;i<id.length;i++) hash = Math.imul(hash ^ id.charCodeAt(i),16777619);
+          return 18 + ((hash >>> 0) % 18);
+      };
+      // v1.1.6：40歲起衰退。每位妃嬪依永久ID生成固定的30年隨機扣減表，
+      // 30年總降幅為20～40點（平均30點）；每年扣減不固定，重新讀檔也不會重抽。
+      const buildConsortFertilitySchedule = personId => {
+          const seedText=String(personId??'consort');
+          let hash=2166136261;
+          for(let i=0;i<seedText.length;i++)hash=Math.imul(hash^seedText.charCodeAt(i),16777619);
+          let seed=hash>>>0;
+          const random=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;};
+          const target=20+(hash>>>0)%21;
+          // 將20～40次年度扣減隨機分配到30個年齡年度，允許某年0、1、2或更多點，總量固定。
+          const result=Array(30).fill(0);
+          for(let i=0;i<target;i++)result[Math.floor(random()*30)]++;
+          return result;
+      };
+      const yearlyConsortFertilityLoss = (age, personId) => {
+          if(Number(age)<40||Number(age)>69)return 0;
+          return buildConsortFertilitySchedule(personId)[Math.max(0,Math.min(29,Math.floor(Number(age)-40)))]||0;
+      };
+      const consortOldAgeIllnessRate = age => age < 70 ? 0 : Math.min(.8,.02+(age-70)*.02);
+      const makeConsort = (consort) => ({...consort, age:getConsortAge(consort),
+          fertility: getFertility(consort), fertilityKnown: !!consort.fertilityKnown,
+          // 是否需要再診脈僅表示上一份結果過期，不影響實際生育計算。
+          fertilityCheckExpired:!!consort.fertilityCheckExpired,
+          personality:palacePersonalityOf(consort), personalityKnown:!!consort.personalityKnown,
+          pregnancy:consort.pregnancy || null, injuredUntil: Number(consort.injuredUntil)||0});
+      const ageConsortsForNewYear = (consorts, random=Math.random) => {
+          const illnesses=[];
+          const updated=(consorts||[]).map(raw=>{
+              const c=makeConsort(raw), age=c.age+1, oldFertility=getFertility(c);
+              const fertility=Math.max(1,oldFertility-yearlyConsortFertilityLoss(age,c.id));
+              const changed=fertility!==oldFertility;
+              if(random()<consortOldAgeIllnessRate(age)) illnesses.push(String(c.id));
+              return {...c,age,fertility,
+                  fertilityKnown:changed?false:c.fertilityKnown,
+                  fertilityCheckExpired:changed && (c.fertilityKnown||c.fertilityCheckExpired)};
+          });
+          return {consorts:updated,illnesses};
+      };
+      const aliveRoyalChildren = state => (state.childrenList||[]).filter(c=>c.alive!==false&&!c.expelled);
+      const activePalaceConsorts = state => (state.consorts||[]).filter(c=>!c.inColdPalace && Number(c.injuredUntil||0)<=Number(state.dynastyYear||state.year));
+      // 死亡保留 ID、家族與官職邏輯；不以姓名作身分連結。
+      const palaceKillPerson = (state, event, cause, forceDeath = false) => {
+          let next = {...state};
+          const execution=/奉旨|賜死|處死|行刑/.test(String(cause||''));
+          if(!forceDeath&&!execution&&(Number(next.inventory?.revival_pill)||0)>0){
+              const existing=(next.pendingDeathCandidates||[]).some(candidate=>candidate.kind===event.victimKind&&String(candidate.personId)===String(event.victimId));
+              if(!existing){
+                  const person=event.victimKind==='child'?(next.childrenList||[]).find(item=>String(item.id)===String(event.victimId)):
+                      locatePalaceCulprit(next,String(event.victimId))?.person;
+                  if(person)return appendStateLog({...next,pendingDeathCandidates:[...(next.pendingDeathCandidates||[]),{
+                      id:royalNewId('death'),kind:event.victimKind==='child'?'royal':'consort',personId:person.id,name:person.name,cause
+                  }]},`【生死待決】${person.name}因${cause}命懸一線，可使用九轉還魂丹救治。`);
+              }
+              return next;
+          }
+          if (event.victimKind === 'child') {
+              const id=String(event.victimId);
+              const victim=(next.childrenList||[]).find(c=>String(c.id)===id);
+              if (!victim) return next;
+              const deadMinisterIds=new Set((next.ministers||[]).filter(m=>m.royalChildId!=null && String(m.royalChildId)===id).map(m=>String(m.id)));
+              next.childrenList=next.childrenList.map(c=>String(c.id)===id?{...c,alive:false,injuredUntil:0,deathCause:cause,deathYear:next.dynastyYear,isAppointed:false}:c);
+              next.royalFamily=(next.royalFamily||[]).map(r=>String(r.id)===String(victim.royalId||royalIdOf(victim,next))?
+                  {...r,alive:false,injuredUntil:0,deathCause:cause,deathYear:next.dynastyYear,appointed:false}:r);
+              next.ministers=(next.ministers||[]).filter(m=>!deadMinisterIds.has(String(m.id)));
+              next=sanitizeAppointments(next);
+              if (String(next.crownPrinceId)===id) next.crownPrinceId=null;
+              return palaceNote(next,`【宗人府】${victim.name}因${cause}不幸身故，已保存族譜與官職異動。`);
+          }
+          const id=String(event.victimId);
+          const found=locatePalaceCulprit(next,id);
+          const victim=found?.person;
+          if (!victim || found.source==='deceased') return next;
+          if (found.source==='historical') {
+              next.historicalConsorts=(next.historicalConsorts||[]).map(group=>({...group,
+                  consorts:(group.consorts||[]).map(c=>String(c.id)===id?{...c,alive:false,pregnancy:null,
+                      deathCause:cause,deceasedYear:next.dynastyYear}:c)}));
+          } else next.consorts=next.consorts.filter(c=>String(c.id)!==id);
+          next.deceasedConsorts=[...(next.deceasedConsorts||[]), {...victim,
+              royalConsortId:victim.royalConsortId||royalConsortIdOf(victim,rulerIdOf(next)),
+              deceasedYear:next.dynastyYear, deceasedEra:next.eraName, deathCause:cause,pregnancy:null}];
+          return palaceNote(next,`【後宮哀報】${palacePersonLabel(victim)}因${cause}身故，已封存后妃史冊。`);
+      };
+      const createRoyalBaby = (state, mother) => {
+          const preg=mother.pregnancy, fertility=getFertility(mother), isBoy=Math.random()<.5;
+          const childName=suggestRoyalChildName(state,isBoy?'male':'female');
+          const family=(state.royalFamily||[]), father=family.find(r=>String(r.id)===String(preg.fatherId));
+          const royalId=royalNewId('royal'), childId=royalNewId('child');
+          const specialMother=mother.specialConsortId==='zhen_mi' && activeSpecialConsort(state,'zhen_mi') &&
+              (state.consorts||[]).some(c=>String(c.id)===String(mother.id));
+          const aptitude=Math.min(100,Math.round(20+fertility*.55+Math.random()*25)+(specialMother?5:0));
+          const civil=Math.round(5+fertility/9+Math.random()*5)+(specialMother?8:0);
+          const military=Math.round(5+fertility/9+Math.random()*5);
+          const educationTalent=rollNewChildEducationTalent(aptitude);
+          const child={id:childId,royalId,fatherId:preg.fatherId,motherId:preg.motherId,
+              generation:father?.generation!=null?father.generation+1:null,name:childName,
+              gender:isBoy?'male':'female',age:0,aptitude,civil,military,educationTalent,
+              motherName:preg.motherName||palacePersonLabel(mother),isAdult:false,isAppointed:false,alive:true};
+          const current=String(preg.fatherId)===String(rulerIdOf(state));
+          return palaceNote({...state,
+              childrenList:current?[...(state.childrenList||[]),child]:(state.childrenList||[]),
+              royalFamily:[...family, {...makeRoyalMember(child,state,preg.fatherId),id:royalId}],
+              pendingBabyNames:[...(state.pendingBabyNames||[]),{id:royalNewId('naming'),
+                  childId,royalId,gender:child.gender,suggestedName:childName,
+                  motherName:child.motherName,fatherName:preg.fatherName||state.playerName||'先帝',
+                  aptitude,civil,military,educationTalent,
+                  bornDynastyYear:state.dynastyYear}]},
+              `【皇室添丁】${mother.name}誕下${isBoy?'皇子':'公主'}，父皇為${preg.fatherName||'先帝'}，恭請皇上賜名。`);
+      };
+      const settlePalacePregnancies = input => {
+          let state={...input};
+          const settleMother = mother => {
+              if (!mother?.pregnancy || Number(mother.pregnancy.dueDynastyYear)>Number(state.dynastyYear)) return mother;
+              let risk=mother.inColdPalace?(mother.pregnancy.care?0.05:0.20):0;
+              // 當年胎動不安已判斷過一次則不再重複抽取。
+              if (mother.pregnancy.hazardCheckedYear===state.dynastyYear) risk=0;
+              const updated={...mother,pregnancy:null};
+              if (Math.random()<risk) {
+                  state=palaceNote({...state,pendingHaremNews:[...(state.pendingHaremNews||[]),
+                      {id:royalNewId('haremNews'),title:'冷宮哀報・皇嗣未保',
+                       text:`太醫院沉痛奏報，${mother.name}因胎象不穩未能保住腹中皇嗣。內廷已將此事記入史冊，請皇上御覽。`}]},
+                      `【後宮哀訊】${mother.name}未能保住腹中皇嗣（冷宮安胎風險）。`);
+              } else state=createRoyalBaby(state,mother);
+              return updated;
+          };
+          const current=state.consorts||[];
+          const currentUpdated=current.map(settleMother);
+          state={...state,consorts:currentUpdated};
+          const archives=(state.historicalConsorts||[]).map(group=>({...group,
+              consorts:(group.consorts||[]).map(settleMother)}));
+          return {...state,historicalConsorts:archives,pendingBirthSettlement:false};
+      };
+      const makePalaceIncident = state => {
+          const people=activePalaceConsorts(state);
+          if (!people.length || Math.random()>=.32) return null;
+          // 約半數採用日常溫情事件，不再每年都以宮鬥為主。
+          const tierRoll=Math.random(), tier=tierRoll<.52?'peaceful':tierRoll<.80?'ordinary':tierRoll<.96?'major':'fatal';
+          if(people.length<2 && tier!=='peaceful')return null;
+          const eligible=PALACE_TYPES.filter(t=>t.tier===tier &&
+              (t.id!=='homeVisit'||people.some(c=>Number(c.lastHomeVisitYear||0)<Number(state.dynastyYear)-2)) &&
+              (t.id!=='pregnancy'||(state.consorts||[]).some(c=>c.pregnancy && Number(c.injuredUntil||0)<=state.dynastyYear)) &&
+              (t.id!=='heirDanger'||aliveRoyalChildren(state).some(c=>Number(c.injuredUntil||0)<=state.dynastyYear)) &&
+              (t.id!=='heir'||aliveRoyalChildren(state).some(c=>c.gender==='male')) &&
+              (t.id!=='faction'||people.length>=3) &&
+              (t.id!=='promotion'||people.some(c=>Number(c.requestFreezeUntil||0)<Number(state.dynastyYear))));
+          if (!eligible.length) return null;
+          const t=eligible[Math.floor(Math.random()*eligible.length)];
+          const bias=people.map(c=>({c,weight:(state.palaceCases||[]).some(p=>p.status==='unresolved' && String(p.culpritId)===String(c.id)) ? 4 : c.personality==='心機'&&['food','jewels','poison','rumor'].includes(t.id)?3:
+              c.personality==='善妒'&&['favor','garden'].includes(t.id)?3:
+              c.personality==='野心'&&['promotion','heir','faction'].includes(t.id)?3:1}));
+          const total=bias.reduce((n,x)=>n+x.weight,0);let roll=Math.random()*total;
+          let chosen=bias.find(x=>(roll-=x.weight)<0)?.c||people[0];
+          if(t.id==='homeVisit'){const candidates=people.filter(c=>Number(c.lastHomeVisitYear||0)<Number(state.dynastyYear)-2);chosen=candidates[Math.floor(Math.random()*candidates.length)]||chosen;}
+          const other=people.filter(c=>String(c.id)!==String(chosen.id));
+          const unrestricted=other.filter(c=>!['favor','garden'].includes(t.id)||!(state.palaceTruces||[]).some(q=>
+              q.untilDynastyYear>state.dynastyYear && q.ids?.includes(String(chosen.id)) && q.ids?.includes(String(c.id))));
+          if(!unrestricted.length && ['favor','garden'].includes(t.id)) return null;
+          const rival=(unrestricted.length?unrestricted:other)[Math.floor(Math.random()*(unrestricted.length||other.length))] || chosen;
+          const pool= t.id==='pregnancy'?(state.consorts||[]).filter(c=>c.pregnancy):
+              t.id==='heirDanger'?aliveRoyalChildren(state).filter(c=>Number(c.injuredUntil||0)<=state.dynastyYear):people;
+          const victimCandidates=t.id==='pregnancy'?pool.filter(c=>String(c.id)!==String(chosen.id)):pool;
+          const victim=(t.id==='pregnancy'||t.id==='heirDanger')?
+              (victimCandidates.length?victimCandidates:pool)[Math.floor(Math.random()*(victimCandidates.length||pool.length))]:rival;
+          // 事實先存入案件；公開調查只會揭露已存在的事實，永遠不生成假證據。
+          const truthRoll=Math.random();
+          const culprit=tier==='peaceful'?null:truthRoll<.65?chosen:truthRoll<.82&&String(rival.id)!==String(victim.id)?rival:null;
+          const id=royalNewId('case');
+          return {id,type:t.id,title:t.title,tier,year:state.year,eraName:state.eraName,
+              attackerId:chosen.id,attackerName:consortIdentity(chosen),accusedId:chosen.id,accusedName:consortIdentity(chosen),
+              victimId:victim.id,victimName:t.id==='heirDanger'?victim.name:consortIdentity(victim),victimKind:t.id==='heirDanger'?'child':'consort',
+              rivalId:rival.id,rivalName:consortIdentity(rival), culpritId:culprit?.id||null,
+              culpritName:culprit?consortIdentity(culprit):null, step:tier==='fatal'?'rescue':tier==='major'?'investigation':tier==='peaceful'?'peaceful':'ordinary'};
+      };
+      const palaceCaseFor = (event,state) => ({id:event.id,type:event.type,title:event.title,
+          emperorId:rulerIdOf(state),year:state.year,eraName:state.eraName,dynastyYear:state.dynastyYear,
+          victimId:event.victimId,victimName:event.victimName,victimKind:event.victimKind,
+          accusedId:event.accusedId,accusedName:event.accusedName,
+          culpritId:event.culpritId,culpritName:event.culpritName,
+          status:'unresolved',truthKnown:false,lastInvestigatedYear:0,verdict:'',
+          lastConsequenceYear:Number(state.dynastyYear)||1,affectionPenalty:0,clueAvailable:false,
+          notes:'案件發生，尚待可靠證據。'});
+      const addPalaceEvent = (state,incident) => incident ? {...state,pendingPalaceEvent:incident,
+          consorts:(state.consorts||[]).map(c=>String(c.id)===String(incident.attackerId)||String(c.id)===String(incident.victimId)?
+              {...c,personality:palacePersonalityOf(c),personalityKnown:true}:c),
+          palaceCases:['ordinary','peaceful'].includes(incident.tier)?(state.palaceCases||[]):[...(state.palaceCases||[]),palaceCaseFor(incident,state)]} : state;
+      const locatePalaceCulprit = (state, personId) => {
+          const id=String(personId);
+          const active=(state.consorts||[]).find(c=>String(c.id)===id);
+          if (active) return {person:active,source:'active'};
+          const dead=(state.deceasedConsorts||[]).find(c=>String(c.id)===id);
+          if (dead) return {person:dead,source:'deceased'};
+          for(const group of (state.historicalConsorts||[])) {
+              const former=(group.consorts||[]).find(c=>String(c.id)===id);
+              if(former) return {person:former,source:former.alive===false?'deceased':'historical'};
+          }
+          return null;
+      };
+      const palaceCaseAlive = (state,personId) => ['active','historical'].includes(locatePalaceCulprit(state,personId)?.source);
+      const investigatePalaceCase = (state,id,mode) => {
+          const item=(state.palaceCases||[]).find(c=>String(c.id)===String(id));
+          if (!item || item.status==='closed'||item.status==='sentence') return state;
+          const cost=mode==='full'?200:0, energy=mode==='full'?10:0;
+          if ((state.treasury||0)<cost||(state.energy||0)<energy) return state;
+          if (Number(item.lastInvestigatedYear)===Number(state.dynastyYear)) return state;
+          const rates=getPalaceInvestigationRates(state,item);
+          const success=Math.random()<((mode==='full'?rates.full:rates.simple)/100);
+          const updated={...item,lastInvestigatedYear:state.dynastyYear,clueAvailable:false};
+          let pending=null;
+          if (success) {
+              updated.truthKnown=true;
+              if (item.culpritId) {
+                  const alive=palaceCaseAlive(state,item.culpritId);
+                  updated.status=alive?'sentence':'closed';
+                  updated.notes=alive?'查獲可靠證據，罪行確鑿，請皇帝裁決。':'罪行已證實，但真凶已不在世，只能記錄與昭雪。';
+                  if (alive) pending={id:item.id,step:'sentence',type:item.type,title:item.title,tier:'major',
+                      culpritId:item.culpritId,culpritName:item.culpritName,victimId:item.victimId,victimName:item.victimName};
+              } else {
+                  updated.status='closed';updated.verdict='查明並無蓄意犯案，涉案者獲澄清';
+                  updated.notes='可靠證據確認這是誤會或意外，涉案者清白。';
+              }
+          } else updated.notes='未能取得足夠證據，不能認定任何人有罪。';
+          let next={...state,treasury:state.treasury-cost,energy:state.energy-energy,
+              palaceCases:(state.palaceCases||[]).map(c=>String(c.id)===String(id)?updated:c),
+              pendingPalaceEvent:{id:item.id,type:item.type,title:item.title,tier:'major',
+                  step:'investigationResult',resultText:updated.notes,
+                  culpritId:item.culpritId,culpritName:item.culpritName,
+                  victimId:item.victimId,victimName:item.victimName}};
+          return palaceNote(next,`【內廷調查】${item.title}：${updated.notes}`);
+      };
+      const applyPalaceDecision = (state,action) => {
+          const event=state.pendingPalaceEvent;
+          if (!event) return state;
+          let next={...state};
+          const markKnown=ids=>{next.consorts=(next.consorts||[]).map(c=>ids.includes(String(c.id))?{...c,personalityKnown:true}:c);};
+          if (event.step==='peaceful') {
+              const current=(next.consorts||[]).find(c=>String(c.id)===String(event.attackerId));
+              if(!current)return {...next,pendingPalaceEvent:null};
+              const changes={homeVisit:{approve:[12,-100],modest:[4,0],refuse:[-8,0]},
+                  giftWish:{approve:[12,-180],modest:[5,-60],refuse:[-6,0]},
+                  familyLetter:{approve:[9,-80],modest:[4,0],refuse:[-5,0]},
+                  festival:{approve:[10,-160],modest:[4,-40],refuse:[-4,0]},
+                  charity:{approve:[12,-200],modest:[5,-60],refuse:[-5,0]},
+                  illnessCare:{approve:[8,0],modest:[4,0],refuse:[-3,0]}};
+              const [affection,silver]=changes[event.type]?.[action]||[0,0];
+              if(next.treasury+silver<0)return state;
+              next.treasury+=silver;
+              next.consorts=next.consorts.map(c=>String(c.id)===String(current.id)?
+                  {...c,affection:Math.max(0,Math.min(100,Number(c.affection||0)+affection)),
+                   ...(event.type==='homeVisit'&&action==='approve'?{lastHomeVisitYear:state.dynastyYear}:{} )}:c);
+              if(event.type==='illnessCare'&&action==='approve')next.health=Math.min(100,next.health+3);
+              if(event.type==='charity'&&action==='approve')next.stability=(Number(next.stability)||0)+3;
+              const summary=`${consortIdentity(current)}：${event.title}，${action==='approve'?'恩准所請':action==='modest'?'從簡處置':'暫不准許'}；好感 ${affection>=0?'+':''}${affection}、銀兩 ${silver>=0?'+':''}${silver}。`;
+              next=palaceNote(next,`【後宮日常】${summary}`);
+              next.pendingPalaceEvent={...event,step:'decisionResult',resultText:summary};
+          } else if (event.step==='ordinary') {
+              const tweak={};
+              const bump=(id,amount)=>{tweak[String(id)]=(tweak[String(id)]||0)+amount;};
+              let summary='';
+              if(['favor','garden'].includes(event.type)){
+                  if(action==='favor'){bump(event.attackerId,10);bump(event.victimId,-10);summary=`皇上偏袒${event.attackerName}，${event.victimName}心生失落。`;}
+                  else if(action==='favorOther'){bump(event.attackerId,-10);bump(event.victimId,10);summary=`皇上偏袒${event.victimName}，${event.attackerName}心生不平。`;}
+                  else if(action==='warn'){
+                      bump(event.attackerId,-5);bump(event.victimId,-5);
+                      const ids=[String(event.attackerId),String(event.victimId)].sort();
+                      next.palaceTruces=[...(next.palaceTruces||[]).filter(t=>t.untilDynastyYear>state.dynastyYear),
+                          {ids,untilDynastyYear:Number(state.dynastyYear)+3}];
+                      summary='皇上申斥雙方，兩人三年內不再發生彼此的爭寵口角。';
+                  } else {bump(event.attackerId,2);bump(event.victimId,2);summary='皇上溫言調停，兩位妃嬪各退一步。';}
+              } else if(event.type==='promotion'){
+                  if(action==='approve'){
+                      const target=next.consorts.find(c=>String(c.id)===String(event.attackerId));
+                      const rankIndex=CONSORT_RANKS.indexOf(target?.rank);
+                      const newRank=CONSORT_RANKS[Math.max(0,rankIndex-1)];
+                      const blocked=target?.rank==='皇后'||(newRank==='皇后'&&next.consorts.some(c=>c.rank==='皇后'&&String(c.id)!==String(target.id)));
+                      if(blocked)return state;
+                      next.consorts=next.consorts.map(c=>String(c.id)===String(event.attackerId)?{...c,rank:newRank}:c);
+                      bump(event.attackerId,10);summary=`皇上恩准${event.attackerName}晉為${newRank}。`;
+                  }else if(action==='rebuke'){
+                      bump(event.attackerId,-5);
+                      next.consorts=next.consorts.map(c=>String(c.id)===String(event.attackerId)?{...c,requestFreezeUntil:Number(state.dynastyYear)+3}:c);
+                      summary='皇上申斥妄求晉封，三年內不再呈請晉封。';
+                  }else{bump(event.attackerId,2);summary='皇上溫言勉勵，暫不晉封。';}
+              } else if(event.type==='rumor'){
+                  if(action==='clarify'){bump(event.attackerId,2);bump(event.victimId,5);summary='皇上召見雙方釐清傳言，流言暫息。';}
+                  else if(action==='silence'){bump(event.attackerId,-2);bump(event.victimId,-2);summary='皇上禁止宮人傳播無憑流言，暫時恢復秩序。';}
+                  else{bump(event.victimId,-3);summary='皇上暫不理會，宮中議論未息。';}
+              }else if(event.type==='heir'){
+                  if(action==='comfort'){bump(event.attackerId,3);summary='皇上勉其悉心教子，儲君暫不更動。';}
+                  else if(action==='reviewHeir'){summary='皇上命呈上宗人府皇子資質，冊立儲君仍須另行下旨。';}
+                  else{bump(event.attackerId,-2);summary='皇上諭示維持儲位，不因后妃請求改立太子。';}
+              } else summary='皇上處理宮闈爭端。';
+              next.consorts=(next.consorts||[]).map(c=>({...c,affection:Math.max(1,Math.min(100,Number(c.affection||1)+(tweak[String(c.id)]||0))),
+                  personalityKnown:String(c.id)===String(event.attackerId)||String(c.id)===String(event.victimId)?true:c.personalityKnown}));
+              next=palaceNote(next,`【${event.title}】${summary}`);
+              next.pendingPalaceEvent={...event,step:'decisionResult',resultText:summary};
+          } else if (event.step==='rescueResult') {
+              next.pendingPalaceEvent={...event,step:'investigation'};
+          } else if (event.step==='investigationResult') {
+              const item=(next.palaceCases||[]).find(c=>String(c.id)===String(event.id));
+              next.pendingPalaceEvent=item?.status==='sentence'?{...event,step:'sentence'}:null;
+          } else if (event.step==='decisionResult') {
+              next.pendingPalaceEvent=null;
+          } else if (event.step==='rescue') {
+              const idx=action==='rescueFull'?0:action==='rescueBasic'?1:2;
+              const silver=idx===0?300:idx===1?100:0,energy=idx===0?10:0;
+              if (next.treasury<silver||next.energy<energy) return state;
+              next.treasury-=silver;next.energy-=energy;
+              let successRate=PALACE_FATAL_RATES[event.type]?.[idx]||.80;
+              if (event.type==='pregnancy') {
+                  const mother=next.consorts.find(c=>String(c.id)===String(event.victimId));
+                  if (mother?.inColdPalace) successRate=Math.min(successRate,mother.pregnancy?.care?.95:.80);
+              }
+              const success=Math.random()<successRate;
+              if (!success) {
+                  if (event.type==='pregnancy') {
+                      next.consorts=next.consorts.map(c=>String(c.id)===String(event.victimId)?{...c,pregnancy:null}:c);
+                      next=palaceNote(next,`【胎動不安】${event.victimName}不幸流產，後宮記下此事。`);
+                  } else if (Math.random()<.70) {
+                      const until=Number(next.dynastyYear)+1;
+                      if (event.victimKind==='child') {
+                          next.childrenList=next.childrenList.map(c=>String(c.id)===String(event.victimId)?{...c,injuredUntil:until}:c);
+                          next.royalFamily=next.royalFamily.map(c=>String(c.childId)===String(event.victimId)?{...c,injuredUntil:until}:c);
+                      } else next.consorts=next.consorts.map(c=>String(c.id)===String(event.victimId)?{...c,injuredUntil:until}:c);
+                      next=palaceNote(next,`【死裡逃生】${event.victimName}救治失敗但保住性命，重傷休養至下一年。`);
+                  } else next=palaceKillPerson(next,event,event.title);
+              } else next=palaceNote(next,`【太醫救治】${event.victimName}已獲救，並無生命危險。`);
+              if (event.type==='pregnancy' && success) next.consorts=next.consorts.map(c=>String(c.id)===String(event.victimId)&&c.pregnancy?
+                  {...c,pregnancy:{...c.pregnancy,hazardCheckedYear:next.dynastyYear}}:c);
+              const lastNote=(next.palaceChronicle||[]).slice(-1)[0]?.text||'太醫已完成救治。';
+              next.pendingPalaceEvent={...event,step:'rescueResult',resultText:lastNote};
+              markKnown([String(event.attackerId),String(event.victimId)]);
+          } else if (event.step==='investigation') {
+              if (action==='postpone') {
+                  const text=`【${event.title}】皇上暫不追究，案件保留於內廷案件簿。受害妃嬪因久未獲公道，好感-5，往後仍可能留下後患。`;
+                  next.consorts=(next.consorts||[]).map(c=>String(c.id)===String(event.victimId)?{...c,affection:Math.max(1,(Number(c.affection)||1)-5)}:c);
+                  next.palaceCases=(next.palaceCases||[]).map(c=>String(c.id)===String(event.id)?{...c,
+                      affectionPenalty:Math.min(15,(Number(c.affectionPenalty)||0)+5)}:c);
+                  next=palaceNote(next,text);
+                  next.pendingPalaceEvent={...event,step:'decisionResult',resultText:text};
+              } else {
+                  next=investigatePalaceCase(next,event.id,action==='investigateFull'?'full':'simple');
+                  // investigation helper may set a sentencing stage; otherwise the event finishes.
+              }
+          } else if (event.step==='sentence') {
+              const item=(next.palaceCases||[]).find(c=>String(c.id)===String(event.id));
+              if (!item?.truthKnown||item.status!=='sentence') return state;
+              const located=locatePalaceCulprit(next,item.culpritId);
+              const accused=located?.source==='deceased'?null:located?.person;
+              const isCapital=['food','poison','heirDanger','pregnancy','blood'].includes(item.type);
+              if (action==='execute' && !isCapital) return state;
+              if (action==='execute' && accused) next=palaceKillPerson(next,{victimKind:'consort',victimId:accused.id},'奉旨賜死（罪證確鑿）');
+              else if (accused) {
+                  const sentencePerson=c=>String(c.id)===String(accused.id)?
+                      action==='cold'?{...c,inColdPalace:true,affection:Math.max(1,c.affection-20)}:
+                      action==='demote'?{...c,rank:CONSORT_RANKS[Math.min(CONSORT_RANKS.length-1,
+                          Math.max(0,CONSORT_RANKS.indexOf(c.rank))+1)],affection:Math.max(1,c.affection-10)}:c:c;
+                  if(located.source==='historical') next.historicalConsorts=(next.historicalConsorts||[]).map(group=>
+                      ({...group,consorts:(group.consorts||[]).map(sentencePerson)}));
+                  else next.consorts=next.consorts.map(sentencePerson);
+              }
+              const verdict=action==='execute'?'奉旨賜死':action==='cold'?'打入冷宮':action==='demote'?'降位一級':'從輕赦免';
+              next.palaceCases=(next.palaceCases||[]).map(c=>String(c.id)===String(event.id)?{...c,status:'closed',verdict,notes:`罪名成立，御前裁決：${verdict}`} :c);
+              next=palaceNote(next,`【御前裁決】${item.title}查明真凶${item.culpritName}，${verdict}。`);
+              next.pendingPalaceEvent={...event,step:'decisionResult',resultText:`罪證已明，皇上裁定${verdict}。本案已記入內廷案件簿。`};
+          }
+          // 危機結束後才結算上一年的孕期，避免先生產後才出現胎動不安。
+          if (!next.pendingPalaceEvent && next.pendingBirthSettlement) next=settlePalacePregnancies(next);
+          return normalizeRoyalState(next);
+      };
+      const finishPalaceYear = state => {
+          if (state.pendingPalaceEvent) return state;
+          return state.pendingBirthSettlement?settlePalacePregnancies(state):state;
+      };
+      const validHeirs = (state) => {
+          const familyById=new Map((state.royalFamily||[]).map(person=>[String(person.id),person]));
+          return (state.childrenList || []).filter(child => {
+              const member=familyById.get(String(child.royalId||royalIdOf(child,state)));
+              return child.gender === 'male' && Number(child.age) >= 16 && child.alive !== false && !child.expelled &&
+                  member?.alive !== false && !member?.expelled && !member?.hasBeenEmperor;
+          });
+      };
+      const normalizeLoadedGame = (raw) => {
+          if (!raw || typeof raw !== 'object' || !raw.gameState || typeof raw.gameState !== 'object') return null;
+          const saved = sanitizeAppointments(normalizeTerritoryState(
+              migrateLegacyConsortNames(ensureMinisterAges(cleanGameStateForSave(raw.gameState)))));
+          const missingGameId=!saved.gameId;
+          if (missingGameId) saved.gameId = `run_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+          if(missingGameId){
+              const idMap=new Map();
+              (saved.childrenList||[]).forEach(child=>{
+                  const legacy=String(child.royalId||`royal_unknown_${child.id}`);
+                  if(legacy===`royal_unknown_${child.id}`)idMap.set(legacy,`royal_${saved.gameId}_${child.id}`);
+              });
+              if(String(saved.currentEmperorId||'emperor_unknown')==='emperor_unknown'){
+                  idMap.set('emperor_unknown',`emperor_${saved.gameId}`);
+                  saved.currentEmperorId=`emperor_${saved.gameId}`;
+              }
+              const remap=id=>id!=null&&idMap.has(String(id))?idMap.get(String(id)):id;
+              saved.childrenList=(saved.childrenList||[]).map(child=>({...child,
+                  royalId:remap(child.royalId||`royal_unknown_${child.id}`),fatherId:remap(child.fatherId),motherId:remap(child.motherId)}));
+              saved.royalFamily=(saved.royalFamily||[]).map(person=>({...person,id:remap(person.id),
+                  fatherId:remap(person.fatherId),motherId:remap(person.motherId)}));
+              saved.royalMarriages=(saved.royalMarriages||[]).map(marriage=>({...marriage,princessId:remap(marriage.princessId)}));
+              saved.pendingBabyNames=(saved.pendingBabyNames||[]).map(item=>({...item,royalId:remap(item.royalId)}));
+              saved.academyRecords=Object.fromEntries(Object.entries(saved.academyRecords||{}).map(([id,record])=>{
+                  const nextId=String(remap(id));return [nextId,{...record,royalId:String(remap(record?.royalId||id))}];
+              }));
+              saved.ministers=(saved.ministers||[]).map(minister=>({...minister,royalId:remap(minister.royalId)}));
+              saved.retiredMinisters=(saved.retiredMinisters||[]).map(minister=>({...minister,royalId:remap(minister.royalId)}));
+          }
+          // 舊版皇室子女可能只有 isAppointed 標記、卻沒有朝廷官員資料。
+          // 將標記與實際官員名單同步；不改變子女性別及原本能力。
+          saved.childrenList = (saved.childrenList || []).map(child => ({
+              ...child,
+              educationTalent:getChildEducationTalent(child),
+              isAppointed: !!findAppointedRoyalChild(saved, child)
+          }));
+          const migratedAcademyRecords={...(saved.academyRecords||{})};
+          saved.childrenList.forEach(child=>{
+              const legacyKey=`royal_unknown_${child.id}`;
+              const currentKey=String(child.royalId||royalIdOf(child,saved));
+              if(migratedAcademyRecords[legacyKey]&&!migratedAcademyRecords[currentKey]){
+                  migratedAcademyRecords[currentKey]={...migratedAcademyRecords[legacyKey],royalId:currentKey};
+                  delete migratedAcademyRecords[legacyKey];
+              }
+          });
+          saved.academyRecords=migratedAcademyRecords;
+          const talentByRoyalId=new Map(saved.childrenList.map(child=>[String(child.royalId||royalIdOf(child,saved)),child]));
+          saved.academyRecords=Object.fromEntries(Object.entries(saved.academyRecords||{}).map(([id,record])=>{
+              const person=talentByRoyalId.get(String(id));
+              const course=person?childTalentCourse(person):(ACADEMY_COURSES[record?.course]?record.course:'balanced');
+              return [id,{...record,course,nextCourse:course}];
+          }));
+          return {
+              gameState: normalizeRoyalState({
+                  ...INITIAL_STATE, ...saved,
+                  // 相容 v1.0.3 舊存檔：進度保留，但體力不得高於目前健康允許的上限。
+                  energy: Math.max(0, Math.min(getMaxEnergy(saved.health ?? INITIAL_STATE.health),
+                      Number.isFinite(Number(saved.energy)) ? Math.round(Number(saved.energy)) : INITIAL_STATE.energy)),
+                  population: roundPopulation(saved.population != null && Number.isFinite(Number(saved.population))
+                      ? saved.population : INITIAL_STATE.population),
+                  annualTaxRate: normalizeAnnualTaxRate(saved.annualTaxRate),
+                  lastForcedTaxDynastyYear: saved.lastForcedTaxDynastyYear != null && Number.isFinite(Number(saved.lastForcedTaxDynastyYear))
+                      ? Number(saved.lastForcedTaxDynastyYear) : null,
+                  consorts: (saved.consorts || INITIAL_STATE.consorts).map(makeConsort),
+                  dynastyYear:Math.max(1, Number(saved.dynastyYear)||
+                      ((saved.emperorHistory||[]).reduce((n,e)=>n+(Number(e.reignYears)||0),0)+(Number(saved.year)||1))),
+                  palaceCases:Array.isArray(saved.palaceCases)?saved.palaceCases:[],
+                  palaceChronicle:Array.isArray(saved.palaceChronicle)?saved.palaceChronicle:[],
+                  deceasedConsorts:Array.isArray(saved.deceasedConsorts)?saved.deceasedConsorts:[],
+                  pendingPalaceEvent:saved.pendingPalaceEvent||null,
+                  pendingBirthSettlement:!!saved.pendingBirthSettlement,
+                  pendingBabyNames:Array.isArray(saved.pendingBabyNames)?saved.pendingBabyNames.filter(q=>q&&q.royalId):[],
+                  pendingHaremNews:Array.isArray(saved.pendingHaremNews)?saved.pendingHaremNews:[],
+                  pendingConsortCrises:Array.isArray(saved.pendingConsortCrises)?saved.pendingConsortCrises:[],
+                  pendingConsortIllnesses:Array.isArray(saved.pendingConsortIllnesses)?saved.pendingConsortIllnesses:[],
+                  palaceTruces:Array.isArray(saved.palaceTruces)?saved.palaceTruces:[],
+                  pendingAnnualDraft:saved.pendingAnnualDraft||null,
+                  historicalConsorts: Array.isArray(saved.historicalConsorts) ? saved.historicalConsorts : [],
+                  retiredMinisters: Array.isArray(saved.retiredMinisters) ? saved.retiredMinisters : [],
+                  ministers: (saved.ministers || INITIAL_STATE.ministers).map(m => {
+                      const royalAptitude = getRoyalChildAptitudeForMinister(saved, m);
+                      const existingAptitude = Number(m.aptitude);
+                      const fallbackAptitude = Number.isFinite(existingAptitude)
+                          ? Math.max(0,Math.min(100,Math.round(existingAptitude)))
+                          : Math.max(0,Math.min(100,Math.round(((Number(m.civil)||0)+(Number(m.military)||0))/2)));
+                      const special = m.specialId ? SPECIAL_PERSON_BY_KEY[m.specialId] : null;
+                      const aptitude = royalAptitude == null ? fallbackAptitude : royalAptitude;
+                      return {...m,
+                          civil:special?Math.max(Number(m.civil)||0,special.civil):m.civil,
+                          military:special?Math.max(Number(m.military)||0,special.military):m.military,
+                          loyalty:special?Math.max(Number(m.loyalty)||0,special.loyalty):m.loyalty,
+                          aptitude:special?Math.max(aptitude,special.aptitude):aptitude,
+                          specialId:m.specialId||null};
+                  }),
+                  corruptionRecords:saved.corruptionRecords&&typeof saved.corruptionRecords==='object'?saved.corruptionRecords:{},
+                  corruptionCases:Array.isArray(saved.corruptionCases)?saved.corruptionCases:[],
+                  corruptionGroups:Array.isArray(saved.corruptionGroups)?saved.corruptionGroups:[],
+                  corruptionHistory:Array.isArray(saved.corruptionHistory)?saved.corruptionHistory:[],
+                  corruptionReductionYear:Number(saved.corruptionReductionYear)||Number(saved.dynastyYear)||Number(saved.year)||1,
+                  corruptionReductionThisYear:Math.max(0,Number(saved.corruptionReductionThisYear)||0),
+                  recruitPity:Math.max(0,Math.min(99,Number.isFinite(Number(saved.recruitPity))?Number(saved.recruitPity):((Number(saved.civilRecruitPity)||0)+(Number(saved.militaryRecruitPity)||0)))),
+                  beautyPity:Math.max(0,Math.min(7,Number(saved.beautyPity)||0)),
+                  recruitedSpecialIds:[...new Set([...(Array.isArray(saved.recruitedSpecialIds)?saved.recruitedSpecialIds:[]),...((saved.ministers||[]).map(m=>m.specialId).filter(Boolean))])],
+                  recruitableSpecialIds:[...new Set((Array.isArray(saved.recruitableSpecialIds)?saved.recruitableSpecialIds:[])
+                      .filter(id=>SPECIAL_PERSON_BY_KEY[id] && !(saved.ministers||[]).some(m=>m.specialId===id)))],
+                  pendingRecruitDraw:saved.pendingRecruitDraw&&Array.isArray(saved.pendingRecruitDraw.candidates)?{
+                      ...saved.pendingRecruitDraw,
+                      candidates:saved.pendingRecruitDraw.candidates.map(candidate=>{
+                          const special=candidate.specialId?SPECIAL_PERSON_BY_KEY[candidate.specialId]:null;
+                          return special?{...candidate,...special,id:candidate.id,specialId:special.key,isSpecial:true}:candidate;
+                      })
+                  }:null,
+                  enemyDiplomacy:normalizeEnemyDiplomacy(saved.enemyDiplomacy),
+                  royalMarriages:Array.isArray(saved.royalMarriages)?saved.royalMarriages:[],
+                  pendingBattleLines:normalizeBattleLines(Array.isArray(saved.pendingBattleLines)?saved.pendingBattleLines:
+                      (saved.incomingInvasion?[{id:royalNewId('battle_line'),provinceId:saved.incomingInvasion.provinceId,
+                          provinceName:saved.incomingInvasion.provinceName,attackers:[{enemyId:ENEMIES.find(e=>e.name===saved.incomingInvasion.name)?.id||'hui',
+                              name:saved.incomingInvasion.name,strength:Number(saved.incomingInvasion.strength)||100}],
+                          assignedTroops:0,commanderId:null,viceId:null,strategistId:null,abandon:false}]:[]),saved.provinces),
+                  incomingInvasion:null,
+                  academyRecords: saved.academyRecords && typeof saved.academyRecords==='object'?saved.academyRecords:{},
+                  ministerTrainingRoster: (() => {
+                      const valid = new Set((saved.ministers || INITIAL_STATE.ministers).filter(m=>Number(m.age)>=16).map(m=>String(m.id)));
+                      const rawRoster = saved.ministerTrainingRoster && typeof saved.ministerTrainingRoster==='object' ? saved.ministerTrainingRoster : {};
+                      return Object.fromEntries(Object.entries(rawRoster)
+                          .filter(([id,course])=>valid.has(String(id)) && !!MINISTER_TRAINING_COURSES[course])
+                          .slice(0,MINISTER_TRAINING_LIMIT));
+                  })(),
+                  ministerTrainingLastSettledYear:Math.max(1,Number(saved.ministerTrainingLastSettledYear)||Number(saved.dynastyYear)||Number(saved.year)||1),
+                  ministerTrainingAnnualReport:saved.ministerTrainingAnnualReport||null,
+                  civil: Number.isFinite(Number(saved.civil))?Number(saved.civil):Number((saved.royalFamily||[]).find(r=>String(r.id)===String(saved.currentEmperorId))?.civil??60),
+                  military: Number.isFinite(Number(saved.military))?Number(saved.military):Number((saved.royalFamily||[]).find(r=>String(r.id)===String(saved.currentEmperorId))?.military??60),
+                  imperialStudyYear:Number(saved.imperialStudyYear)||Number(saved.dynastyYear)||1,
+                  imperialStudyCount:Math.max(0,Number(saved.imperialStudyCount)||0),
+                  pendingRetirementPlan:saved.pendingRetirementPlan||null,
+                  retirementPreparedYear:saved.retirementPreparedYear??null,
+                  retirementPreparedRolls:saved.retirementPreparedRolls||null,
+                  pendingRetirements: Array.isArray(saved.pendingRetirements)
+                      ? [...new Set(saved.pendingRetirements.map(id=>String(id)))].filter(id =>
+                          (saved.ministers||[]).some(m=>String(m.id)===id && Number(m.age)>=MINISTER_RETIRE_AGE &&
+                              Number(m.loyalty)>0 && !m.retirementRetained)) : [],
+                  crownPrinceId: validHeirs(saved).some(c => String(c.id) === String(saved.crownPrinceId)) ? saved.crownPrinceId : null,
+                  lostProvinces: saved.lostProvinces || [],
+                  unlockedTechs: saved.unlockedTechs || [],
+                  techProgress: saved.techProgress || {},
+                  unlockedAchievements: saved.unlockedAchievements || [],
+                  statsHistory: saved.statsHistory || INITIAL_STATE.statsHistory,
+                  corruptionRate: normalizeCorruptionRate(saved.corruptionRate)
+              }),
+              logs: Array.isArray(raw.logs) ? raw.logs : []
+          };
+      };
+      const readAutoSave = () => {
+          try {
+              const text = localStorage.getItem(QING_SAVE_KEY);
+              return text ? normalizeLoadedGame(JSON.parse(text)) : null;
+          } catch (error) {
+              console.warn('無法讀取自動存檔：', error);
+              return null;
+          }
+      };
+

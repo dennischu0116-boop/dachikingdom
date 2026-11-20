@@ -1,0 +1,916 @@
+        const GameDialogModal = () => {
+            if(!gameDialog)return null;
+            const isPrompt=gameDialog.type==='prompt';
+            const danger=gameDialog.danger!==false;
+            const submit=()=>resolveGameDialog(isPrompt?gameDialog.value:true);
+            return <div className="fixed inset-0 z-[260] bg-black/80 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label={gameDialog.title||'御前確認'}>
+              <div className={`w-full max-w-md overflow-hidden rounded-xl border-4 bg-[#fffdf5] shadow-2xl ${danger?'border-red-900':'border-amber-600'}`}>
+                <div className={`p-4 text-center ${danger?'bg-red-950 text-amber-50':'bg-amber-100 text-amber-950'}`}><h2 className="font-serif text-2xl font-bold">{gameDialog.title||(isPrompt?'✍️ 御前輸入':'📜 御前確認')}</h2></div>
+                <div className="p-5"><p className="whitespace-pre-wrap text-sm leading-7 text-stone-800">{gameDialog.message}</p>
+                  {isPrompt&&<input autoFocus value={gameDialog.value} maxLength={gameDialog.maxLength||100} onChange={event=>setGameDialog(previous=>({...previous,value:event.target.value}))} onKeyDown={event=>{if(event.key==='Enter')submit();}} className="mt-4 w-full rounded border-2 border-amber-300 bg-white p-3 text-stone-900 outline-none focus:border-amber-600" />}
+                </div>
+                <div className="grid grid-cols-2 gap-3 border-t bg-white p-4"><button onClick={()=>resolveGameDialog(isPrompt?null:false)} className="rounded bg-stone-200 px-4 py-3 font-bold text-stone-800">{gameDialog.cancelLabel||'取消'}</button><button onClick={submit} className={`rounded px-4 py-3 font-bold text-white ${danger?'bg-red-900':'bg-amber-700'}`}>{gameDialog.confirmLabel||'確定'}</button></div>
+              </div>
+            </div>;
+        };
+
+        const CloudSavePanel = () => {
+            const formatTime=value=>{
+                if(!value)return '尚未同步';
+                const date=new Date(value);
+                return Number.isNaN(date.getTime())?String(value):date.toLocaleString('zh-TW',{hour12:false});
+            };
+            return <div className="fixed inset-0 z-[250] bg-black/80 flex items-center justify-center p-3" role="dialog" aria-modal="true" aria-label="Google 帳號與五槽雲端存檔">
+              <div className="bg-stone-50 border-4 border-sky-700 rounded-xl shadow-2xl w-full max-w-5xl max-h-[92dvh] flex flex-col overflow-hidden">
+                <div className="screen-modal-header shrink-0 flex flex-wrap items-center gap-3 justify-between border-b bg-sky-50 p-4">
+                  <div><h3 className="text-xl sm:text-2xl font-bold text-sky-950">☁️ Google 帳號與五槽雲端存檔</h3><p className="text-xs text-sky-800 mt-1">未連結槽位的遊客存檔可離線遊玩；已連結的雲端遊戲會核對帳號與版本。</p></div>
+                  <button onClick={()=>setShowCloudPanel(false)} className="rounded bg-stone-200 px-4 py-2 font-bold">關閉</button>
+                </div>
+                <div className="overflow-y-auto p-4 space-y-4">
+                  {cloudConfig.loading&&<div className="rounded border bg-white p-5 text-center">正在讀取雲端設定…</div>}
+                  {!cloudConfig.loading&&!cloudConfig.enabled&&<div className="rounded border border-amber-400 bg-amber-50 p-4 text-amber-950"><b>雲端登入尚未啟用</b><p className="text-sm mt-2">請確認 GAS 指令碼屬性已設定 <code>QING_CLOUD_CLIENT_ID</code> 與 <code>QING_OAUTH_CLIENT_SECRET</code>，再執行一次 <code>setupCloudSaves()</code>。</p>{cloudConfig.error&&<p className="text-xs mt-2">{cloudConfig.error}</p>}</div>}
+                  {cloudConfig.enabled&&!cloudUser&&<div className="rounded-xl border bg-white p-6 flex flex-col items-center gap-4"><p className="text-sm text-stone-700">登入後可查看自己的五個槽位。未連結雲端的本機遊戲可以遊客模式遊玩；已連結槽位的遊戲必須登入原帳號並核對版本。登入會另開 Google 授權視窗，完成後請回到本頁按下完成登入。</p><button disabled={cloudBusy} onClick={beginCloudLogin} className="rounded bg-sky-700 text-white px-5 py-3 font-bold disabled:opacity-40">使用 Google 帳號登入</button>{cloudAuthUrl&&<a href={cloudAuthUrl} target="qing_google_login" rel="noopener" className="rounded border border-sky-400 bg-sky-50 text-sky-900 px-4 py-2 text-sm font-bold">重新開啟 Google 授權</a>}{cloudLoginState&&<button disabled={cloudBusy} onClick={completeCloudLogin} className="rounded bg-emerald-700 text-white px-5 py-3 font-bold disabled:opacity-40">完成 Google 登入</button>}{cloudBusy&&<p className="text-sm text-sky-800">{cloudStatus}</p>}</div>}
+                  {cloudUser&&<>
+                    <div className="rounded-xl border border-sky-200 bg-sky-50 p-3 flex flex-wrap items-center gap-3">
+                      {cloudUser.picture&&<img src={cloudUser.picture} alt="Google 帳號頭像" className="w-10 h-10 rounded-full" referrerPolicy="no-referrer"/>}
+                      <div className="mr-auto"><b className="text-sky-950">{cloudUser.name||'Google 玩家'}</b><p className="text-xs text-sky-800">{cloudUser.email||''}</p><p className="text-xs text-stone-600">{cloudStatus}{cloudSavedAt?`・最後同步 ${formatTime(cloudSavedAt)}`:''}</p></div>
+                      <button disabled={cloudBusy} onClick={()=>{setCloudBusy(true);refreshCloudSlots().catch(error=>showMessage(error.message,'error')).finally(()=>setCloudBusy(false));}} className="rounded bg-white border border-sky-300 px-3 py-2 text-sm disabled:opacity-40">重新整理</button>
+                      <button disabled={cloudBusy} onClick={cloudLogout} className="rounded bg-stone-700 text-white px-3 py-2 text-sm disabled:opacity-40">登出</button>
+                    </div>
+                    <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950"><b>空白槽建立新遊戲</b><p className="mt-1">點擊空白槽的「建立新遊戲」後，會回到正常開始頁面設定年號與皇帝姓名；按下登基大典後才寫入該槽位。</p></div>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                      {cloudSlots.map(slot=>{
+                        const active=Number(cloudSlot)===Number(slot.slot);
+                        return <article key={slot.slot} className={`rounded-xl border-2 p-4 ${active?'border-emerald-600 bg-emerald-50':'border-stone-300 bg-white'}`}>
+                          <div className="flex items-start gap-3"><div className="rounded-full bg-sky-800 text-white w-9 h-9 flex items-center justify-center font-bold shrink-0">{slot.slot}</div><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><b className="text-lg truncate">{slot.empty?'空白槽位':slot.name}</b>{active&&<span className="rounded bg-emerald-700 text-white text-xs px-2 py-1">目前使用中</span>}</div>
+                          {slot.empty?<p className="text-sm text-stone-500 mt-2">尚未建立雲端存檔。</p>:<div className="text-sm text-stone-700 mt-2 space-y-1"><p><b>{slot.emperorName||'皇帝未記錄'}</b>・{slot.eraName||'年號未記錄'}{slot.year||1}年・{slot.unified?'已統一天下':'尚未統一'}</p><p>國庫 {Number(slot.treasury)||0}・官員 {Number(slot.ministerCount)||0}・后妃 {Number(slot.consortCount)||0}・後代 {Number(slot.descendantCount)||0}</p><p className="text-xs text-stone-500">更新：{formatTime(slot.updatedAt)}・遊戲編號 {String(slot.gameId||'未記錄').slice(0,16)}</p></div>}</div></div>
+                          <div className="flex flex-wrap gap-2 mt-4">
+                            {slot.empty?<><button disabled={cloudBusy} onClick={()=>createCloudGame(slot)} className="rounded bg-sky-800 text-white px-3 py-2 text-sm font-bold disabled:opacity-40">建立新遊戲</button>{isGameStarted&&String(cloudBinding?.gameId||'')!==String(gameState.gameId||'')&&<button disabled={cloudBusy} onClick={()=>saveCurrentToCloudSlot(slot)} className="rounded bg-emerald-700 text-white px-3 py-2 text-sm font-bold disabled:opacity-40">將目前進度存入</button>}</>:<><button disabled={cloudBusy} onClick={()=>loadCloudSlot(slot)} className="rounded bg-indigo-700 text-white px-3 py-2 text-sm font-bold disabled:opacity-40">讀取</button>{active&&<button disabled={cloudBusy} onClick={()=>cloudSync(true)} className="rounded bg-emerald-700 text-white px-3 py-2 text-sm font-bold disabled:opacity-40">立即同步</button>}<button disabled={cloudBusy} onClick={()=>renameCloudSlot(slot)} className="rounded bg-amber-100 border border-amber-400 px-3 py-2 text-sm disabled:opacity-40">改名</button><button disabled={cloudBusy} onClick={()=>deleteCloudSlot(slot)} className="rounded bg-red-800 text-white px-3 py-2 text-sm disabled:opacity-40">刪除</button></>}
+                          </div>
+                        </article>;
+                      })}
+                    </div>
+                  </>}
+                </div>
+              </div>
+            </div>;
+        };
+
+        const CloudGuardModal = () => {
+            if(!cloudGuard||!isGameStarted)return null;
+            const title=cloudGuard.type==='conflict'?'☁️ 雲端版本需要核對':cloudGuard.type==='login'?'🔐 請重新登入雲端帳號':'☁️ 雲端同步已暫停';
+            return <div className="fixed inset-0 z-[240] bg-stone-950/95 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="雲端遊戲暫停">
+              <div className="w-full max-w-lg overflow-hidden rounded-xl border-4 border-sky-700 bg-stone-50 shadow-2xl">
+                <div className="bg-sky-950 p-5 text-center text-white"><h2 className="font-serif text-2xl font-bold">{title}</h2><p className="mt-2 text-xs text-sky-200">為避免本機與雲端產生兩份不同進度，目前遊戲操作已鎖定。</p></div>
+                <div className="p-5"><p className="whitespace-pre-wrap text-sm leading-7 text-stone-800">{cloudGuard.message}</p><p className="mt-3 rounded border border-amber-300 bg-amber-50 p-3 text-xs text-amber-950">本機即時存檔仍會保留作為救援備份，但在完成登入、同步或版本核對前不能繼續遊玩。</p></div>
+                <div className="grid gap-2 border-t bg-white p-4 sm:grid-cols-2">
+                  {cloudGuard.type==='sync'&&cloudToken&&<button disabled={cloudBusy} onClick={retryCloudGuard} className="rounded bg-emerald-700 px-4 py-3 font-bold text-white disabled:opacity-40">重新同步</button>}
+                  <button onClick={()=>setShowCloudPanel(true)} className="rounded bg-sky-700 px-4 py-3 font-bold text-white">{cloudGuard.type==='login'?'登入／切換帳號':'檢查雲端槽位'}</button>
+                  <button onClick={handleDownloadBackup} className="rounded bg-indigo-700 px-4 py-3 font-bold text-white">下載本機備份</button>
+                </div>
+              </div>
+            </div>;
+        };
+
+        const AppLoadingScreen=({checking=false})=><div className="fixed inset-0 z-[300] flex flex-col items-center justify-center gap-4 bg-amber-50 text-amber-950" role="status" aria-live="polite">
+            <div className="h-12 w-12 animate-spin rounded-full border-4 border-amber-200 border-t-red-900"></div>
+            <h2 className="font-serif text-2xl font-bold">大清帝國載入中</h2>
+            <p className="text-sm">{checking?'正在核對雲端登入與存檔版本……':'正在讀取遊戲與雲端狀態，請稍候……'}</p>
+        </div>;
+
+        const TransitionScreen = () => (
+          <div className="fixed inset-0 bg-red-900 z-50 flex flex-col items-center justify-center text-amber-100 animate-in fade-in duration-1000">
+              <h2 className="text-6xl font-serif font-bold mb-4 animate-pulse">{gameState.eraName}{gameState.year + 1}年</h2>
+              <p className="text-xl opacity-80">歲月如梭，國運昌隆</p>
+              <div className="mt-8 animate-spin rounded-full h-12 w-12 border-b-2 border-amber-100"></div>
+          </div>
+        );
+
+        const ConsortVisitTransition = () => {
+            if(!consortVisitTransition)return null;
+            const visit=consortVisitTransition.mode==='visit';
+            const rarity=consortVisitTransition.specialRarity;
+            return <div className="consort-transition fixed inset-0 z-[220] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label={visit?'探望孕妃':'敬事房翻牌'}>
+                <div className="consort-lantern consort-lantern-left">🏮</div><div className="consort-lantern consort-lantern-right">🏮</div>
+                <div className="relative z-10 text-center w-full max-w-md">
+                    <p className="text-amber-200 tracking-[.35em] text-sm mb-3">{visit?'移駕寢宮':'敬事房呈牌'}</p>
+                    <h2 className="text-3xl sm:text-4xl font-serif font-bold text-amber-50 mb-7">{visit?'前往探望孕妃':'今夜承恩'}</h2>
+                    {visit?<div className="consort-visit-panel">
+                        <div className="text-5xl mb-3">🌙</div>
+                        <div className="flex justify-center mb-3">{renderAvatar(consortVisitTransition.name,consortVisitTransition.avatar)}</div>
+                        <p className="text-2xl font-serif font-bold text-red-950">{consortVisitTransition.title}{consortVisitTransition.rank}</p>
+                        <p className="text-stone-700 mt-1">{consortVisitTransition.name}</p>
+                        <p className="text-sm text-rose-800 mt-4">宮燈引路，前往寢宮探望。</p>
+                    </div>:<div className={`consort-plaque-wrap ${rarity==='legendary'?'is-legendary':rarity?'is-historical':''}`}>
+                        <div className="consort-plaque-inner">
+                            <div className="consort-plaque-face consort-plaque-back"><span>御</span><small>內廷名牌</small></div>
+                            <div className="consort-plaque-face consort-plaque-front">
+                                <div className="flex justify-center mb-3">{renderAvatar(consortVisitTransition.name,consortVisitTransition.avatar)}</div>
+                                <p className="text-sm tracking-widest text-amber-700">{rarity==='legendary'?'傳奇佳人':rarity?'歷史佳人':'今夜承恩'}</p>
+                                <p className="text-2xl font-serif font-bold mt-2">{consortVisitTransition.title}{consortVisitTransition.rank}</p>
+                                <p className="mt-1 text-stone-700">{consortVisitTransition.name}</p>
+                            </div>
+                        </div>
+                    </div>}
+                    <p className="text-amber-100/80 text-sm mt-7">{visit?'稍候片刻……':'名牌既定，移駕寢宮……'}</p>
+                </div>
+            </div>;
+        };
+
+        const RecruitRevealModal = () => {
+            if(!recruitReveal)return null;
+            const results=Array.isArray(recruitReveal.results)?recruitReveal.results:[];
+            if(!results.length)return null;
+            const [revealedIds,setRevealedIds]=useState([]);
+            const [sequenceActive,setSequenceActive]=useState(false);
+            const revealTimersRef=useRef([]);
+            useEffect(()=>()=>revealTimersRef.current.forEach(timer=>clearTimeout(timer)),[]);
+            const personId=(person,index)=>String(person.id??`${person.name}-${index}`);
+            const reveal=(person,index)=>setRevealedIds(current=>current.includes(personId(person,index))?current:[...current,personId(person,index)]);
+            const allRevealed=results.every((person,index)=>revealedIds.includes(personId(person,index)));
+            const revealNext=()=>{
+                const index=results.findIndex((person,i)=>!revealedIds.includes(personId(person,i)));
+                if(index>=0)reveal(results[index],index);
+            };
+            const revealAll=()=>{
+                if(sequenceActive||allRevealed)return;
+                const remaining=results.map((person,index)=>({person,index})).filter(({person,index})=>!revealedIds.includes(personId(person,index)));
+                if(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches){setRevealedIds(results.map(personId));return;}
+                setSequenceActive(true);
+                remaining.forEach(({person,index},order)=>{
+                    revealTimersRef.current.push(setTimeout(()=>reveal(person,index),order*120));
+                });
+                revealTimersRef.current.push(setTimeout(()=>setSequenceActive(false),remaining.length*120+650));
+            };
+            const finish=()=>{
+                const isTen=results.length>1;
+                setRecruitReveal(null);
+                if(isTen)setCurrentView('RECRUIT');
+            };
+            const skip=()=>finish();
+            return <div className="fixed inset-0 z-[215] bg-stone-950/90 flex items-center justify-center p-2 sm:p-4" role="dialog" aria-modal="true" aria-label={recruitReveal.title||'金榜揭曉'}>
+                <div className="recruit-reveal-shell w-full max-w-5xl max-h-[96dvh] flex flex-col overflow-hidden rounded-xl border-4 border-double border-amber-500 shadow-2xl">
+                    <div className="shrink-0 text-center px-4 pt-4 pb-3 border-b border-amber-500/40">
+                        <p className="text-xs tracking-[.35em] text-amber-300">禮部呈榜</p>
+                        <h2 className="font-serif text-2xl sm:text-3xl font-bold text-amber-50 mt-1">{recruitReveal.title||'金榜揭曉'}</h2>
+                        <p className="text-sm text-amber-100/75 mt-1">{results.length>1?'點擊十張殿試名帖逐一揭曉':'點擊殿試名帖揭曉本次錄取人才'}</p>
+                    </div>
+                    <div className={`min-h-0 flex-1 overflow-y-auto p-3 sm:p-5 grid gap-3 ${results.length>1?'grid-cols-2 sm:grid-cols-5':'grid-cols-1 place-items-center'}`}>
+                        {results.map((person,index)=>{
+                            const id=personId(person,index),revealed=revealedIds.includes(id);
+                            const rarity=person.rarity==='legendary'?'legendary':person.specialId?'historical':'common';
+                            return <button type="button" key={id} disabled={sequenceActive} onClick={()=>reveal(person,index)} className={`recruit-flip-card ${results.length===1?'is-single':''} ${revealed?'is-revealed':''}`} aria-label={revealed?`${person.name}已揭曉`:`揭曉第${index+1}張名帖`}>
+                                <span className="recruit-flip-inner">
+                                    <span className="recruit-flip-face recruit-flip-back"><b>殿試名帖</b><span>第 {index+1} 名</span><small>點擊揭曉</small></span>
+                                    <span className={`recruit-flip-face recruit-flip-front rarity-${rarity}`}>
+                                        <span className="flex justify-center">{renderAvatar(person.name,person.avatar)}</span>
+                                        <b className="text-lg leading-tight mt-1">{person.name}</b>
+                                        <span className="text-[11px] font-bold">{person.rarityLabel||'普通人才'}・{person.recruitType||'人才'}</span>
+                                        <span className="text-xs mt-1"><em className="text-blue-700 not-italic font-bold">文 {Math.round(Number(person.civil)||0)}</em>　<em className="text-red-700 not-italic font-bold">武 {Math.round(Number(person.military)||0)}</em></span>
+                                        <span className="text-[11px]">忠 {Math.round(Number(person.loyalty)||0)}・資 {Math.round(Number(person.aptitude)||0)}・{person.age}歲</span>
+                                        {person.specialId&&<small className="mt-1 line-clamp-2">★ {getMinisterSkillText(person)}</small>}
+                                    </span>
+                                </span>
+                            </button>;
+                        })}
+                    </div>
+                    <div className="shrink-0 border-t border-amber-500/40 bg-stone-950/95 p-3 flex flex-wrap justify-center gap-2">
+                        {!allRevealed&&<button onClick={revealNext} disabled={sequenceActive} className="px-4 py-2 rounded bg-amber-100 text-amber-950 font-bold disabled:opacity-40">翻開下一張</button>}
+                        {results.length>1&&!allRevealed&&<button onClick={revealAll} disabled={sequenceActive} className="px-4 py-2 rounded bg-amber-600 text-white font-bold disabled:opacity-40">一鍵全部揭曉</button>}
+                        {!allRevealed&&<button onClick={skip} className="px-4 py-2 rounded bg-stone-700 text-white">跳過動畫</button>}
+                        {allRevealed&&<button onClick={finish} disabled={sequenceActive} className="px-6 py-2 rounded bg-red-900 text-amber-50 font-bold disabled:opacity-40">{results.length>1?'前往挑選人才':'收入朝中'}</button>}
+                    </div>
+                </div>
+            </div>;
+        };
+
+        const AchievementModal = () => (
+            <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 animate-in fade-in">
+                <div className="bg-stone-100 p-6 rounded-lg max-w-lg w-full border-4 border-yellow-600 shadow-2xl relative max-h-[80vh] overflow-y-auto">
+                    <button onClick={() => setShowAchievements(false)} className="screen-icon-close text-gray-500 hover:text-gray-800" aria-label="關閉成就"><XCircle/></button>
+                    <h3 className="text-2xl font-bold mb-6 text-yellow-900 font-serif text-center flex items-center justify-center gap-2"><Award/> 帝王成就錄</h3>
+                    <div className="space-y-3">
+                        {ACHIEVEMENTS.map(ach => {
+                            const isUnlocked = (gameState.unlockedAchievements || []).includes(ach.id);
+                            return (
+                                <div key={ach.id} className={`p-4 rounded border flex items-center justify-between ${isUnlocked ? 'bg-yellow-50 border-yellow-400' : 'bg-gray-100 border-gray-300 opacity-70'}`}>
+                                    <div className="flex items-center gap-3">
+                                        {isUnlocked ? <Unlock/> : <Lock/>}
+                                        <div>
+                                            <h4 className={`font-bold ${isUnlocked ? 'text-yellow-900' : 'text-gray-600'}`}>{ach.name}</h4>
+                                            <p className="text-xs text-gray-500">{ach.desc}</p>
+                                        </div>
+                                    </div>
+                                    {isUnlocked && <div className="text-xs bg-yellow-200 text-yellow-800 px-2 py-1 rounded font-bold">稱號：{ach.title}</div>}
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            </div>
+        );
+
+        const LeaderboardModal = () => {
+            const tabs = [
+                {id:'WORLD', label:'萬世一統', active:'bg-yellow-600 text-white'},
+                {id:'MINISTER', label:'國士無雙', active:'bg-blue-600 text-white'},
+                {id:'CHILD', label:'龍子龍孫', active:'bg-pink-600 text-white'},
+                {id:'MONEY', label:'富甲天下', active:'bg-emerald-700 text-white'},
+                {id:'CONSORT', label:'後宮佳麗', active:'bg-rose-600 text-white'},
+                {id:'DESCENDANT', label:'子孫滿堂', active:'bg-violet-700 text-white'},
+                {id:'REIGN', label:'在位最久', active:'bg-stone-700 text-white'}
+            ];
+            const sortedData = leaderboardData.filter(entry => {
+                if (leaderboardTab === 'WORLD') return entry.gameWon;
+                if (leaderboardTab === 'MINISTER') return Number(entry.maxMinisterScore || 0) > 0 && !isRoyalChildMinister({name: entry.maxMinisterName});
+                if (leaderboardTab === 'CHILD') return Number(entry.maxChildScore || 0) > 0;
+                if (leaderboardTab === 'MONEY') return Number(entry.maxTreasury || 0) > 0;
+                if (leaderboardTab === 'CONSORT') return Number(entry.maxConsortCount || 0) > 0;
+                if (leaderboardTab === 'DESCENDANT') return Number(entry.maxDescendantCount || 0) > 0;
+                return Number(entry.years || 0) > 0;
+            }).sort((a, b) => {
+                if (leaderboardTab === 'MINISTER') return (b.maxMinisterScore || 0) - (a.maxMinisterScore || 0);
+                if (leaderboardTab === 'CHILD') return (b.maxChildScore || 0) - (a.maxChildScore || 0);
+                if (leaderboardTab === 'MONEY') return (b.maxTreasury || 0) - (a.maxTreasury || 0) || a.timestamp - b.timestamp;
+                if (leaderboardTab === 'CONSORT') return (b.maxConsortCount || 0) - (a.maxConsortCount || 0) || a.timestamp - b.timestamp;
+                if (leaderboardTab === 'DESCENDANT') return (b.maxDescendantCount || 0) - (a.maxDescendantCount || 0) || a.timestamp - b.timestamp;
+                if (leaderboardTab === 'REIGN') return (b.years || 0) - (a.years || 0) || a.timestamp - b.timestamp;
+                const yearsA = a.winYears || a.years || 9999;
+                const yearsB = b.winYears || b.years || 9999;
+                if (yearsA !== yearsB) return yearsA - yearsB;
+                return a.timestamp - b.timestamp;
+            }).slice(0, 20);
+            const columnLabel = {
+                WORLD:'統一年數', MINISTER:'最強臣子', CHILD:'最強皇子',
+                MONEY:'最高國庫', CONSORT:'最多嬪妃', DESCENDANT:'最多子女', REIGN:'在位年數'
+            }[leaderboardTab];
+            const renderValue = entry => {
+                if (leaderboardTab === 'WORLD') return `${entry.winYears || entry.years}年`;
+                if (leaderboardTab === 'MINISTER') return `${entry.maxMinisterName || '?'}(${entry.maxMinisterScore || 0})`;
+                if (leaderboardTab === 'CHILD') return `${entry.maxChildName || '?'}(${entry.maxChildScore || 0})`;
+                if (leaderboardTab === 'MONEY') return `${Number(entry.maxTreasury || 0).toLocaleString()}兩`;
+                if (leaderboardTab === 'CONSORT') return `${entry.maxConsortCount || 0}人`;
+                if (leaderboardTab === 'DESCENDANT') return `${entry.maxDescendantCount || 0}人`;
+                return `${entry.years || 0}年`;
+            };
+            const myStanding = leaderboardMine?.[leaderboardTab] || null;
+
+            const allScoreSummary=entry=>[
+                `統一：${entry.gameWon?`${entry.winYears||entry.years}年`:'未統一'}`,
+                `最強臣子：${entry.maxMinisterName||'無'}（${entry.maxMinisterScore||0}）`,
+                `最強皇嗣：${entry.maxChildName||'無'}（${entry.maxChildScore||0}）`,
+                `最高國庫：${Number(entry.maxTreasury||0).toLocaleString()}兩`,
+                `最多嬪妃：${entry.maxConsortCount||0}人`,
+                `最多子女：${entry.maxDescendantCount||0}人`,
+                `在位：${entry.years||0}年`
+            ];
+
+            return (
+            <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-2 sm:p-4 animate-in fade-in">
+                <div className="bg-stone-100 rounded-lg max-w-6xl w-full text-left border-4 border-yellow-600 shadow-2xl relative h-[92dvh] flex flex-col overflow-hidden">
+                    <div className="shrink-0 p-4 pb-2 bg-stone-100">
+                        <div className="flex items-center gap-2 border-b border-yellow-300 pb-2 mb-3">
+                            <h3 className="text-2xl font-bold text-yellow-900 font-serif text-center flex-1 flex items-center justify-center gap-2"><Trophy/> 世界排行榜</h3>
+                            <button onClick={() => setShowLeaderboard(false)} className="text-gray-500 hover:text-gray-800 p-1 rounded-full bg-white shadow" aria-label="關閉排行榜"><XCircle/></button>
+                        </div>
+                        <p className="text-xs text-center text-stone-500 mb-3">所有玩家共用 · 七榜各取前20名；點擊詳情可查看同一局保存的全部成績</p>
+                        <div className="flex gap-2 overflow-x-auto justify-start sm:justify-center pb-1">
+                            {tabs.map(tab => <button key={tab.id} onClick={()=>setLeaderboardTab(tab.id)}
+                                className={`px-3 py-2 text-xs rounded whitespace-nowrap ${leaderboardTab===tab.id?tab.active:'bg-gray-200'}`}>{tab.label}</button>)}
+                        </div>
+                    </div>
+                    <div className="min-h-0 flex-1 overflow-auto px-2 sm:px-4 py-2 overscroll-contain">
+                    {isLeaderboardLoading ? (
+                        <div className="text-center py-8 text-gray-500 flex flex-col items-center">
+                            <Loader className="animate-spin mb-2"/> 讀取中...
+                        </div>
+                    ) : leaderboardError ? (
+                        <div className="text-center py-5 text-red-700 text-sm">讀取失敗：{leaderboardError}<div className="mt-3"><button onClick={fetchLeaderboard} className="bg-blue-800 text-white px-4 py-2 rounded">重新載入</button></div></div>
+                    ) : (
+                      <div className="min-w-[850px] border border-stone-300 rounded-lg overflow-hidden bg-white">
+                          <div className="grid grid-cols-12 gap-2 font-bold text-xs text-white bg-slate-800 p-3 sticky top-0 z-10">
+                              <div className="col-span-1 text-center">排名</div><div className="col-span-2">帝號</div><div className="col-span-2">年號</div><div className="col-span-2 text-center">在位年數</div><div className="col-span-3 text-right">{columnLabel}</div><div className="col-span-2 text-center">詳細</div>
+                          </div>
+                          {sortedData.length === 0 ? <div className="text-center text-gray-500 py-8">暫無紀錄</div> : sortedData.map((entry, idx) => {
+                              const expanded=String(leaderboardExpandedId)===String(entry.gameId);
+                              return <div key={entry.gameId||idx} className={`${String(entry.gameId)===String(gameState.gameId)?'ring-2 ring-inset ring-blue-500 bg-blue-50':idx < 3 ? 'bg-yellow-100 text-yellow-900' : idx%2?'bg-stone-50':'bg-white'}`}>
+                                  <div className="grid grid-cols-12 gap-2 text-sm p-3 items-center border-b border-stone-200">
+                                      <div className="col-span-1 text-center font-bold">{idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : idx + 1}</div>
+                                      <div className="col-span-2 font-bold truncate" title={entry.name}>{entry.name}</div>
+                                      <div className="col-span-2 truncate">{entry.eraName||'—'}</div>
+                                      <div className="col-span-2 text-center">{entry.years||0}年</div>
+                                      <div className="col-span-3 text-right font-mono text-xs">{renderValue(entry)}</div>
+                                      <div className="col-span-2 text-center"><button onClick={()=>setLeaderboardExpandedId(expanded?null:entry.gameId)} className="rounded bg-stone-200 hover:bg-stone-300 px-3 py-1 text-xs font-bold">{expanded?'收起':'查看詳情'}</button></div>
+                                  </div>
+                                  {expanded&&<div className="grid grid-cols-2 lg:grid-cols-4 gap-2 p-3 bg-[#fffdf5] border-b border-amber-200">{allScoreSummary(entry).map((text,index)=><div key={index} className="rounded border border-amber-200 bg-white px-3 py-2 text-xs">{text}</div>)}</div>}
+                              </div>;
+                          })}
+                      </div>
+                    )}
+                    </div>
+                    <div className="shrink-0 border-t border-yellow-300 bg-[#fffdf5] p-3 shadow-[0_-2px_8px_rgba(0,0,0,.08)]">
+                        <div className="rounded-lg border border-blue-300 bg-blue-50 px-3 py-2 text-sm flex items-center justify-between gap-3">
+                            <div><b className="text-blue-950">我的排名</b><div className="text-xs text-blue-800">{isLeaderboardLoading?'正在更新排行榜…':myStanding?`第 ${myStanding.rank} 名`:'目前尚無此榜成績'}</div></div>
+                            <div className="text-right font-bold text-blue-950 text-xs">{myStanding?renderValue(myStanding.record):'—'}</div>
+                        </div>
+                        <button onClick={fetchLeaderboard} className="mt-2 w-full text-sm bg-stone-200 py-2 rounded hover:bg-stone-300">重新整理排行榜</button>
+                    </div>
+                </div>
+            </div>
+            );
+        };
+
+        const TutorialModal = () => {
+            if (!activeTutorial) return null;
+            const content = TUTORIAL_CONTENT[activeTutorial];
+            if (!content) return null;
+            return (
+                <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 animate-in fade-in">
+                    <div className="bg-[#fffdf5] rounded-lg max-w-md w-full max-h-[90dvh] text-left border-4 border-yellow-600 shadow-2xl relative flex flex-col overflow-hidden">
+                        <div className="absolute -top-6 -left-6"><div className="bg-yellow-600 text-white p-3 rounded-full shadow-lg border-4 border-[#fffdf5]"><HelpCircle/></div></div>
+                        <h3 className="shrink-0 text-2xl font-bold mx-6 mt-6 mb-3 text-yellow-900 font-serif pl-8 border-b border-yellow-200 pb-2">{content.title}</h3>
+                        <div className="min-h-0 flex-1 overflow-y-auto px-6"><p className="text-stone-800 pb-4 leading-relaxed whitespace-pre-line text-sm">{content.desc}</p></div>
+                        <div className="shrink-0 flex justify-end p-4 border-t border-yellow-200 bg-[#fffdf5]"><button onClick={() => setActiveTutorial(null)} className="bg-yellow-600 text-white px-8 py-2 rounded font-bold hover:bg-yellow-700 shadow-md transition-transform hover:scale-105">朕知道了</button></div>
+                    </div>
+                </div>
+            );
+        };
+
+        const DeathModal = () => {
+            if (!deathEvent) return null;
+            return (
+              <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 animate-in zoom-in duration-500">
+                  <div className="bg-stone-900 border-2 border-gray-600 p-8 rounded-lg max-w-md w-full text-center text-gray-200 shadow-2xl">
+                      <Snowflake/>
+                      <h2 className="text-3xl font-bold mb-4 font-serif text-white">後宮哀報</h2>
+                      <p className="text-lg mb-6">{deathEvent.join('、')}<br/><span className="text-sm text-gray-400 mt-2 block">因遭冷落，鬱鬱寡歡，已服毒自盡。</span></p>
+                      <button onClick={() => setDeathEvent(null)} className="bg-gray-700 text-white px-6 py-2 rounded hover:bg-gray-600 transition">朕知道了...</button>
+                  </div>
+              </div>
+            );
+        };
+
+        const RetentionPetitionModal = () => {
+            const plan=gameState.pendingRetirementPlan;
+            if(!plan)return null;
+            const waiting=plan.ids.map(id=>gameState.ministers.find(m=>String(m.id)===String(id))).filter(Boolean);
+            const decisions=plan.decisions||{};
+            const cost=waiting.filter(m=>decisions[String(m.id)]==='retain').length*MINISTER_RETENTION_COST;
+            const allDecided=waiting.length>0 && waiting.every(m=>decisions[String(m.id)]);
+            return <div className="fixed inset-0 z-[180] bg-black/85 flex items-center justify-center p-3" role="dialog" aria-modal="true" aria-label="老臣乞骸骨全部裁決">
+                <div className="bg-[#fff8e8] border-4 border-amber-700 rounded-xl shadow-2xl max-w-2xl w-full p-4 md:p-6 text-stone-900 max-h-[94vh] flex flex-col">
+                  <div className="text-center"><p className="text-xs text-amber-900 tracking-widest">吏部呈奏・一次裁決</p><h2 className="font-serif text-2xl font-bold text-red-950">📜 老臣乞骸骨</h2>
+                    <p className="text-sm text-stone-600 mt-2">本年有 {waiting.length} 位老臣年滿七十；直接替每人選擇慰留或致仕，毋須排序。</p></div>
+                  <div className="bg-amber-100 border border-amber-300 rounded p-3 my-3 grid grid-cols-2 gap-2 text-sm"><div>國庫餘額：<b>{gameState.treasury.toLocaleString()} 兩</b></div><div>慰留支出：<b>{cost.toLocaleString()} 兩</b></div><div>裁決後餘額：<b>{(gameState.treasury-cost).toLocaleString()} 兩</b></div><div>尚未決定：<b>{waiting.filter(m=>!decisions[String(m.id)]).length} 人</b></div></div>
+                  <div className="overflow-y-auto space-y-2 flex-1 min-h-0">
+                    {waiting.map(m=>{
+                        const id=String(m.id),posts=careerPostsOf(gameState,m.id),choice=decisions[id];
+                        const projectedLoyalty=Math.max(0,(Number(m.loyalty)||0)-(Number(plan.rolls?.[id])||0));
+                        const canRetain=choice==='retain'||gameState.treasury-cost>=MINISTER_RETENTION_COST;
+                        return <div key={id} className="bg-white border border-amber-200 rounded p-3">
+                          <div className="flex flex-wrap justify-between gap-1"><b className="text-red-950">{m.name}・{Math.max(70,Number(m.age)+1)} 歲</b><span className="text-xs text-amber-900">{posts.join('、')||'終身候用・未任職'}</span></div>
+                          <p className="text-xs text-stone-600 mt-1">文治 {m.civil}／武力 {m.military}／預計忠誠 {projectedLoyalty}</p>
+                          <div className="grid grid-cols-2 gap-2 mt-2">
+                            <button disabled={!canRetain} onClick={()=>selectRetirementChoice(id,'retain')} className={`p-2 rounded text-xs font-bold border ${choice==='retain'?'bg-red-900 text-white border-red-900':'bg-amber-50 border-amber-300 disabled:opacity-35'}`}>💰 慰留 2,000 兩<br/><span className="text-[10px]">忠誠+10・續任三年</span></button>
+                            <button onClick={()=>selectRetirementChoice(id,'retire')} className={`p-2 rounded text-xs font-bold border ${choice==='retire'?'bg-stone-800 text-white border-stone-800':'bg-stone-50 border-stone-300'}`}>🏡 准予致仕<br/><span className="text-[10px]">免費・官職出缺</span></button>
+                          </div>
+                        </div>;
+                    })}
+                  </div>
+                  <button disabled={!allDecided||cost>gameState.treasury} onClick={confirmRetirementChoices} className="w-full rounded bg-red-900 text-amber-50 p-3 font-bold mt-3 disabled:opacity-40">📜 確認所有決定・進入年度結算</button>
+                  <p className="text-[11px] text-stone-500 text-center mt-2">每人一生只能慰留一次；確認後直接按新任官配置結算當年收入。全部決定保存在存檔中。</p>
+                </div>
+              </div>;
+        };
+
+        const RetireModal = () => {
+            if (!retireEvent) return null;
+            return (
+              <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 animate-in zoom-in duration-500">
+                  <div className="bg-stone-900 border-2 border-gray-600 p-8 rounded-lg max-w-md w-full text-center text-gray-200 shadow-2xl">
+                      <UserX/>
+                      <h2 className="text-3xl font-bold mb-4 font-serif text-white">吏部奏報</h2>
+                      <div className="text-sm mb-6 max-h-64 overflow-y-auto space-y-2">
+                          {retireEvent.map((m,i) => <div key={`${m.id}-${i}`} className="bg-stone-800 rounded p-2">
+                              <span className="font-bold text-amber-200">{m.name}（{m.age}歲）</span>
+                              <div className="text-gray-300 text-xs mt-1">{m.reason === 'age'
+                                  ? (m.retirementRetained?`曾蒙特旨慰留，年滿${m.age}歲特恩致仕。`:`年滿${m.age}歲，奉旨告老還鄉。`) : '忠誠耗盡，已辭官歸鄉。'}其所任官職皆已解除。</div>
+                              {(m.vacatedPosts || []).length > 0 && <div className="text-amber-200 text-xs mt-2 font-bold">
+                                  待重新任命：{m.vacatedPosts.join('、')}
+                              </div>}
+                          </div>)}
+                      </div>
+                      <div className="flex flex-wrap justify-center gap-2 mb-3">
+                          {retireEvent.some(m => (m.vacatedPosts || []).some(name => Object.values(CENTRAL_POST_NAMES).includes(name))) &&
+                              <button onClick={() => {setRetireEvent(null);setCurrentView('MINISTERS');}} className="bg-blue-700 text-white px-3 py-2 text-xs rounded hover:bg-blue-600">前往吏部補任</button>}
+                          {retireEvent.some(m => (m.vacatedPosts || []).some(name => name.endsWith('總督') || name.endsWith('巡撫'))) &&
+                              <button onClick={() => {setRetireEvent(null);setCurrentView('PROVINCES');}} className="bg-emerald-700 text-white px-3 py-2 text-xs rounded hover:bg-emerald-600">前往戶部補任</button>}
+                      </div>
+                      <button onClick={() => setRetireEvent(null)} className="bg-gray-700 text-white px-6 py-2 rounded hover:bg-gray-600 transition">朕准了</button>
+                  </div>
+              </div>
+            );
+        };
+
+        const HeirSelectionModal = () => {
+            const heirs = getSuccessionCandidates(gameState);
+            if (!heirs.length) return null;
+            return (
+              <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4">
+                <div className="bg-stone-900 p-7 rounded-lg max-w-2xl w-full text-center border-2 border-yellow-600 text-amber-50">
+                    <h2 className="text-3xl font-bold mb-2 font-serif">先帝龍馭賓天</h2>
+                    <p className="text-gray-300 mb-5">{heirs[0].relationship === 'son' ? (heirs[0].isAdult?'請從成年皇子中擇嗣。':'無成年宗親可繼位，請從未成年皇子中擇嗣；登基後可由太傅繼續教導。') : '未有成年皇子，宗人府呈上可確認血緣的成年男性宗親，請擇賢繼位。'}</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[60vh] overflow-y-auto">
+                        {heirs.map(heir => (
+                            <button key={heir.royalId} onClick={() => handleSuccession(heir)} className="bg-stone-800 p-4 rounded border border-stone-600 hover:border-yellow-500 text-left">
+                                <div className="text-xl font-bold mb-1">👑 {heir.name}</div>
+                                <p className="text-sm text-amber-300">{heir.relationshipLabel} · {heir.age} 歲</p>
+                                <p className="text-sm text-gray-300">文 {Math.round(Number(heir.civil)||0)}／武 {Math.round(Number(heir.military)||0)}</p>
+                                <p className="text-sm text-amber-200">繼位後百官忠誠 -{successionLossForState(gameState,heir)}・登基健康 {calculateSuccessionHealth(heir)}</p>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+              </div>
+            );
+        };
+
+        const YearReportModal = () => {
+            if (!yearReport) return null;
+            return (
+              <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 animate-in zoom-in duration-300">
+                  <div className="bg-[#fffdf5] rounded-lg max-w-md w-full border-2 border-stone-400 shadow-2xl relative max-h-[92dvh] flex flex-col overflow-hidden">
+                      <div className="shrink-0 flex items-center gap-2 border-b bg-[#fffdf5] px-5 py-4">
+                          <h3 className="text-2xl font-serif font-bold text-center text-stone-800 flex-1">戶部奏摺 - {gameState.year}年財報</h3>
+                          <button onClick={() => setYearReport(null)} className="text-gray-500 hover:text-gray-800 p-1 rounded-full bg-white shadow" aria-label="關閉年度財報"><XCircle/></button>
+                      </div>
+                      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-5">
+                      <div className="space-y-4 text-sm">
+                          <div className="bg-green-50 p-3 rounded border border-green-100">
+                              <h4 className="font-bold text-green-800 mb-2 flex items-center gap-2"><TrendingUp/> 歲入總計: +{yearReport.income.total}</h4>
+                              <div className="grid grid-cols-2 gap-2 text-gray-600 pl-2">
+                                  <span>基礎撥款: {yearReport.income.base}</span>
+                                  <span>人口稅收: {yearReport.income.pop}</span>
+                                  <span>地方上繳: {yearReport.income.prov}</span>
+                                  <span>戶部加成: {yearReport.income.ministry}</span>
+                                  {yearReport.income.special > 0 && <span className="text-amber-700">蕭何「鎮撫後方」加成: {yearReport.income.special}</span>}
+                                  {yearReport.income.tech > 0 && <span className="text-blue-600">科技加成: {yearReport.income.tech}</span>}
+                              </div>
+                          </div>
+                          <div className="bg-red-50 p-3 rounded border border-red-100">
+                              <h4 className="font-bold text-red-800 mb-2 flex items-center gap-2"><TrendingDown/> 歲出總計: -{yearReport.expense.total}</h4>
+                              <div className="grid grid-cols-2 gap-2 text-gray-600 pl-2">
+                                  <span>軍費開支: {yearReport.expense.army}</span>
+                                  <span>宮廷用度: {yearReport.expense.palace}</span>
+                                  <span>官員俸祿: {yearReport.expense.salary}</span>
+                                  <span className="text-red-600 font-bold" title="貪腐改按本年度歲入計算，不與累積國庫掛鉤">貪腐損耗: {yearReport.expense.corruption}（歲入 × {formatCorruptionPercentage(yearReport.expense.corruptionRate)}）</span>
+                                  {yearReport.expense.tech > 0 && <span className="text-orange-600">新軍維護: {yearReport.expense.tech}</span>}
+                              </div>
+                          </div>
+                          <div className="text-center py-2 bg-stone-100 rounded font-bold text-lg">
+                              盈餘: <span className={yearReport.net >= 0 ? "text-green-600" : "text-red-600"}>{yearReport.net >= 0 ? "+" : ""}{yearReport.net}</span>
+                          </div>
+                          {yearReport.taxPolicy&&<div className={`rounded border p-3 text-xs space-y-1 ${yearReport.taxPolicy.rate>=8?'bg-red-50 border-red-300':yearReport.taxPolicy.rate>=6?'bg-amber-50 border-amber-300':'bg-yellow-50 border-yellow-200'}`}>
+                            <b className="text-sm">🧾 年度稅制：{yearReport.taxPolicy.rate}成{yearReport.taxPolicy.rate>=6?'（苛稅）':''}</b>
+                            <p>人口稅收 {yearReport.income.pop} 兩（原三成稅基 {yearReport.income.basePopulationTax} 兩）</p>
+                            <p>年度民心影響 {signedNumber(yearReport.taxPolicy.stability)}・人口成長調整 {signedNumber(yearReport.taxPolicy.populationGrowth)}%</p>
+                          </div>}
+                          {yearReport.population&&<div className="bg-violet-50 rounded border border-violet-200 p-3 text-xs space-y-1">
+                            <b className="text-violet-950 text-sm">👥 人口年度變化</b>
+                            <p>期初 {formatPopulation(yearReport.population.start)}萬 → 期末 <b>{formatPopulation(yearReport.population.end)}萬</b>（{signedNumber(yearReport.population.change)}萬）</p>
+                            <p>{yearReport.population.provinceCount}座城市基礎成長 {signedNumber(yearReport.population.baseGrowthRate)}%・稅率調整 {signedNumber(yearReport.population.taxGrowthAdjustment)}%・合計 {signedNumber(yearReport.population.totalGrowthRate)}%</p>
+                          </div>}
+                          {yearReport.academy && <div className="bg-indigo-50 rounded border border-indigo-200 p-3 text-xs space-y-1">
+                            <b className="text-indigo-950 text-sm">📚 皇家書院・年度摘要（不另跳窗）</b>
+                            <p>在學 {yearReport.academy.inSchool} 人・本年度培養 {yearReport.academy.trained.length} 人・重傷停課 {yearReport.academy.missed.length} 人・畢業 {yearReport.academy.graduated.length} 人</p>
+                            <p>可入學 {yearReport.academy.eligible.length} 人（新達6歲 {yearReport.academy.newEligible.length} 人）</p>
+                            {yearReport.academy.graduated.map((g,i)=><p key={i}>🎓 {g.name} 畢業：書院累計文治+{g.civil}／武力+{g.military}</p>)}
+                            {yearReport.academy.missed.length>0&&<p>停課：{yearReport.academy.missed.join('、')}（不補課）</p>}
+                          </div>}
+                          {yearReport.ministerTraining && <div className="bg-amber-50 rounded border border-amber-200 p-3 text-xs space-y-1">
+                            <b className="text-amber-950 text-sm">🏫 皇家書院・百官年度訓練</b>
+                            <p>本年度訓練 {yearReport.ministerTraining.trained.length} 名官員；文治合計 +{yearReport.ministerTraining.totalCivil}、武力合計 +{yearReport.ministerTraining.totalMilitary}。</p>
+                            {yearReport.ministerTraining.trained.length===0&&<p>本年度沒有安排官員訓練。</p>}
+                            {yearReport.ministerTraining.trained.map((m,i)=>{
+                                const civilBefore=Number.isFinite(Number(m.civilBefore))?Number(m.civilBefore):Math.max(0,(Number(m.civilAfter)||0)-(Number(m.civilGain)||0));
+                                const militaryBefore=Number.isFinite(Number(m.militaryBefore))?Number(m.militaryBefore):Math.max(0,(Number(m.militaryAfter)||0)-(Number(m.militaryGain)||0));
+                                const civilAfter=Number.isFinite(Number(m.civilAfter))?Number(m.civilAfter):civilBefore+(Number(m.civilGain)||0);
+                                const militaryAfter=Number.isFinite(Number(m.militaryAfter))?Number(m.militaryAfter):militaryBefore+(Number(m.militaryGain)||0);
+                                return <p key={`${m.id}-${i}`}>📚 {m.name}・{m.course}：文治 {civilBefore}→<b>{civilAfter}</b>（+{m.civilGain}）／武力 {militaryBefore}→<b>{militaryAfter}</b>（+{m.militaryGain}）</p>;
+                            })}
+                          </div>}
+                      </div>
+                      </div>
+                      <div className="shrink-0 border-t bg-[#fffdf5] p-4"><button onClick={() => setYearReport(null)} className="w-full bg-stone-800 text-amber-50 py-2 rounded hover:bg-stone-700">朕知道了</button></div>
+                  </div>
+              </div>
+            );
+        };
+
+        const ExamResultModal = () => {
+            if (!examResult) return null;
+            const resultConfig=examResult?.results?examResult:{results:Array.isArray(examResult)?examResult:[examResult]};
+            const results=resultConfig.results;
+            const title=resultConfig.title||(results.length>1?'本次錄取名單':'金榜題名');
+            if(results.length>1)return (
+              <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 animate-in zoom-in duration-300">
+                  <div className="bg-white p-5 rounded-lg max-w-2xl w-full border-4 border-double border-yellow-600 shadow-2xl relative flex flex-col max-h-[90vh]">
+                       <div className="absolute -top-6 left-1/2 transform -translate-x-1/2 bg-yellow-600 text-white px-4 py-1 rounded-full font-bold shadow whitespace-nowrap">{title}</div>
+                      <p className="mt-4 mb-3 text-center text-sm text-stone-600">本次共錄取 {results.length} 名人才，所有結果集中顯示如下。</p>
+                      <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+                        {results.map((person,index)=><div key={`${person.id}-${index}`} className="border border-amber-200 rounded-lg p-3 bg-amber-50/60 flex gap-3 items-start">
+                          <div className="shrink-0">{renderAvatar(person.name,person.avatar)}</div>
+                          <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><b className="text-lg text-stone-900">{person.name}</b><span className="text-xs rounded bg-amber-200 text-amber-950 px-2 py-0.5">{person.rarityLabel||'普通'}・{person.recruitType||'人才'}</span></div>
+                          <p className="text-sm mt-1"><span className="text-blue-700 font-bold">文 {Math.round(Number(person.civil)||0)}</span>　<span className="text-red-700 font-bold">武 {Math.round(Number(person.military)||0)}</span>　忠誠 {Math.round(Number(person.loyalty)||0)}　資質 {Math.round(Number(person.aptitude)||0)}　{person.age}歲</p>
+                          {person.specialId&&<p className="text-xs text-amber-900 mt-1">★ {getMinisterSkillText(person)}</p>}</div>
+                        </div>)}
+                      </div>
+                      <button onClick={() => setExamResult(null)} className="mt-4 w-full bg-red-900 text-white py-2 rounded font-bold hover:bg-red-800 shadow shrink-0">全部收入朝中</button>
+                  </div>
+              </div>
+            );
+            return (
+              <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 animate-in zoom-in duration-300">
+                  <div className="bg-white p-6 rounded-lg max-w-sm w-full border-4 border-double border-yellow-600 shadow-2xl relative text-center">
+                       <div className="absolute -top-6 left-1/2 transform -translate-x-1/2 bg-yellow-600 text-white px-4 py-1 rounded-full font-bold shadow whitespace-nowrap">{title}</div>
+                       <div className="mt-4 mb-2 flex justify-center">{renderAvatar(results[0].name, results[0].avatar)}</div>
+                       <h3 className="text-3xl font-bold text-stone-800 mb-1">{results[0].name}</h3>
+                      <div className="flex justify-center gap-4 mb-4 text-lg font-mono">
+                           <span className="text-blue-700 font-bold">文: {Math.round(Number(results[0].civil) || 0)}</span>
+                           <span className="text-red-700 font-bold">武: {Math.round(Number(results[0].military) || 0)}</span>
+                      </div>
+                       <div className="text-gray-500 text-sm mb-2">年齡：{results[0].age}歲 · 忠誠度：{Math.round(Number(results[0].loyalty) || 0)}</div>
+                       <div className="text-gray-500 text-sm mb-6">資質：{Number.isFinite(Number(results[0].aptitude))?Math.round(Number(results[0].aptitude)):'未記錄'}</div>
+                       {results[0].specialId&&<p className="mb-4 text-xs text-amber-900">★ {getMinisterSkillText(results[0])}</p>}
+                       <button onClick={() => setExamResult(null)} className="w-full bg-red-900 text-white py-2 rounded font-bold hover:bg-red-800 shadow">收入朝中</button>
+                  </div>
+              </div>
+            );
+        };
+
+        // 修正原始版本引用了不存在的 VictoryModal / hasSubmitted。
+        const VictoryModal = () => (
+            <div className="fixed inset-0 bg-black/85 flex items-center justify-center z-[130] p-3" role="dialog" aria-modal="true" aria-label="一統天下結局">
+                <div className="bg-amber-50 border-4 border-double border-yellow-600 rounded-lg shadow-2xl p-5 sm:p-8 max-w-lg w-full text-center max-h-[92vh] overflow-y-auto">
+                    <div className="text-5xl mb-3">👑</div>
+                    <h2 className="text-3xl sm:text-4xl text-red-900 font-serif font-bold mb-3">一統天下！</h2>
+                    <p className="text-stone-700 mb-3">{gameState.playerName || '聖上'}御極，{gameState.eraName}{gameState.unificationYear || gameState.year}年，四海歸一，萬邦來朝！</p>
+                    <div className="grid grid-cols-2 gap-2 my-4 text-sm">
+                        <div className="bg-white/75 border border-amber-200 rounded p-2"><div className="text-stone-500">已征服敵國</div><div className="font-bold text-red-900 text-xl">{ENEMIES.filter((_,i)=>(gameState.conqueredEnemies||[]).some(x=>Number(x)===i)).length} / {ENEMIES.length}</div></div>
+                        <div className="bg-white/75 border border-amber-200 rounded p-2"><div className="text-stone-500">現有疆域</div><div className="font-bold text-red-900 text-xl">{gameState.provinces.length} 省</div></div>
+                        <div className="bg-white/75 border border-amber-200 rounded p-2"><div className="text-stone-500">國庫</div><div className="font-bold text-red-900 text-xl">{Number(gameState.treasury||0).toLocaleString()} 兩</div></div>
+                        <div className="bg-white/75 border border-amber-200 rounded p-2"><div className="text-stone-500">民心</div><div className="font-bold text-red-900 text-xl">{gameState.stability}</div></div>
+                    </div>
+                    <p className="text-xs text-gray-600 mb-5">完成統一的皇帝會保留首次統一者資格，後代繼位不會重複取得。可繼續治理天下。</p>
+                    <div className="flex flex-col gap-3">
+                        <button onClick={() => {
+                            setGameState(p => ({ ...p, gameWon: true }));
+                            setShowVictoryModal(false);
+                            // 提交後再讀取排行榜；只有首次統一者可獲得統一成績。
+                            submitScore({...gameState, gameWon:true}, true, fetchLeaderboard);
+                        }} className="bg-blue-800 text-white rounded py-3 font-bold">查看世界排行榜</button>
+                        <button onClick={continueGame} className="bg-yellow-600 text-white rounded py-3 font-bold">繼續治理</button>
+                        <button onClick={restartGame} className="bg-stone-700 text-white rounded py-3 font-bold">重新登基</button>
+                    </div>
+                </div>
+            </div>
+        );
+
+        const GameOverScreen = () => (
+            <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 animate-in fade-in duration-1000">
+                <div className="bg-white p-8 rounded-lg max-w-lg w-full text-center border-4 border-double border-gray-400 shadow-2xl">
+                    <Skull/>
+                    <h2 className="text-4xl font-bold mb-2 font-serif">大清亡了</h2>
+                    <p className="text-xl mb-6 text-gray-700">{gameState.endReason}</p>
+                    <div className="text-sm text-gray-500 mb-6">在位: {gameState.year}年 | 疆域: {gameState.provinces.length}省</div>
+                    <button onClick={restartGame} className="bg-red-900 text-white px-6 py-3 rounded font-bold hover:bg-red-800">重新登基</button>
+                </div>
+            </div>
+        );
+
+        const ResourceBar = () => (
+            <div className="bg-stone-800 text-white px-4 py-2 flex items-center gap-4 text-sm shadow-inner overflow-x-auto whitespace-nowrap sticky top-0 z-10">
+                <div className="flex items-center gap-1 text-yellow-400"><Coins/> 國庫: {gameState.treasury}</div>
+                <div className="flex items-center gap-1 text-amber-300" title="御書房進修影響後續奏摺效果">👑 文治 {gameState.civil}／武力 {gameState.military}</div>
+                <div className="flex items-center gap-1 text-amber-200" title="貪腐損耗按每年歲入計算，不再依國庫存款計算">貪腐率: {formatCorruptionPercentage(gameState.corruptionRate)}</div>
+                <div className="flex items-center gap-1 text-violet-300">👥 人口: {formatPopulation(gameState.population)}萬</div>
+                <div className="flex items-center gap-1 text-red-400">❤️ 民心: {gameState.stability}</div>
+                <div className="flex items-center gap-1 text-gray-300"><Sword/> 軍力: {gameState.army}</div>
+                <div className="flex items-center gap-1 text-green-400"><Activity/> 健康: {gameState.health}</div>
+                <div className="flex items-center gap-1 text-blue-400" title="健康越低，體力上限越低（最低80）"><Zap/> 體力: {gameState.energy}/{getMaxEnergy(gameState.health)}</div>
+            </div>
+        );
+
+        const FeedbackMsg = () => {
+            if (!feedbackMessage) return null;
+            return (
+                <div className={`fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 px-6 py-3 rounded shadow-lg z-50 text-white font-bold animate-bounce ${feedbackMessage.type === 'error' ? 'bg-red-600' : 'bg-green-600'}`}>
+                    {feedbackMessage.text}
+                </div>
+            );
+        };
+
+        // --- View Pages ---
+
+        const goToProvinceAppointment = (provinceId, slot) => {
+            setProvinceAppointmentTarget({provinceId,slot,token:Date.now()});
+            setCurrentView('PROVINCES');
+        };
+
+        useLayoutEffect(()=>{
+            if(currentView!=='PROVINCES'||!provinceAppointmentTarget||provinceAppointmentHandledRef.current===provinceAppointmentTarget.token)return;
+            const card=[...document.querySelectorAll('[data-province-id]')]
+                .find(element=>element.dataset.provinceId===String(provinceAppointmentTarget.provinceId));
+            if(!card)return;
+            provinceAppointmentHandledRef.current=provinceAppointmentTarget.token;
+            card.scrollIntoView({block:'center'});
+            const select=card.querySelector(`[data-province-slot="${provinceAppointmentTarget.slot}"]`);
+            if(select)select.focus({preventScroll:true});
+        },[currentView,provinceAppointmentTarget,gameState.provinces]);
+        useEffect(()=>{
+            if(!provinceAppointmentTarget)return;
+            const timer=setTimeout(()=>setProvinceAppointmentTarget(null),2200);
+            return ()=>clearTimeout(timer);
+        },[provinceAppointmentTarget]);
+
+        // 常駐官職空缺提示：依目前存檔即時計算，不依賴彈窗，任命後會自動消失。
+        const VacantPostsBanner = ({kind = 'all'}) => {
+            const allPosts = getOpenGovernmentPosts(gameState);
+            const posts = kind === 'all' ? allPosts : allPosts.filter(post => post.kind === kind);
+            if (!posts.length) return null;
+            const names = posts.slice(0, 8).map(post => post.label).join('、');
+            const hasCentral = posts.some(post => post.kind === 'central');
+            const hasProvinces = posts.some(post => post.kind === 'province');
+            const provinceGroups=[...posts.filter(post=>post.kind==='province').reduce((groups,post)=>{
+                const key=String(post.provinceId);
+                if(!groups.has(key))groups.set(key,{provinceId:post.provinceId,provinceName:post.provinceName,slots:[]});
+                groups.get(key).slots.push(post.slot);
+                return groups;
+            },new Map()).values()];
+            return (
+                <div className="bg-amber-50 border-l-4 border-amber-500 p-3 rounded shadow-sm mb-4 text-stone-800">
+                    <div className="font-bold text-amber-900 flex items-center gap-2 mb-1">
+                        <AlertTriangle/><span>官職待任命（{posts.length} 處）</span>
+                    </div>
+                    <div className="text-sm leading-relaxed">{names}{posts.length > 8 ? `……等 ${posts.length} 處` : ''}</div>
+                    {posts.length > 8 && <details className="mt-1 text-xs">
+                        <summary className="cursor-pointer font-bold">展開全部空缺</summary>
+                        <div className="mt-1 max-h-28 overflow-y-auto">{posts.map(post => <div key={post.key}>• {post.label}</div>)}</div>
+                    </details>}
+                    <div className="flex flex-wrap gap-2 mt-2 text-xs">
+                        {hasCentral && kind !== 'central' &&
+                            <button className="px-3 py-1 rounded bg-blue-800 text-white hover:bg-blue-700" onClick={() => setCurrentView('MINISTERS')}>前往吏部任命</button>}
+                        {hasProvinces && provinceGroups.map(group=><button key={String(group.provinceId)} className="px-3 py-1 rounded bg-emerald-800 text-white hover:bg-emerald-700" onClick={() => goToProvinceAppointment(group.provinceId,group.slots[0])}>前往{group.provinceName}任命</button>)}
+                    </div>
+                    <p className="text-[11px] text-stone-500 mt-2">包含尚未任命與退休、離職後的空缺；完成任命後自動移出清單。</p>
+                </div>
+            );
+        };
+
+        // === v1.1.5 吏部百官統籌任命 ===
+        // 僅以文治／武力決定優先序；不按忠誠、年齡扣分。
+        // 整體中央組合最佳化，地方則嚴格按發展度優先，總督文／巡撫武。
+        const BULK_APPOINTMENT_SCOPE_OPTIONS=[['primeMinister','丞相'],['revenueMinister','戶部尚書'],['warMinister','兵部尚書'],['provinceGovernor','地方總督'],['provinceMagistrate','地方巡撫']];
+        const buildBulkAppointmentPlan = (state, scope = null) => {
+            const enabled={primeMinister:true,revenueMinister:true,warMinister:true,provinceGovernor:true,provinceMagistrate:true,...(scope||state.bulkAppointmentScope||{})};
+            const ministers = (state.ministers || []).filter(m => m && m.id != null);
+            const roles = ['primeMinister', 'revenueMinister', 'warMinister'];
+            const allCentralJobs = roles.map((key, index) => ({key, scopeKey:key, label:CENTRAL_POST_NAMES[key], stat:index === 2 ? 'military' : 'civil', oldId:state.centralOfficials?.[key] ?? null, type:'central'}));
+            const jobs=allCentralJobs.filter(job=>enabled[job.scopeKey]);
+            const provinces = [...(state.provinces || [])].sort((a,b) =>
+                (Number(b.development)||0)-(Number(a.development)||0) || String(a.id).localeCompare(String(b.id)));
+            const allRegional = provinces.flatMap(p => [0,1].map(slot => ({
+                key:`province:${String(p.id)}:${slot}`, provinceId:p.id, slot,
+                scopeKey:slot===0?'provinceGovernor':'provinceMagistrate',
+                label:`${p.name}${slot === 0 ? '總督' : '巡撫'}`,
+                stat:slot === 0 ? 'civil' : 'military', oldId:(p.officials || [])[slot] ?? null, type:'province'
+            })));
+            const regional=allRegional.filter(job=>enabled[job.scopeKey]);
+            const score = (m, job) => Math.max(0, Number(m?.[job.stat]) || 0);
+            const idKey = id => String(id);
+            const byId = new Map(ministers.map(m => [idKey(m.id),m]));
+            const lockedIds=new Set((state.autoAppointmentIdleIds||[]).map(idKey));
+            [...allCentralJobs,...allRegional].filter(job=>!enabled[job.scopeKey]&&job.oldId!=null)
+                .forEach(job=>lockedIds.add(idKey(job.oldId)));
+            const assignableMinisters=ministers.filter(m=>!lockedIds.has(idKey(m.id)));
+            // 動態規劃中央三職：對每名官員決定不用／任其一職，避免貪婪選人浪費文武全才。
+            // 分數相同時，優先保留原職，減少無意義調動。
+            const dp = Array(1<<jobs.length).fill(null);
+            dp[0] = {score:0, kept:0, ids:Array(jobs.length).fill(null)};
+            const better = (a,b) => !b || a.score > b.score || (a.score === b.score && a.kept > b.kept);
+            for (const minister of assignableMinisters) {
+                const next = dp.slice();
+                for (let mask=0; mask<dp.length; mask++) {
+                    if (!dp[mask]) continue;
+                    for (let j=0; j<jobs.length; j++) {
+                        if (mask & (1<<j)) continue;
+                        const candidate = {
+                            score:dp[mask].score + score(minister, jobs[j]),
+                            kept:dp[mask].kept + (jobs[j].oldId != null && idKey(jobs[j].oldId) === idKey(minister.id) ? 1 : 0),
+                            ids:dp[mask].ids.map((id,k) => k===j ? minister.id : id)
+                        };
+                        const target = mask | (1<<j);
+                        if (better(candidate,next[target])) next[target] = candidate;
+                    }
+                }
+                for (let i=0;i<dp.length;i++) dp[i]=next[i];
+            }
+            // 可用官員不足時仍盡可能填滿所勾選的中央官職。
+            const bestCentral = dp[dp.length-1] || dp[0];
+            let centralSolution = null;
+            for (let mask=0;mask<dp.length;mask++) {
+                if (!dp[mask]) continue;
+                const count = mask.toString(2).replace(/0/g,'').length;
+                const prevCount = centralSolution ? centralSolution.count : -1;
+                if (count > prevCount || count === prevCount && better(dp[mask],centralSolution)) {
+                    centralSolution = {...dp[mask],count};
+                }
+            }
+            const chosen = centralSolution?.ids || bestCentral.ids;
+            const used = new Set(chosen.filter(id=>id!=null).map(idKey));
+            const assignments = new Map(jobs.map((job,index) => [job.key,chosen[index] ?? null]));
+            // 依繁榮度逐省完成任命。每省兩職採配對最佳解，避免文武全才用錯職。
+            for (const province of provinces) {
+                const open = regional.filter(job => idKey(job.provinceId) === idKey(province.id));
+                if(!open.length) continue;
+                const available = assignableMinisters.filter(m => !used.has(idKey(m.id)));
+                if (!available.length) {
+                    open.forEach(job => assignments.set(job.key,null));
+                    continue;
+                }
+                if(open.length===1){
+                    const job=open[0];
+                    const best=available.slice().sort((a,b)=>score(b,job)-score(a,job) ||
+                        ((job.oldId!=null&&idKey(job.oldId)===idKey(b.id)?1:0)-(job.oldId!=null&&idKey(job.oldId)===idKey(a.id)?1:0)))[0];
+                    assignments.set(job.key,best?.id??null);
+                    if(best)used.add(idKey(best.id));
+                    continue;
+                }
+                const [civilJob, militaryJob] = open;
+                const candidateScore = (m,job) => score(m,job);
+                const kept = (m,job) => job.oldId != null && idKey(job.oldId)===idKey(m.id) ? 1 : 0;
+                let best = null;
+                if (available.length===1) {
+                    const m=available[0];
+                    const selectCivil = candidateScore(m,civilJob)>candidateScore(m,militaryJob) ||
+                        (candidateScore(m,civilJob)===candidateScore(m,militaryJob) && kept(m,civilJob)>=kept(m,militaryJob));
+                    best = selectCivil ? {civil:m,military:null} : {civil:null,military:m};
+                } else {
+                    for (const a of available) for (const b of available) {
+                        if (idKey(a.id)===idKey(b.id)) continue;
+                        const value = candidateScore(a,civilJob)+candidateScore(b,militaryJob);
+                        const same = kept(a,civilJob)+kept(b,militaryJob);
+                        if (!best || value>best.value || value===best.value && same>best.same) {
+                            best={civil:a,military:b,value,same};
+                        }
+                    }
+                }
+                assignments.set(civilJob.key,best.civil?.id ?? null);
+                assignments.set(militaryJob.key,best.military?.id ?? null);
+                if (best.civil) used.add(idKey(best.civil.id));
+                if (best.military) used.add(idKey(best.military.id));
+            }
+            const allJobs=[...jobs,...regional];
+            const changes=allJobs.map(job => {
+                const newId=assignments.get(job.key) ?? null;
+                const changed=(job.oldId == null ? null : idKey(job.oldId)) !== (newId == null ? null : idKey(newId));
+                return {...job, newId, changed,
+                    oldMinister:job.oldId == null ? null : byId.get(idKey(job.oldId)),
+                    newMinister:newId == null ? null : byId.get(idKey(newId))};
+            });
+            const changeCount=changes.filter(job=>job.changed).length;
+            // 手動任命的丞相、軍機處折扣沿用；統籌基本成本封頂30，免銀兩。
+            const pm=ministers.find(m=>idKey(m.id)===idKey(state.centralOfficials?.primeMinister));
+            const pmReduction=Math.floor(((Number(pm?.civil)||0)/200)*4);
+            const multiplier=(state.unlockedTechs || []).includes('grand_council') ? 0.8 : 1;
+            const baseCost=changeCount===0 ? 0 : Math.min(30,5+2*changeCount);
+            const energyCost=changeCount===0 ? 0 : Math.floor(Math.max(1,baseCost-pmReduction)*multiplier);
+            // 將全部參與計算的來源一起簽名，確認時如資料已變動就必須重新擬旨。
+            const signature=JSON.stringify({
+                ministers:ministers.map(m=>[String(m.id),m.civil,m.military]),
+                central:roles.map(role=>state.centralOfficials?.[role] ?? null),
+                provinces:(state.provinces || []).map(p=>[p.id,p.development,...(p.officials||[null,null])]),
+                tech:state.unlockedTechs || [],scope:enabled,autoIdle:[...(state.autoAppointmentIdleIds||[])].map(String).sort()
+            });
+            return {changes,changeCount,energyCost,signature,scope:enabled,centralCount:jobs.length,
+                occupied:changes.filter(job=>job.newId!=null).length};
+        };
+        const proposeBulkAppointment = () => {
+            const plan=buildBulkAppointmentPlan(gameState);
+            if (!gameState.ministers?.length) {showMessage('朝中尚無可用官員，無法擬定任命。','error');return;}
+            if (!Object.values(plan.scope).some(Boolean)) {showMessage('請至少勾選一類要套用的一鍵任命職務。','error');return;}
+            // 全部官職已是最佳配置時，不再打開無法提交的零異動預覽視窗。
+            if (plan.changeCount === 0) {
+                setBulkAppointmentDraft(null);
+                showMessage('百官配置已是最佳方案，無須重新頒旨，也不消耗體力。','success');
+                return;
+            }
+            setBulkAppointmentDraft(plan);
+        };
+        const updateBulkAppointmentScope = (key, checked) => {
+            if(!bulkAppointmentDraft)return;
+            const scope={...bulkAppointmentDraft.scope,[key]:checked};
+            setGameState(previous=>({...previous,bulkAppointmentScope:scope}));
+            setBulkAppointmentDraft(buildBulkAppointmentPlan(gameState,scope));
+        };
+        const setSavedBulkAppointmentScope = (key, checked) => {
+            setGameState(previous=>({...previous,bulkAppointmentScope:{primeMinister:true,revenueMinister:true,warMinister:true,provinceGovernor:true,provinceMagistrate:true,...(previous.bulkAppointmentScope||{}),[key]:checked}}));
+        };
+        const setSelectedMinistersAutoIdle = locked => {
+            const selected=new Set((selectedMinisterIds||[]).map(String));
+            if(!selected.size)return;
+            setGameState(previous=>{
+                const valid=new Set((previous.ministers||[]).map(m=>String(m.id)));
+                const ids=new Set((previous.autoAppointmentIdleIds||[]).map(String).filter(id=>valid.has(id)));
+                selected.forEach(id=>locked?ids.add(id):ids.delete(id));
+                return {...previous,autoAppointmentIdleIds:[...ids]};
+            });
+            showMessage(locked?'已將所選官員設為一鍵任命保留空閒。':'已解除所選官員的一鍵任命保留空閒。','success');
+        };
+        const confirmBulkAppointment = async () => {
+            if (!bulkAppointmentDraft) return;
+            const current=buildBulkAppointmentPlan(gameState,bulkAppointmentDraft.scope);
+            if (current.signature!==bulkAppointmentDraft.signature) {
+                setBulkAppointmentDraft(current);
+                showMessage('百官或地方狀態已有變動，請重新確認最新任命名單。','error');
+                return;
+            }
+            if (!current.changeCount) {setBulkAppointmentDraft(null);showMessage('百官配置已是最佳方案，無須調整，也不消耗體力。');return;}
+            if ((Number(gameState.energy)||0)<current.energyCost) {
+                showMessage(`體力不足：需 ${current.energyCost} 點，目前只有 ${gameState.energy} 點。未變更任何任命。`,'error');return;
+            }
+            if(!await confirmLowEnergySpend(current.energyCost,'施行百官任命總詔'))return;
+            const central={...(gameState.centralOfficials || {})};
+            const provMap=new Map((gameState.provinces||[]).map(p=>[String(p.id),{...p,officials:[...(p.officials||[null,null])]}]));
+            for (const job of current.changes) {
+                if (job.type==='central') central[job.key]=job.newId;
+                else provMap.get(String(job.provinceId)).officials[job.slot]=job.newId;
+            }
+            setGameState(prev=>sanitizeAppointments({
+                ...prev,energy:prev.energy-current.energyCost,
+                centralOfficials:central,provinces:(prev.provinces||[]).map(p=>provMap.get(String(p.id))||p)
+            }));
+            setBulkAppointmentDraft(null);
+            showMessage(`百官任命總詔已施行：調整${current.changeCount}職，體力-${current.energyCost}`, 'success');
+            addLog(`【百官統籌任命】調整${current.changeCount}職，體力-${current.energyCost}，中央優先／地方繁榮優先。`);
+        };
+
+        const createOrdinaryRecruitCandidate = (usedNames, qualityBonus, idPrefix) => {
+            const civilPrimary=Math.random()<0.5;
+            const mainStat=Math.min(90,45+Math.floor(Math.random()*41)+qualityBonus);
+            const secondaryStat=Math.min(75,30+Math.floor(Math.random()*41)+qualityBonus);
+            const civil=civilPrimary?mainStat:secondaryStat;
+            const military=civilPrimary?secondaryStat:mainStat;
+            const name=generateName(true,usedNames);
+            usedNames.push(name);
+            return {id:royalNewId(idPrefix),name,age:rollMinisterAge(20,45),civil,military,
+                loyalty:60+Math.floor(Math.random()*30),aptitude:35+Math.floor(Math.random()*46),
+                avatar:getGenericAvatar(true,civil>=military),rarity:'common',rarityLabel:'普通人才',
+                isSpecial:false,specialId:null,recruitType:civil>=military?'文官':'武將'};
+        };
+        const drawRecruitCandidate = ({pity,owned,usedInBatch,usedNames,qualityBonus,idPrefix}) => {
+            const available=SPECIAL_PERSONS_ALL.filter(person=>!owned.has(person.key)&&!usedInBatch.has(person.key));
+            const remainingLegend=available.filter(person=>person.rarity==='legendary');
+            const remainingHistorical=available.filter(person=>person.rarity==='historical');
+            const pityTarget=remainingLegend.length?'legendary':remainingHistorical.length?'historical':null;
+            const roll=Math.random();
+            let tier='common';
+            if(pityTarget&&pity>=99)tier=pityTarget;
+            else if(roll<0.01)tier='legendary';
+            else if(roll<0.10)tier='historical';
+            const specialPool=tier==='legendary'?remainingLegend:tier==='historical'?remainingHistorical:[];
+            let candidate=null;
+            if(specialPool.length){
+                const person=specialPool[Math.floor(Math.random()*specialPool.length)];
+                usedInBatch.add(person.key);
+                const isMilitary=SPECIAL_PERSONS.military.some(item=>item.key===person.key);
+                candidate={...person,id:royalNewId(idPrefix),specialId:person.key,isSpecial:true,
+                    rarityLabel:tier==='legendary'?'傳奇':'歷史名臣／名將',recruitType:isMilitary?'武將':'文臣'};
+            }else{
+                candidate=createOrdinaryRecruitCandidate(usedNames,qualityBonus,idPrefix);
+            }
+            let nextPity=pity;
+            if(pityTarget)nextPity=candidate.specialId&&tier===pityTarget?0:Math.min(99,pity+1);
+            return {candidate,pity:nextPity};
+        };
+
+        // 單抽與十連使用同一招募池及同一保底進度；兩者都不消耗體力。
+        const handleSingleRecruit = () => {
+            const silverCost = 300;
+            if (Number(gameState.treasury) < silverCost) { showMessage('科舉需要300兩銀子', 'error'); return; }
+            const pmStats = getOfficialStats(gameState.centralOfficials?.primeMinister);
+            const qualityBonus = Math.min(5,Math.floor((Number(pmStats.civil)||0)/20));
+            const draw=drawRecruitCandidate({pity:Math.max(0,Math.min(99,Number(gameState.recruitPity)||0)),
+                owned:getUnavailableSpecialIds(gameState),usedInBatch:new Set(),usedNames:(gameState.ministers||[]).map(m=>m.name),qualityBonus,idPrefix:'minister'});
+            const newMinister={...draw.candidate,recruitedYear:gameState.dynastyYear||gameState.year,postHistory:[]};
+            setGameState(prev => {
+                if (Number(prev.treasury) < silverCost) return prev;
+                return {...prev, treasury:prev.treasury-silverCost,recruitPity:draw.pity,
+                    ministers:[...(prev.ministers || []), newMinister],
+                    recruitedSpecialIds:newMinister.specialId?[...new Set([...(prev.recruitedSpecialIds||[]),newMinister.specialId])]:(prev.recruitedSpecialIds||[]),
+                    recruitableSpecialIds:newMinister.specialId?(prev.recruitableSpecialIds||[]).filter(id=>id!==newMinister.specialId):(prev.recruitableSpecialIds||[])};
+            });
+            setRecruitReveal({source:'exam',title:'金榜題名・新官入朝',results:[newMinister]});
+            addLog(`【吏部科舉】支付銀${silverCost}，錄取${newMinister.name}（文${newMinister.civil}／武${newMinister.military}／忠${newMinister.loyalty}）${newMinister.specialId?'；特殊人才應召入朝。':''}保底進度${draw.pity}/100。`);
+        };
+

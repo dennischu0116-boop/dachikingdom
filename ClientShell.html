@@ -1,0 +1,215 @@
+      const qingCloudGas = (method, ...args) => new Promise((resolve, reject) => {
+          if (typeof google === 'undefined' || !google.script?.run) {
+              reject(new Error('雲端功能只能在正式的 Google Apps Script 網頁中使用。'));
+              return;
+          }
+          const runner = google.script.run
+              .withSuccessHandler(result => {
+                  if(result && result.ok === false) {
+                      const error=new Error(result.error || '雲端操作失敗');
+                      error.conflict=!!result.conflict;
+                      reject(error);
+                  } else resolve(result);
+              })
+              .withFailureHandler(error => reject(new Error(error?.message || String(error || '雲端服務連線失敗'))));
+          try {
+              if (method === 'getCloudPublicConfig') runner.getCloudPublicConfig();
+              else if (method === 'getGoogleAuthUrl') runner.getGoogleAuthUrl();
+              else if (method === 'consumeCloudLoginHandoff') runner.consumeCloudLoginHandoff(...args);
+              else if (method === 'logoutCloudSession') runner.logoutCloudSession(...args);
+              else if (method === 'listCloudSaves') runner.listCloudSaves(...args);
+              else if (method === 'loadCloudSave') runner.loadCloudSave(...args);
+              else if (method === 'saveCloudGame') runner.saveCloudGame(...args);
+              else if (method === 'renameCloudSave') runner.renameCloudSave(...args);
+              else if (method === 'deleteCloudSave') runner.deleteCloudSave(...args);
+              else reject(new Error('不支援的雲端操作。'));
+          } catch (error) {
+              reject(error);
+          }
+      });
+
+      const StartScreen = ({ onStart, onSettings, onHelp, onUpdates, onCloud, cloudStatus, pendingCloudSlot }) => {
+          const [era, setEra] = useState(() => generateRandomEraName());
+          const [name, setName] = useState(() => generateRandomEmperorName());
+          const randomizeBoth = () => { setEra(generateRandomEraName()); setName(generateRandomEmperorName()); };
+          return (
+              <div className="fixed inset-0 bg-stone-900 flex flex-col items-center justify-center z-[60] text-amber-50 animate-in fade-in overflow-y-auto p-3">
+                  <div className="bg-red-900/80 p-6 md:p-8 rounded-lg border-4 border-yellow-600 shadow-2xl max-w-md w-full text-center my-auto">
+                      <Crown />
+                      <h1 className="text-4xl font-serif font-bold mb-2 text-yellow-100">大清帝國模擬器</h1>
+                      <p className="text-amber-200/80 text-sm">治國平天下，開創萬世基業</p>
+                      <p className="text-xs text-amber-200/70 mt-2 mb-3">遊戲版本 {APP_VERSION}</p>
+                      <div className="flex flex-wrap justify-center gap-2 mb-5">
+                          <button onClick={onUpdates} className="bg-amber-600/60 text-white text-sm px-3 py-2 rounded">📜 更新說明</button>
+                          <button onClick={onHelp} className="bg-amber-600/60 text-white text-sm px-3 py-2 rounded">❓ 玩法說明</button>
+                          <button onClick={onSettings} className="bg-stone-700 text-white text-sm px-3 py-2 rounded">⚙ 系統設定／存檔</button>
+                          <button onClick={onCloud} className="bg-blue-700 text-white text-sm px-3 py-2 rounded">☁️ {cloudStatus || 'Google 登入／雲端存檔'}</button>
+                      </div>
+                      {pendingCloudSlot&&<div className="mb-4 rounded border border-sky-400 bg-sky-950/60 p-3 text-sm text-sky-100">☁️ 這局新遊戲將建立於雲端槽位 {pendingCloudSlot}；請設定年號與皇帝姓名後開始。</div>}
+                      <div className="space-y-4 mb-6 text-left">
+                          <div>
+                              <label className="block text-xs font-bold text-yellow-200 mb-1">擬定年號</label>
+                              <div className="flex gap-2">
+                                  <input type="text" value={era} onChange={e => setEra(e.target.value)} maxLength={4} className="flex-1 min-w-0 bg-stone-800 border border-stone-600 rounded p-2 text-white focus:border-yellow-500 focus:outline-none" placeholder="例如：康熙" />
+                                  <button type="button" onClick={() => setEra(generateRandomEraName())} className="px-3 rounded bg-amber-700 text-white border border-amber-500 hover:bg-amber-600" title="隨機產生年號">🎲</button>
+                              </div>
+                          </div>
+                          <div>
+                              <label className="block text-xs font-bold text-yellow-200 mb-1">皇帝姓名</label>
+                              <div className="flex gap-2">
+                                  <input type="text" value={name} onChange={e => setName(e.target.value)} maxLength={16} className="flex-1 min-w-0 bg-stone-800 border border-stone-600 rounded p-2 text-white focus:border-yellow-500 focus:outline-none" placeholder="例如：愛新覺羅·玄燁" />
+                                  <button type="button" onClick={() => setName(generateRandomEmperorName())} className="px-3 rounded bg-amber-700 text-white border border-amber-500 hover:bg-amber-600" title="隨機產生皇帝姓名">🎲</button>
+                              </div>
+                          </div>
+                          <button type="button" onClick={randomizeBoth} className="w-full py-2 rounded border border-amber-400/60 bg-amber-950/40 text-amber-100 text-sm hover:bg-amber-900">🎲 年號與皇帝姓名全部隨機</button>
+                      </div>
+                      <button onClick={() => onStart(era, name)} className="w-full bg-yellow-600 text-white py-3 rounded font-bold text-lg shadow-lg hover:bg-yellow-500 transition-transform hover:scale-105">登基大典（開始新遊戲）</button>
+                  </div>
+              </div>
+          );
+      };
+
+      const SystemSettingsModal = ({ onClose, onSave, onLoad, onExport, onDownload, onImport, onRestart, autoSaveStatus, isGameStarted }) => (
+          <div className="fixed inset-0 bg-black/75 flex items-center justify-center z-[85] p-4 animate-in fade-in">
+              <div className="bg-stone-100 rounded-xl border-4 border-amber-600 shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-5">
+                  <div className="screen-modal-header flex items-center justify-between gap-3 mb-2">
+                      <h3 className="text-2xl font-bold text-red-950 font-serif">⚙ 系統設定・存檔管理</h3>
+                      <button onClick={onClose} className="px-3 py-1 rounded bg-stone-200 text-stone-700 font-bold">關閉</button>
+                  </div>
+                  <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 mb-4 text-sm text-emerald-900">
+                      <b>即時存檔：{autoSaveStatus}</b>
+                      <div className="text-xs mt-1">遊戲進度會自動保存在目前瀏覽器；下載備份可另存到電腦或雲端。</div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                      <button disabled={!isGameStarted} onClick={onSave} className="p-3 rounded bg-stone-700 text-white font-bold disabled:opacity-40">💾 立即存檔</button>
+                      <button onClick={onLoad} className="p-3 rounded bg-stone-700 text-white font-bold">📂 讀取本機存檔</button>
+                      <button disabled={!isGameStarted} onClick={onExport} className="p-3 rounded bg-stone-700 text-white font-bold disabled:opacity-40">📋 複製存檔代碼</button>
+                      <button disabled={!isGameStarted} onClick={onDownload} className="p-3 rounded bg-indigo-700 text-white font-bold disabled:opacity-40">📄 下載備份</button>
+                      <button onClick={onImport} className="col-span-2 p-3 rounded bg-blue-800 text-white font-bold">📥 導入存檔（TXT／JSON／代碼）</button>
+                  </div>
+                  <div className="mt-4 border-t border-stone-300 pt-4">
+                      <div className="font-bold text-red-900 mb-1">重新開始新遊戲</div>
+                      <p className="text-xs text-stone-600 mb-3">清除目前王朝、成就與本機進度；雲端排行榜舊紀錄不會刪除，新遊戲會使用全新的遊戲編號。</p>
+                      <button disabled={!isGameStarted} onClick={onRestart} className="w-full p-3 rounded bg-red-900 text-white font-bold disabled:opacity-40">🆕 重新開始新遊戲</button>
+                  </div>
+              </div>
+          </div>
+      );
+
+      const RestartConfirmModal = ({ onCancel, onConfirm }) => (
+          <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[95] p-4 animate-in fade-in">
+              <div className="bg-stone-100 rounded-xl border-4 border-red-800 shadow-2xl max-w-md w-full p-6">
+                  <h3 className="text-2xl font-bold text-red-950 text-center mb-3">確定重新開始？</h3>
+                  <p className="text-sm text-stone-700 leading-6">這會清除目前王朝、皇室、官員、土地、國庫、科技、起居注及已解鎖成就，並返回開局命名畫面。</p>
+                  <p className="text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded p-3 mt-3">雲端排行榜的舊局成績會保留；新局會建立新的遊戲 ID，獨立累積排行榜成績。已下載到電腦的備份檔不會被刪除。</p>
+                  <div className="flex gap-2 mt-5">
+                      <button onClick={onCancel} className="flex-1 py-3 rounded bg-stone-300 text-stone-800 font-bold">取消</button>
+                      <button onClick={onConfirm} className="flex-1 py-3 rounded bg-red-900 text-white font-bold">確認重新開始</button>
+                  </div>
+              </div>
+          </div>
+      );
+
+      const ImportModal = ({ onClose, onImport }) => {
+          const [inputVal, setInputVal] = useState('');
+          const [error, setError] = useState('');
+          const [reading, setReading] = useState(false);
+          const fileRef = useRef(null);
+          const submitImport = () => {
+              setError('');
+              const result = onImport(inputVal);
+              if (result && !result.ok) setError(result.error || '讀檔失敗');
+          };
+          const loadFile = (event) => {
+              const file = event.target.files?.[0];
+              if (!file) return;
+              setReading(true);
+              setError('');
+              const reader = new FileReader();
+              reader.onload = () => {
+                  setInputVal(String(reader.result || ''));
+                  setReading(false);
+              };
+              reader.onerror = () => {
+                  setError('無法讀取檔案，請選擇先前導出的 TXT 或 JSON 存檔。');
+                  setReading(false);
+              };
+              reader.readAsText(file, 'UTF-8');
+              event.target.value = '';
+          };
+          return (
+              <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[70] p-4 animate-in fade-in">
+                  <div className="bg-stone-100 p-6 rounded-lg max-w-lg w-full border-4 border-yellow-600 shadow-2xl">
+                      <h3 className="text-2xl font-bold mb-4 text-yellow-900 font-serif text-center">導入存檔</h3>
+                      <p className="text-sm text-gray-600 mb-2">貼上完整的存檔代碼，或選擇先前下載的備份檔（支援舊版 Base64、新版代碼與 JSON）。</p>
+                      <textarea className="w-full h-36 p-2 border rounded bg-white text-xs font-mono mb-2 focus:border-yellow-500 focus:outline-none" value={inputVal} onChange={(e) => { setInputVal(e.target.value); setError(''); }} placeholder="貼上完整的存檔代碼..." />
+                      <input ref={fileRef} type="file" accept=".txt,.json,text/plain,application/json" onChange={loadFile} className="hidden" />
+                      <button type="button" onClick={() => fileRef.current?.click()} className="w-full mb-3 bg-indigo-100 text-indigo-900 border border-indigo-300 py-2 rounded font-bold hover:bg-indigo-200">📁 選擇備份檔（TXT / JSON）</button>
+                      {error && <div role="alert" className="mb-3 p-2 text-sm rounded bg-red-50 border border-red-300 text-red-800 break-words">{error}</div>}
+                      <div className="flex gap-3">
+                          <button onClick={onClose} className="flex-1 bg-gray-300 text-gray-700 py-2 rounded font-bold hover:bg-gray-400">取消</button>
+                          <button disabled={reading || !inputVal.trim()} onClick={submitImport} className="flex-1 bg-yellow-600 disabled:opacity-50 text-white py-2 rounded font-bold hover:bg-yellow-500">{reading ? '讀取檔案中...' : '確認導入'}</button>
+                      </div>
+                  </div>
+              </div>
+          );
+      };
+
+      // 同時支援傳統 Base64、帶換行的 Base64、URL-safe Base64、JSON 及新版備份格式。
+      const decodeSaveText = (input) => {
+          let text = String(input || '').replace(/^\uFEFF/, '').trim();
+          if (!text) throw new Error('請先貼上代碼或選擇備份檔。');
+          text = text.replace(/^```(?:json|text)?\s*/i, '').replace(/\s*```$/, '').trim();
+          if (text.startsWith('{')) {
+              try { return JSON.parse(text); }
+              catch (_) { throw new Error('JSON 存檔格式不完整或已損壞。'); }
+          }
+          text = text.replace(/^qing-save\s*:\s*/i, '')
+                     .replace(/^data:[^,]+,/, '')
+                     .replace(/\s+/g, '')
+                     .replace(/-/g, '+').replace(/_/g, '/');
+          if (!/^[A-Za-z0-9+/]*={0,2}$/.test(text) || text.length % 4 === 1) {
+              throw new Error('代碼含有無效字元，請重新複製完整的存檔代碼。');
+          }
+          let bytes;
+          try { bytes = atob(text.padEnd(Math.ceil(text.length / 4) * 4, '=')); }
+          catch (_) { throw new Error('Base64 代碼不完整或格式錯誤。'); }
+          try {
+              const array = Uint8Array.from(bytes, char => char.charCodeAt(0));
+              const json = typeof TextDecoder !== 'undefined'
+                  ? new TextDecoder('utf-8', {fatal: true}).decode(array)
+                  : decodeURIComponent(Array.from(array, b => '%' + b.toString(16).padStart(2,'0')).join(''));
+              return JSON.parse(json.replace(/^\uFEFF/, ''));
+          } catch (_) {
+              throw new Error('存檔內容無法解析，可能複製不完整或不是本遊戲的存檔。');
+          }
+      };
+      const encodeSaveText = (payload) => {
+          const json = JSON.stringify(payload);
+          const bytes = typeof TextEncoder !== 'undefined'
+              ? new TextEncoder().encode(json)
+              : Uint8Array.from(unescape(encodeURIComponent(json)), c => c.charCodeAt(0));
+          // 以小批次組合避免大量字串產生堆疊溢位。
+          let binary = '';
+          for (let i = 0; i < bytes.length; i += 8192) binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
+          return btoa(binary);
+      };
+
+      // 自動存檔：同步寫入同一瀏覽器的 localStorage，不依賴 Google Drive。
+      const QING_SAVE_KEY = 'qing_saveData';
+      const cleanGameStateForSave = (state) => {
+          const { logsAdd: _unused, ...rest } = normalizeTerritoryState(state);
+          // 相容舊版圖片存檔：避免把龐大的 base64 圖片再度存入。
+          return {
+              ...rest,
+              ministers: (rest.ministers || []).map(m => ({...m, avatar: typeof m.avatar === 'string' && m.avatar.startsWith('data:') ? '👤' : m.avatar})),
+              consorts: (rest.consorts || []).map(c => ({...c, avatar: typeof c.avatar === 'string' && c.avatar.startsWith('data:') ? '🌸' : c.avatar})),
+              historicalConsorts: (rest.historicalConsorts || []).map(record => ({
+                  ...record,
+                  consorts: (record.consorts || []).map(c => ({...c, avatar: typeof c.avatar === 'string' && c.avatar.startsWith('data:') ? '🌸' : c.avatar}))
+              })),
+              childrenList: (rest.childrenList || []).map(c => ({...c, avatar: typeof c.avatar === 'string' && c.avatar.startsWith('data:') ? '👤' : c.avatar}))
+          };
+      };
+      // 官職空缺清單：只統計需要正式任命的中央三職與各省總督、巡撫。
+      // 兵部戰時主將、副將、軍師屬臨時出征配置，不納入常設官職空缺總數。

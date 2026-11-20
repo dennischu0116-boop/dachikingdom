@@ -1,0 +1,991 @@
+      const PALACE_RELEASE_NOTES = [
+          {version:'v1.3.4', title:'金榜翻牌・敬事房宮廷動畫', details:[
+              '科舉單抽新增可點擊揭曉的殿試名帖動畫；翻牌後集中顯示姓名、類型、稀有度、年齡、文治、武力、忠誠、資質及特殊能力。',
+              '科舉十抽先以十張名帖呈現，可逐張翻開、翻開下一張、一鍵依序揭曉或跳過動畫；全部揭曉後再進入既有候選清單，招募0至10人規則不變。',
+              '普通、歷史與傳奇人才使用不同的正面牌色與揭曉光效；牌背不提前顯示稀有度，抽取結果、共用保底及扣款時點均維持原規則。',
+              '妃嬪翻牌改為敬事房托盤、宮燈及3D名牌揭曉動畫，顯示封號、位分與姓名；歷史及傳奇佳人另有金色或紫金光效。',
+              '孕妃改用獨立的探望過場，不再顯示翻牌畫面；動畫期間鎖定重複操作，體力、好感與懷孕判定仍只結算一次。',
+              '翻牌介面支援手機尺寸及系統減少動態效果設定；完整玩法說明同步補充科舉與後宮動畫操作。'
+          ]},
+          {version:'v1.3.3', title:'低體力預警・軍職記憶與雲端續玩保護', details:[
+              '所有玩家主動消耗體力的操作，若完成後體力低於10，會先列出目前體力、消耗與剩餘體力並要求確認；體力不足仍直接阻止，免費操作及年度自動結算不提示。',
+              '進攻與防守官員改為分開記憶；單一防守戰線自動套用最近一次防守配置，多線防守只套用第一條戰線。官員離任、死亡或改任地方官後會自動清除失效記憶。',
+              '修正地方官員下拉選單因頁面重新建立而立即關閉及閃動的問題，任命後保留頁面與捲動狀態；舊版數字官員ID與新版文字ID均可正常任命。',
+              '網頁首次載入時顯示大清帝國載入畫面，直到遊戲資料及雲端登入狀態核對完成，避免載入外部程式期間顯示空白頁。',
+              '已連結雲端的遊戲會在分頁重新可見或視窗重新取得焦點時核對登入、帳號、槽位、遊戲編號與版本；核對失敗立即鎖定，不再允許返回開始頁面建立分岔進度。',
+              '雲端新遊戲改為遠端槽位建立成功後才切換本機遊戲；既有槽位核對遊戲編號並更新同一份Drive檔案，不再於每次同步建立新的存檔檔案。完整玩法說明同步更新。'
+          ]},
+          {version:'v1.3.2', title:'新官招募統一・商店定量與雲端同步保護', details:[
+              '科舉單抽、文武十連、微服書院及上朝舉薦統一使用新官入朝結果視窗；單人顯示完整能力資料，十連維持一次列出整批錄取者，不再逐人確認。',
+              '遊戲內原本使用瀏覽器樣式的確認框與文字輸入框，全面改為大清帝國介面風格；批次操作、物品使用與丟棄、皇室裁決、戰爭部署及雲端管理共用一致操作方式。',
+              '皇家商店每個新王朝年度固定16件：御賜錦緞、金簪、啟蒙書冊各4件，御賜金錠、玉如意、孫子兵法各1件，最後1件有10%機率為普通人參，否則從六種常規商品隨機補入。已生成的當年度庫存不回溯更改。',
+              '雲端槽位遊戲新增本機綁定標記，保存帳號、槽位、遊戲編號、revision及待同步狀態；重新開頁或讀取本機備份時仍會核對原帳號與雲端版本。v1.3.1舊存檔登入後若只有一個相符槽位會自動補上綁定，多槽相符時停止並要求玩家選擇。',
+              '雲端遊戲登出前強制同步，成功後才登出並返回開始頁面；同步失敗會取消登出。登入逾期、同步失敗或版本衝突時會鎖定遊戲，提供重新登入、重新同步、檢查槽位及下載本機備份。',
+              '官員任命選單全面核對為同時顯示年齡、文治與武力；中央、地方、出征及多線防守選單維持各職位原有排序與特殊技能星號。完整玩法說明同步更新。'
+          ]},
+          {version:'v1.3.1', title:'百官任命・排行榜與操作修正', details:[
+              '物品使用對象改為詳細資料清單；修正普通選秀妃子納入後宮後出現空白頁面，以及軍機處昭雪誣告按鈕未完成結案的問題。',
+              '皇嗣與官員底部批次操作列在玩法說明、更新說明或全螢幕視窗開啟時自動隱藏，不再遮擋內容。',
+              '科技開放年份與工部科技事件統一依王朝累計年份判斷，皇帝繼位不會重新計時。',
+              '官員任命選單同時顯示文治與武力；百官統籌任命可事先選擇套用職務並保存選擇，也可將指定官員鎖定為保留空閒。',
+              '文武合併十連可錄取0至10人；全部放棄不退還銀兩，十次抽取仍計入共用保底。',
+              '世界排行榜加大為詳細表格，顯示帝號、年號、在位年數與榜單成績，並可展開查看同一紀錄的其他成績；玩家自己的排名仍固定在底部。',
+              '修正「盛世繁華」成就說明，明確要求所有現有城市的發展度全部達到300；玩法說明同步更新。'
+          ]},
+          {version:'v1.3.0', title:'皇家寶庫・物品事件與九轉還魂', details:[
+              '新增皇家寶庫，背包與皇家商店共用頁面；背包以物品種類計算100格，相同物品無限堆疊，可依稀有度與類型查看、選擇目標使用或永久丟棄。稀世物品丟棄需要二次確認。',
+              '新增13種消耗物品，涵蓋皇帝健康、官員忠誠、妃嬪好感、官員與皇嗣文武培養，以及只能在死亡確認前使用的九轉還魂丹。使用物品不消耗體力，已達既有上限時不可浪費。',
+              '皇家商店每個王朝年度進貨一次，一張商品卡代表一件庫存；普通商品每種3至8件、珍貴商品每種1至3件，普通人參改採每年10%機率上架一件，稀世物品不販售。',
+              '新增6個微服、4個上朝及4個年度物品事件；微服與上朝分別保留85%及90%原事件，年度物品事件只在既有年度事件門檻內占10%。指定舊微服事件及藩屬進貢成功結果新增20%合理物品掉落。',
+              '新增死亡前救治：自然死亡同批裁定，事件致死、妃嬪病危與皇帝健康歸零在正式死亡前可使用還魂丹；獲救人物保留永久ID、身分、能力、婚姻與官職資料。奉旨處死、賜死及行刑不可使用還魂丹。',
+              '背包滿格時固定保存原本抽中的待領物品，不重抽、不重複領取；可整理後領取或放棄，付費取物事件僅退還該次交易銀兩。待領佇列、商店與背包支援本機及五槽雲端存檔。',
+              '舊存檔會建立空背包並只建立一次當年度商店；完整玩法說明同步新增物品、商店、事件掉落、滿格處理及九轉還魂規則。'
+          ]},
+          {version:'v1.2.9', title:'皇嗣資格一致性・皇家書院入學通知改善', details:[
+              '修正太子自然死亡、遭逐出或舊存檔資格失效後仍顯示為儲君的問題；太子、禪讓及駕崩繼位共用在世、成年、未逐出且未曾登基的資格判斷。',
+              '修正被逐出宗籍的公主仍可能出現在外邦和親名單；已婚公主不可再逐出宮廷，避免宗籍、官職與婚姻效果互相矛盾。',
+              '公主改名會同步更新婚姻紀錄、皇家書院學籍及相關內廷案件姓名；人物永久ID、能力、婚姻與血緣關係不變。',
+              '舊存檔會先補齊遊戲編號再整理皇室永久ID及學籍，修復早期存檔可能以unknown遊戲編號保存學籍而失去連結的問題。',
+              '皇家書院批量入學若含不合資格者，會依未滿6歲、已滿16歲、已入學、已畢業、已故、已逐出或資料異常分組列名；整批不扣款、不入學。',
+              '入學國庫不足時會顯示選取人數、所需束脩、目前國庫及不足金額；完整玩法說明同步更新。'
+          ]},
+          {version:'v1.2.8', title:'疆域一致性・失土收復與戰線資料修復', details:[
+              '土地取得、失守與收復統一使用永久土地ID；同名但不同ID的既有土地仍保留，缺少ID的舊存檔土地會補上不重複ID。',
+              '同一土地ID重複出現在疆域時只保留一筆，合併較高發展度與有效官員資料；同一ID同時存在於疆域和失土時，以具有效佔領者的失土資料為準。',
+              '每次征服、失守、收復、儲存及讀檔後，會依實際持有的敵國舊地同步征服標記；收復被第三國佔領的敵國舊地後，原屬敵國的征服狀態會自動恢復。',
+              '同一敵國首次征服最多新增一塊舊地，重複操作不再生成土地；收復失土沿用原土地ID、發展度與資料，不建立第二塊土地。',
+              '讀取舊存檔時會合併同城市重複戰線、移除已不存在城市的幽靈戰線，並合併重複攻擊者；異常戰線不再扣除兵力、國庫或民心。',
+              '防守結算新增一次性鎖定，避免快速連點造成同一戰役重複扣除資源或重複套用土地結果；完整玩法說明同步更新。'
+          ]},
+          {version:'v1.2.7', title:'年度稅率・人口國力與募兵連動', details:[
+              '地方與中央官職任命選單統一顯示姓名、年齡、文治、武力及可生效特殊技能★，原有職位排序與推薦方式不變。',
+              '新增每年一至十成的人口稅率設定，預設三成並維持原人口稅收入；稅率可在結束本年前免費調整，直接顯示預估人口稅、年度民心及人口成長影響。',
+              '一至五成提供較低或適度的民心與人口影響；六成起標示苛稅，八成起以紅色警示嚴重懲罰。稅率只改變人口稅，不重複放大基礎撥款、地方上繳及其他收入。',
+              '強徵稅賦改為每個王朝累計年只能使用一次，皇帝繼位不重置；收入沿用原公式且不受年度稅率影響，代價維持體力5、民心5。',
+              '人口正式顯示於主畫面與各玩法頁，單位為萬人；年度人口基礎成長率依城市數量計算，並套用稅率造成的成長加減。人口耗盡會觸發國家崩潰結局。',
+              '募兵基礎量改由人口與城市數量決定，再套用兵部尚書、皇帝武力及既有新軍加成；每增加10千軍隊消耗1萬人口，遣散10千軍隊返還1萬人口。',
+              '年度財報新增稅率、民心影響、人口期初／期末、城市基礎成長與稅率調整；舊存檔保留既有人口，缺少新欄位時採三成稅率並補上相容預設。完整玩法說明同步更新。'
+          ]},
+          {version:'v1.2.6', title:'特殊佳人・佳人錄與皇嗣天生培養傾向', details:[
+              '新增貂蟬、王昭君、西施、楊玉環四位傳奇佳人，以及甄宓、虞姬、趙飛燕、長孫皇后、孝莊、衛子夫六位歷史佳人；各自擁有固定年齡、生育能力、初始好感與專屬技能。',
+              '三年選秀與微服私訪偶遇佳人共用機率：傳奇2%、歷史8%、普通90%；連續7次未遇特殊佳人後，第8次保證特殊。特殊佳人出現時即重置保底，不受是否納入影響。',
+              '新增佳人錄，集中顯示10位特殊佳人的相遇進度、現任、歷代或已故狀態及已揭露技能；未相遇人物只顯示剪影。已納入過的特殊佳人不會重複出現，身故後也不會回池。',
+              '特殊佳人技能只有本人在世、仍屬本朝後宮、未入冷宮且好感至少60時生效；長孫皇后另須正式冊立為皇后。后妃卡片、選秀與偶遇畫面會顯示稀有度、技能及生效狀態。',
+              '皇子女出生時永久獲得文治之才、武略之才或文武雙全天賦；資質越高，文武雙全機率越高。甄宓技能生效時，她的新生皇嗣額外文治+8、資質+5。',
+              '上書房快速培養不再選擇文或武：每次總成長仍受年齡、資質與隨機影響，文治天賦按75%／25%分配、武略天賦按25%／75%分配、文武雙全按50%／50%分配。',
+              '皇家書院取消手動選課與轉課，依天賦自動安排經世之學、騎射之學或文武兼修；新式學堂的20%加成照常生效。舊存檔依文武差距15點補上固定天賦，既有能力與學業履歷不倒退。',
+              '出生賜名、皇嗣詳細清單、批量入學與書院年度預估皆顯示天賦、資質與自動課程；完整玩法說明同步更新。'
+          ]},
+          {version:'v1.2.5', title:'雲端開局整合・輸入修正・科技擴充與繼位健康', details:[
+              '雲端空白槽移除重複的年號與皇帝姓名輸入；點擊建立新遊戲後返回正常開始頁面，完成命名並登基時才建立及綁定所選槽位。',
+              '修正官員搜尋、后妃封號、戰線兵力等受影響輸入欄位每輸入一字就失去焦點的問題，連續輸入、刪除及中文輸入法不再因頁面重新建立而中斷。',
+              '遊戲頂端將Google登入／雲端槽位按鈕固定放在系統設定旁；系統設定內移除重複入口。內廷主畫面保留后宮、上書房及精簡的御書房、宗人府入口，內廷案件簿只從后宮頁進入。',
+              '新增河工水利、考成法、漕運整頓、同文館、屯田制度與新式學堂六項科技；科技總數增為11，革新先驅改為完成全部科技才解鎖。',
+              '修正鐵路建設原先只顯示說明但未實際套用的問題；現在鐵路會讓城市建設基礎發展翻倍，並可與河工水利及范仲淹技能疊加。',
+              '皇子或宗親繼位時，30歲以前登基健康100；31歲起每增加1歲降低1點，最低50。繼位選單及太子預估會直接顯示登基健康。',
+              '皇家書院入學通知增加嚴格年齡核對，只在皇嗣正式滿6歲後合併通知，5歲不會提前顯示。完整玩法說明同步更新。'
+          ]},
+          {version:'v1.2.4', title:'GAS 拆分檔載入修正', details:[
+              '修正程式拆分後，GAS 在開啟測試網址或正式網頁時將 JavaScript／JSX 片段誤判為獨立 HTML，因而顯示「HTML 內容格式錯誤」並無法進入遊戲的問題。',
+              '拆分檔改為讀取原始模板內容，待所有 CSS、JavaScript 與 JSX 依原順序組合進主頁後，再由 GAS 輸出完整網頁。',
+              '本次不變更玩法、存檔格式、排行榜資料或 Google 帳號登入與五槽雲端存檔流程；v1.2.3 的功能與完整玩法說明維持不變。'
+          ]},
+          {version:'v1.2.3', title:'Google 帳號登入・五槽雲端存檔與程式拆分', details:[
+              '接上既有 Google OAuth2 授權碼登入與短效交接／Session Token 流程；遊客仍可直接開始遊戲並沿用原本瀏覽器即時存檔，不會因登入而刪除本機進度。',
+              '新增每個 Google 帳號五個獨立雲端槽位，可建立新遊戲、把目前進度存入空白槽、讀取、同步、改名及刪除；目前使用中的槽位會清楚標示。',
+              '雲端存檔以 revision 檢查多分頁或多裝置衝突，發現雲端已有新版時停止覆寫並要求重新讀取，失敗時保留本機遊戲進度。',
+              '開始頁與系統設定共用同一個雲端存檔面板；槽位顯示皇帝、年號、年份、更新時間、國庫、官員、后妃、後代、統一狀態及遊戲編號。',
+              '雲端存檔內容存放於 Google Drive，既有試算表新增獨立的「玩家雲端存檔」索引分頁；世界排行榜函式、欄位與分頁維持不變。',
+              '前端來源依功能拆為 CSS、核心資料、說明、共用畫面、規則、主狀態、彈窗、官務、皇室與戰爭等檔案，由 GAS 在輸出時依原順序組合。',
+              '完整玩法說明新增帳號登入、遊客模式、五槽操作、自動同步與版本衝突處理。'
+          ]},
+          {version:'v1.2.2', title:'皇嗣成年入仕・入學提醒・固定操作列與通知整理', details:[
+              '刪除逐名「新官入朝」阻塞彈窗；科舉多人招募沿用合併錄取名單，新官資料仍寫入起居注，不再產生多則待確認通知。',
+              '官員清單與上書房批次操作列改為固定在整個遊戲畫面的最下方，不會因內容捲動消失；捲動區同步保留底部空間，避免最後一列被遮住。',
+              '上書房皇嗣資料改為完整的響應式詳細卡片，分區顯示身分與婚姻、年齡、文治、武力、資質、書院課程、下年度訓練結果、學業履歷及個別操作，不再裁切最右欄。',
+              '皇子與公主年滿16歲後免費自動冊封為官，不消耗體力；既有存檔中16～69歲、在世、未外嫁且從未離任的皇嗣會在下一次年度結算補冊封，不重複加入。',
+              '公主國內賜婚與任官互不衝突；在朝公主仍可外邦和親，和親後自動解除中央、地方、軍職與百官皇家書院學籍，並以「和親離朝」保存名人堂紀錄。',
+              '皇嗣滿6歲時合併顯示一次皇家書院入學提醒，列出本年度所有適齡姓名，並可直接前往上書房；不會每名皇嗣各跳一個視窗。',
+              '完整玩法說明同步更新通知、皇嗣成年入仕、國內賜婚與外邦和親、6歲入學提醒及固定批次操作規則。'
+          ]},
+          {version:'v1.2.1', title:'征服外交停止・批次操作固定・單線聯軍與技能標示修正', details:[
+              '已征服國家停止邦交計算、年度自然下降、贈禮、和親與重新議和，也不再發動年度入侵；最後邦交值只保留為歷史紀錄。若仍佔有大清失土，必須由玩家主動出征收復。',
+              '官員清單的批次賞賜、進修與逐出操作列固定在遊戲畫面底部，長清單捲動後仍可直接操作。',
+              '科舉十連錄取多人時改為一個「本次錄取名單」視窗，集中顯示所有錄取者能力、資質及特殊技能，只需關閉一次；單抽維持單人結果。',
+              '上書房皇嗣清單新增多選；批量培養、批量入學與批量逐出宮廷固定在畫面底部。批量培養支援每人1／5／10次並採全數成功才執行，最大可培養次數維持單人操作。',
+              '同年來犯若只有一個目標城市，即使由多國聯軍攻擊，也沿用單一戰線方式投入全軍，不需分兵，並預先套用上次保存的主將、副將與軍師；只有不同城市同時受襲才進入多線分兵。',
+              '多線防守的軍職選單補上★與實際生效技能摘要；已核對主將、副將、軍師的攻防技能與戰鬥公式，星號只在目前防守職位確實能觸發時顯示。',
+              '新遊戲的11名預設官員年齡統一下調10歲、最低20歲，降低開局數年內集中告老的情況；既有存檔的官員年齡不變。',
+              '完整玩法說明同步更新征服後外交、科舉合併結果、官員與皇嗣底部批次操作，以及單一／多線防守規則。'
+          ]},
+          {version:'v1.2.0', title:'邦交和親・多國入侵・聯軍多線防守・皇家書院清單改版', details:[
+              '新增禮部外交頁面：十個敵國各自保存0～100邦交值，初始50；一般每年-5，有效和親每年-2。每國每年可贈禮一次，200／500／1,000兩分別增加5／12／20邦交。',
+              '成年未婚公主可與指定敵國和親，使該國入侵機率減半；和親國背盟時邦交-25且保障暫停。背盟滿2個王朝年、邦交60、無未結算戰線並支付500兩後可重新議和。',
+              '公主亦可許配給非皇室在朝官員，立即增加忠誠20、最高100；婚姻與皇帝繼位無關，官員退休或離任仍保留紀錄，官員死亡後公主守寡且不可再嫁。',
+              '宗人府新增婚姻紀錄，集中查看外邦和親、駙馬賜婚、背盟、保障、守寡及終止狀態；外嫁公主會解除官職與百官書院學籍，國內賜婚公主仍可入仕。',
+              '年度入侵改為所有已解鎖敵國獨立判定，同年可有多國來犯；資格與敵軍成長一律採王朝累計年份，皇帝繼位不會重置。已征服且未佔領大清失土的敵國不再一般入侵。',
+              '敵軍戰力依王朝第1～20年每年+5、第21～60年每年+3、第61年起每年+1累積；軍隊、疆域發展與國庫按50%／35%／15%評估，只在±15%內修正戰力，不提高入侵意願。',
+              '多國攻擊同一省份時合為聯軍，依100%／70%／50%／30%／其後20%折算；不同省份形成多條戰線，玩家必須一次分兵、分配不重複將領或明確棄守，再統一結算。',
+              '城市發展度提供最高30%守城加成；每條實際防守戰線收取200兩，國庫不足只扣現有銀兩且不追加懲罰，棄守免費、不交戰也不損兵。',
+              '戰果擴充為輝煌大捷、大勝、普通勝利、險勝、慘勝、兩軍相持、普通戰敗、全軍潰敗與慘敗；完整戰報列出聯軍折算、兵力、將領、攻守戰力、勝率、傷亡、民心及領土結果。',
+              '民心取消100上限並允許戰爭影響逐場累計；第1～5年與第6～10年僅減輕戰敗／棄守民心損失。稅收仍最多按100民心計算，避免高民心無限放大收入。',
+              '皇嗣皇家書院與百官皇家書院都改為可左右滑動的詳細清單，集中顯示身分、年齡、能力、資質、課程、預估訓練後總值、婚姻或特殊技能等資料。完整玩法說明同步更新。'
+          ]},
+          {version:'v1.1.12', title:'吏部清單改版・介面常駐操作・事件流程及排行榜改善', details:[
+              '全面檢查上朝、微服私訪、後宮危機、宮鬥、選秀、退休與其他阻塞流程；所有事件在銀兩或體力不足時至少保留一個可執行的免費選項。',
+              '黃河決堤與京畿糧價事件新增無力撥款時的免費處置；選擇暫緩會承擔民心代價，但不再因兩個付費選項同時停用而卡死。',
+              '事件顯示層新增最後保底：若舊存檔或未來事件出現全部選項不可用，自動提供免費暫緩處理，確保可以返回遊戲。',
+              '修正軍餉短缺判定失敗與微服私訪賑濟孤老可能在國庫不足時造成隱性超支；實際支出不再超過現有銀兩。',
+              '所有微服私訪事件在說明與選項直接顯示體力成本及銀兩、民心、健康、人物加入或無數值變化等實際影響。',
+              '所有主要玩法頁面的返回鍵改為固定在各頁捲動區域頂端；瀏覽長名單或長內容時不必先捲回頁首。',
+              '系統設定、版本更新、完整玩法說明、皇家書院批量入學、官員名人堂與內廷案件簿的返回／關閉標題列常駐在彈窗頂端。',
+              '成就、排行榜及年度財報的圖示關閉鍵改為常駐顯示；奏摺結果的返回朝堂鍵固定在可視區域底部。',
+              '吏部改為官職任命、官員清單、皇家書院與人才招募四個分頁；官員清單新增搜尋、狀態與人才類型篩選、詳細欄位及官員資料視窗。',
+              '官員清單可多選後批次賞賜、進修或逐出；費用與體力按實際人數計算，批次逐出會再次列名確認並同步解除所有職務。',
+              '年度財報改為視窗內獨立捲動，關閉鍵與「朕知道了」固定可見；百官書院報告新增訓練前、增加值與訓練後總能力。',
+              '世界排行榜底部固定顯示本局玩家在目前榜單的真實排名與成績，即使未進入前20名仍可查看。',
+              '完整玩法說明同步補充事件保底、微服私訪、吏部分頁、批次操作、財報及排行榜規則；事件出現機率與既有官員成長數值不變。'
+          ]},
+          {version:'v1.1.11', title:'特殊名將擴充・招募與資質重製・任命及捲動修正', details:[
+              '新增5名傳奇武將：孫武、白起、項羽、李靖、吳起；新增5名歷史武將：衛青、徐達、戚繼光、周瑜、郭子儀。十人均有固定能力、資質與專屬戰鬥技能。',
+              '提高關羽、呂布、岳飛、趙雲、張飛、韓信、霍去病的武力與資質基準；讀取舊存檔時只補足特殊人才的新基準，不降低已經進修超過基準的能力。',
+              '普通招募人才改為文官或武將專精：主能力45～85、副能力30～70、資質35～80；丞相文治可提供最多5點招募加成，使主能力最高約90。',
+              '科舉單抽改為銀300、十連改為銀3,000，兩者都不消耗體力，並共用傳奇1%、歷史9%、普通90%的招募池與100抽保底。十連逐抽結算，保底可在中途觸發後重新累積。',
+              '任職、健在退休、辭官或逐出的特殊人才不會重複入池；退休後已故者重新加入。暫無可招募特殊人才時保底進度保留，不會被普通人才消耗。',
+              '官員手動進修改為文治、武力各保證+1，再依資質進行7次獨立加成判定；每次成功率等於資質百分比，單次實際各+1～8，期望值為1＋7×資質÷100。皇家書院年度訓練不變。',
+              '官職空缺提示依省份分組，可直接前往指定城市；畫面會捲到該城市、短暫標示並聚焦第一個待任命職位。中央空缺仍直接前往吏部。',
+              '所有垂直捲動頁面、內層名單與彈窗分別保存位置，操作後不再跳回頂端。起居注收合時保留最近100筆、展開顯示全部，只有原本位於底部時才自動跟隨新紀錄。',
+              '主畫面起居注只填滿右欄剩餘空間，不再因紀錄增加而撐長整列；桌面左、中、右三欄底部維持對齊。玩法說明同步更新招募、進修、退休再招募及戰鬥公式。'
+          ]},
+          {version:'v1.1.10', title:'官員排序與名人堂・退休死亡・任命及介面操作改善', details:[
+              '中央與百官新增依文治、武力、資質、忠誠、年齡及文武合計排序，支援由高到低或由低到高。',
+              '退休官員每年依年齡判定自然死亡；退休後已故的特殊人才重新加入科舉單抽與十連招募池，健在退休者仍不可重新招募。',
+              '新增官員名人堂，可按任職中、退休、已故、辭官及逐出／革職篩選，並查看能力、任官經歷與死亡資料。',
+              '百官統籌任命新增中央三職、地方總督與地方巡撫的套用勾選；所有變動合併為一份總詔預覽及一次確認，不再逐職開啟多個視窗。',
+              '文武十連候選名單新增一鍵全部收下，可直接招募本批10人，仍保留全選、清空及自由選擇1至10人的操作。',
+              '主畫面起居注改為利用右欄剩餘空間；玩法說明視窗改為固定標題、內容獨立捲動，小螢幕也能操作底部按鈕。',
+              '主頁面操作開始保存捲動位置，減少按下按鈕後回到頁面頂端的情況。'
+          ]},
+          {version:'v1.1.9', title:'貪腐率統一計算・軍機處案件資料・系統設定與隨機命名', details:[
+              '國家貪腐率統一代表年度歲入損耗比例與年度新貪污案件觸發機率；新遊戲初始10%，最低5%，最高30%。舊存檔保留原數值，但低於5%者遷移至5%。',
+              '取代舊版每名官員各自獨立擲骰的方式：每年只進行一次全國案件機率判定；案件觸發後才依官員忠誠加權抽選涉案者，低忠誠權重較高。官員人數不再各自累加全國案件機率。',
+              '年度貪腐損耗仍只從歲入扣除一次；若觸發案件，案件金額僅為該年度損耗的分帳，不另行扣款。',
+              '軍機處案件顯示涉案時職位、文治、武力、忠誠、資質及年齡快照；累犯更新最近一次犯案資料，舊案保留當時快照。',
+              '簡查體力降為2、徹查降為5、同黨追查降為4；原銀兩成本與調查成功率公式維持不變。',
+              '備份、讀檔、導出、下載備份、導入與重新開始移入系統設定；主畫面不再排列存檔按鈕。重新開始會清除本局成就與進度，但保留雲端歷史排行榜。',
+              '每次開始新遊戲都建立新的gameId及dynastyId，排行榜按每局ID獨立計算；不合併上一局成績。',
+              '開局年號與皇帝姓名新增獨立隨機骰子，並可一次隨機產生兩者；骰出後仍可手動修改。'
+          ]},
+          {version:'v1.1.8', title:'皇家書院官員訓練・特殊技能標示・皇嗣資質修正', details:[
+              '中央與百官新增皇家書院官員年度訓練，最多同時安排10名16歲以上官員；經世之學文治+6、騎射之學武力+6、文武兼修文治+3／武力+3，每人每年總成長固定6點。',
+              '官員訓練於年度結算自動生效，不受資質影響，不使用經驗值，也不設100點能力上限；本版不另外扣除訓練銀兩或體力。',
+              '官員手動進修依資質分五級：0～19每項文武+1、20～39每項+2、40～59每項+3、60～79每項+4、80～100每項+5；進修仍使用原本銀兩與體力成本。',
+              '皇家書院百官訓練名單直接顯示每位官員的文治、武力、忠誠、資質，以及所選課程年度結算後的預估數值；再次明確區分資質影響進修、不影響訓練。',
+              '特殊人才在技能對應的中央官職、地方總督或出征主將／副將／軍師選單顯示★，防守限定技能只在防守配置標示。',
+              '修正皇子、公主冊封為官員時資質未完整沿用的問題；新任官直接複製出生資質，舊存檔優先從皇嗣及宗人府資料還原原始資質。',
+              '官員訓練名單、課程與年度結算年份納入存檔；退休、離職或移除官員後自動釋出訓練名額。'
+          ]},
+          {version:'v1.1.7', title:'軍機密查・特殊人才十連招募', details:[
+              '新增貪官系統：國家貪腐率與官員個別貪污合併計算，年度歲入只扣一次；個別贓款是同一筆貪腐損耗的案件分帳，不重複扣款。',
+              '忠誠影響官員年度貪污機率：5% + (100-忠誠)×0.25%，上限30%；官員退休、離職或死亡後仍保留舊案。',
+              '新增軍機密查、御前裁決、同黨集團（每組最多3人）、誣告密奏、累犯、冤案及追贓；每年正式查貪降低貪腐率最多3個百分點。',
+              '小案、中案、大案正式定罪分別降低貪腐率0.5、1、2個百分點；從寬發落及無確切罪證的強行判刑不降低貪腐率。',
+              '中央與百官頁面新增招募入口：保留原本科舉單抽（銀300、體力10），另加入綜合十連招募（銀5,000）。',
+              '十連招募文武合併為單一招募池：十名候選人可同時出現文臣與武將，全部展示後自由選擇招募1至10人，不按人數另收費。',
+              '綜合十連機率：傳奇1%、歷史9%、普通90%；文武共用100抽傳奇保底，若傳奇已全數招募則改保底未招募歷史人才。',
+              '上朝聽政事件擴充為多種朝政、財政、民生與軍務事件；皇帝文治影響政務判定，武力影響軍務判定，能力越高處理成功率與正面成效越高。',
+              '新增15名特殊人物，技能永久固定且不可升級；特殊人才資質固定，諸葛亮調整為文100、武50、忠誠100、資質100。',
+              '新增完整技能說明與觸發條件，技能直接對應既有戰爭、財政、建設、科技及調查公式；不新增士氣或經驗系統。',
+              '舊存檔自動補齊新系統資料；既有排行榜 Google Apps Script 後端不需變更。'
+          ]},
+          {version:'v1.1.6', title:'妃嬪生育衰退・攻防陣容沿用', details:[
+              '妃嬪自40歲開始逐年降低生育能力；30年間總降幅以30點為平均，每位妃嬪依永久ID固定生成20～40點的個人差異，年度扣減數值不固定。',
+              '進攻與防守共用同一套主將、副將、軍師陣容；遭遇入侵時沿用上一次配置，不再清空武將選擇。',
+              '妃嬪獲得晉封時好感增加10點；單純改封不增加好感，降封不會取得晉封獎勵。'
+          ]},
+          {version:'v1.1.5', title:'妃嬪歲月・百官統籌・失土與一統修正', details:[
+              '新增妃嬪年齡，每年增長一歲；生育能力依年齡逐年下降，影響懷孕與子女資質。',
+              '生育能力改變後，既有診脈結果標記為過期；必須重新請太醫診脈，才能查看最新數值。',
+              '妃嬪70歲起有逐年提高的病危機率，可選擇救治；救活後生育能力永久下降。',
+              '新增吏部一鍵任命：中央三職優先整體最佳化，地方依省份繁榮度優先；總督看文治、巡撫看武力，忠誠與年齡不納入評分。',
+              '一鍵任命支援新舊人事預覽、合併聖旨及整批確認；按實際異動計算體力，單次基本上限30，不收銀兩，戰時軍職保持不變。',
+              '修正收復失土時重複新增敵國舊地的問題；保留玩家已取得的全部土地（包括過去重複的土地），僅阻止未來重複產生。',
+              '修正一統天下勝利判斷與結局顯示順序：末戰戰報確認後再顯示一統結局。'
+          ]},
+          {version:'v1.1.4', title:'後宮日常・宗室天年・朝堂版面更新', details:[
+              '妃嬪依位分由高至低排列，後宮事件顯示當事人官位、姓名與好感／生育數值。',
+              '新增省親、求禮、家書、雅集、慈善與侍疾六類非宮鬥事件。',
+              '盛世繁華改為每個現有城市發展度均達300；70歲以上宗室逐年提高死亡機率。',
+              '私訪書院可延攬文武官員，並修正新招募官員在中央、地方及出征職務的任命相容性。',
+              '主頁重新整理為對齊的三欄宮廷政務版面，改善按鈕擁擠與操作問題。'
+          ]},
+          {version:'v1.1.3', title:'世界排行榜擴充・在位最久與三項歷史巔峰', details:[
+              '保留萬世一統、國士無雙、龍子龍孫三個原有排行榜，新增富甲天下、後宮佳麗、子孫滿堂與在位最久。',
+              '富甲天下比較歷史最高國庫；後宮佳麗比較歷史最多嬪妃；子孫滿堂比較歷史最多子女。',
+              '三項新成績持續記錄歷史峰值，不會因花費銀兩、人物離開或繼位造成既有成績倒退。',
+              '在位最久依每位皇帝的在位年數由高至低排列；先帝與繼位新君各自使用遊戲編號，先帝紀錄保留，新君從在位第1年重新累計。',
+              'Google Sheets 沿用原表並由 A:M 平滑追加 N:P；在位最久沿用既有 years 欄位，不需再增加欄位，維持舊存檔及排行榜相容。'
+          ]},
+          {version:'v1.1.2', title:'皇室賜名・老臣乞骸骨・皇家書院・御書房・後宮御前聖裁', details:[
+              '皇子、公主出生時自動彈出「皇室添丁・請皇上賜名」視窗，可自行輸入中文姓名或選用隨機建議。',
+              '出生賜名與上書房「賜名／改名」完全免費，不消耗體力或銀兩；同一年多位新生兒會逐一賜名。',
+              '待賜名事項會保存在自動存檔及匯出備份中；尚未賜名完成時不能跳到下一年。',
+              '改名同步更新宗人府、皇室官員、相關內廷案件及符合條件的皇子女排行榜姓名；人物 ID、能力、太子與血緣關係保持不變。',
+              '支援既有存檔與先帝遺腹子，並在完整玩法說明中加入皇子公主賜名教學。',
+              '老臣滿70歲在同一張奏摺總覽逐人直接選擇：准退或支付2,000兩慰留三年，忠誠+10；73歲自動致仕，每人一生只能慰留一次，先裁決再計算年度政務效果。',
+              '忠誠歸零直接辭官、離任後永久不可重新任官；吏部歷代臣工錄保留榮退、特恩致仕、辭官者，含終身候用官員、職務經歷與跨代紀錄。',
+              '皇家書院：6～15歲入學，16歲畢業，每人一次束脩1,500兩；每年自動增加文治+12、武力+12或兩項各+6，初次培養在下一次年度結算。',
+              '皇家書院可單人或批量入學，免費更改下學年課程；重傷停課不補課，幼帝可繼續或新加入書院，入學與畢業只在年度摘要提醒。',
+              '上書房快速培養支援1、5、10、最大次數；依照原本的手動教導規則逐次計算銀兩、體力與能力，完成後統一顯示成果。',
+              '御書房：16歲以上皇帝每年最多進修3次，每次300兩+10體力；專攻文治或武力+8，兼修各+4。',
+              '皇帝每10點文治／武力對相應奏摺正面效果+1%，最多+20%；原成本與負面效果不減少，宮鬥查案成功率不受皇帝能力影響。',
+              '後宮新增不同宮鬥事件文案與御前選項，重要的救治、調查與裁決結果須確認；翻牌未懷孕不再跳出提示，妃嬪好感危機先呈奏。',
+              '內廷舊案每擱置五年調查率降低10個百分點（簡查最低10%、徹查最低45%），可靠新線索提供下一次調查+20點加成；懸案持續影響受害者好感並可能牽動後續宮鬥。',
+              '使用原有自動存檔與備份格式；不修改Google Apps Script排行榜後端Code.gs。'
+          ]},
+          {version:'v1.1.1', title:'歲入制貪腐・財政平衡修正', details:[
+              '貪腐損耗改按「當年歲入 × 貪腐率」計算，不再以累積國庫為基準；即使後期存銀增加，也不會因此造成失控的貪腐開支。',
+              '初始貪腐率維持 5%；御史死諫每次可降低 2 個百分點，修正貪腐率降至 0% 卻被誤算為 5% 的錯誤。',
+              '貪腐率限於 0～30%，避免異常舊存檔造成過高扣款；年度財報顯示貪腐率與歲入計算基準。',
+              '新增財政玩法說明，維持舊存檔、原有後宮、宗人府與世界排行榜功能。'
+          ]},
+          {version:'v1.1.0', title:'深宮秘聞・後宮大型更新', details:[
+              '新增五種隱藏妃嬪性格、12 種後宮事件；符合條件時每年 25% 機率發生一場宮鬥。',
+              '翻牌成功改為懷孕，下一年生產；孕期翻牌僅增加好感，不會重複受孕。',
+              '冷宮孕妃流產風險提升，可花 200 兩安胎；危機同年不重複抽取流產。',
+              '致命事件提供救治：救治失敗後 70% 重傷、30% 死亡（胎動不安以流產代替）。',
+              '調查不產生假證據；證實重大罪行後才能賜死，案件與人物資料跨代保存。',
+              '新增內廷案件簿、跨代重查、舊案線索、選秀與宮鬥年度事件排隊、後宮玩法手冊與版本更新說明。'
+          ]},
+          {version:'v1.0.5', title:'皇室、任官與後宮基礎更新', details:[
+              '宗人府、族譜、歷代皇帝與后妃封存；成年皇子與男性宗室繼位、太子及禪讓。',
+              '官員年齡、70 歲退休、官職空缺提醒、任官聖旨與任命防重複。',
+              '後宮位分與封號冊封聖旨、選秀/偶遇/進貢可自行決定是否納入後宮。',
+              '妃嬪姓名差異化，並處理舊存檔中的民間女子、異國佳麗等佔位姓名。',
+              '世界排行榜、統一歸屬與既有存檔相容性修正。'
+          ]}
+      ];
+      // ID/妃嬪姓名產生固定的性格：舊存檔不因載入時抽籤而改變。
+      const palacePersonalityOf = (consort) => {
+          if (PALACE_PERSONALITIES.includes(consort.personality)) return consort.personality;
+          const id = String(consort.id ?? consort.name ?? 'unknown');
+          let hash = 2166136261;
+          for (let i=0;i<id.length;i++) hash = Math.imul(hash ^ id.charCodeAt(i),16777619);
+          return PALACE_PERSONALITIES[(hash>>>0)%PALACE_PERSONALITIES.length];
+      };
+      const palacePersonLabel = c => `${c?.title||''}${c?.rank||''}（${c?.name||'未詳'}）`;
+      const palaceNote = (state, text) => ({...state, palaceChronicle:[...(state.palaceChronicle||[]),
+          {id:royalNewId('note'), dynastyYear:state.dynastyYear, eraName:state.eraName,
+           year:state.year, text}]});
+      const PALACE_FATAL_RATES = {poison:[.95,.80,.60],heirDanger:[.95,.80,.55],pregnancy:[.95,.80,.60],blood:[.90,.75,.50]};
+      const PALACE_EVENT_COPY = {
+          favor:e=>`內務府奏報，${e.attackerName}近日屢蒙聖眷，引起${e.victimName}不滿。兩人於宮中言語交鋒，各執一詞。恭請皇上親自裁決。`,
+          garden:e=>`${e.attackerName}與${e.victimName}今日同遊御花園，因座次與宮廷禮節發生爭執，雙方宮人互相指責，請皇上定奪。`,
+          promotion:e=>`${e.attackerName}自稱侍奉多年，見其他妃嬪相繼晉封，不免心生失落。今日託內務府呈上請封奏帖，恭候皇上聖裁。`,
+          rumor:e=>`近日內廷流傳閒言，稱${e.attackerName}暗中排擠${e.victimName}。當事人均稱流言無據，宮人議論紛紛，請皇上聖裁。`,
+          jewels:e=>`內務府清點御賜珠寶時發現一匣不知去向，有宮人稱曾見${e.accusedName}的侍女出入附近，但未取得可靠證據。${e.accusedName}喊冤，請皇上查明。`,
+          food:e=>`${e.victimName}用膳後不適，太醫發現部分食材來源不明。宮人提及${e.accusedName}曾遣侍女前往御膳房，但不能據此定罪，請皇上決定是否追查。`,
+          faction:e=>`近日${e.attackerName}與${e.victimName}往來密切，書信頻繁。宮人猜測有人結黨，但書信內容尚未查明，不可輕言有罪。`,
+          heir:e=>`${e.attackerName}今日求見，請皇上慎議儲君之位。儲位關乎國本，不可因一時請求便自行改立，請皇上親裁。`,
+          poison:e=>`內廷急報！${e.victimName}飲酒後面色慘白，太醫發現杯中有可疑毒物，性命危急。下毒之人仍未查明，請皇上先決定救治方式。`,
+          heirDanger:e=>`宗人府急報！皇嗣${e.victimName}在宮中突然遇險，傷勢不輕。究竟是意外還是有人加害，尚待調查，請皇上先救治皇嗣。`,
+          pregnancy:e=>`太醫院急奏！已有身孕的${e.victimName}腹痛不止、胎象不穩，或與飲食居所有關。是否有人謀害尚不明朗，請皇上速作決斷。`,
+          blood:e=>`深夜宮門急報！${e.victimName}宮中傳出呼救，現場留有打鬥痕跡。${e.victimName}身受重傷，請皇上先行救治，再追查幕後主使。`,
+          homeVisit:e=>`${e.attackerName}思念故鄉與年邁親眷，懇請皇上恩准出宮省親，並保證按期返宮。`,
+          giftWish:e=>`${e.attackerName}近日在御庫看見精巧的簪釵與絹帛，想請皇上賜一件小禮物。`,
+          familyLetter:e=>`${e.attackerName}收到家書，提及家人近況，盼望皇上允准寄送回信與禮物。`,
+          festival:e=>`${e.attackerName}提議在御花園舉辦詩會茶宴，邀請宮中姊妹同樂。`,
+          charity:e=>`${e.attackerName}聽聞京郊百姓遭遇困頓，請皇上恩准由內廷施粥賑濟。`,
+          illnessCare:e=>`${e.attackerName}得知皇上近日操勞，親自調製養生茶湯，盼能為聖躬分憂。`
+      };
+      const getPalaceInvestigationRates=(state,caseRecord)=>{
+          const years=Math.max(0,Math.floor((Number(state.dynastyYear||state.year)-Number(caseRecord?.dynastyYear||state.dynastyYear||state.year))));
+          const loss=Math.min(40,Math.floor(years/5)*10);
+          const clue=caseRecord?.clueAvailable?20:0;
+          const special=activeSpecialConsort(state,'diao_chan')?10:0;
+          return {years,clue,special, simple:Math.min(95,Math.max(10,50-loss)+clue+special),full:Math.min(95,Math.max(45,85-loss)+clue+special)};
+      };
+      const applyLongTermPalaceConsequences=state=>{
+          let consorts=state.consorts||[];
+          const cases=(state.palaceCases||[]).map(item=>{
+              if(item.status!=='unresolved'||Number(item.dynastyYear)>=Number(state.dynastyYear)||
+                 Number(item.lastConsequenceYear)===Number(state.dynastyYear))return item;
+              const pastPenalty=Math.max(0,Number(item.affectionPenalty)||0);
+              const amount=Math.min(2,15-pastPenalty);
+              if(amount>0)consorts=consorts.map(c=>String(c.id)===String(item.victimId)?
+                  {...c,affection:Math.max(1,(Number(c.affection)||1)-amount)}:c);
+              return {...item,lastConsequenceYear:state.dynastyYear,
+                  affectionPenalty:pastPenalty+amount,unresolvedYears:Math.max(0,state.dynastyYear-item.dynastyYear)};
+          });
+          return {...state,consorts,palaceCases:cases};
+      };
+
+      const SUGGESTED_TITLES = ['珍', '麗', '華', '禧', '恭', '敬', '端', '靜', '順', '熙', '謹', '謙', '溫', '柔', '雅', '安', '寧', '和', '欣', '宜', '惠', '淑', '德', '賢', '宸', '襄', '愉'];
+
+
+      // 後宮人名：獲得女子時建立真正的個人姓名，避免「奇答應（民間女子）」重複出現。
+      // 只修改人物姓名；人物 ID、生育值、好感、子女、位分等資料均保持原狀。
+      const FOLK_SURNAMES = ['林','沈','蘇','顧','柳','葉','江','陸','周','許','程','唐','溫','秦','白','宋','夏','趙','徐','張','王','李','陳','何','杜','方','韓','孟','羅','鄭','喬','謝','董','姚','凌','姜','黎','紀','袁','石'];
+      const PERSONAL_GIVEN_NAMES = ['婉清','若蘭','清漪','映雪','采薇','雲舒','芷晴','念慈','靜姝','月華','宜寧','佩蘭','錦書','如意','玉蘅','秋棠','素心','凝香','慧蘭','明珠','雅容','語柔','青禾','沐晴','知微','思瑤','柔嘉','詩雲','若溪','晴月','沁芳','安然','書瑤','惜春','依蓉','春曉','晚晴','雨棠','可心','綺雲'];
+      const SELECTION_FAMILIES = ['鈕祜祿氏','葉赫那拉氏','佟佳氏','馬佳氏','富察氏','瓜爾佳氏','赫舍里氏','納喇氏','董鄂氏','舒穆祿氏','博爾濟吉特氏','烏雅氏','喜塔臘氏','章佳氏'];
+      const FOREIGN_GIVEN_NAMES = ['阿依莎','薩仁','塔娜','娜仁','烏蘭','米拉','伊蓮','艾琳','哈娜','妮莎','阿麗婭','索娜','雅娜','娜塔莎','薩麗雅','阿依古麗','賽娜','米蘭娜','薇拉','艾米娜','蕾拉','瑪麗雅','阿曼娜','塞琳','阿茲拉','蘇琳','妮娜','可娜','薩娜','蘿莎','古麗娜','娜佳','卡米拉','茜娜','薩米拉','阿雅','吉娜','伊娜','麗娜','塔麗雅'];
+
+      // 全王朝唯一，不只檢查現任後宮，也避免和歷代后妃撞名。
+      const collectConsortNames = state => new Set([
+          ...(state.consorts || []).map(c => String(c.name || '').trim()),
+          ...(state.historicalConsorts || []).flatMap(h => (h.consorts || []).map(c => String(c.name || '').trim())),
+          ...(state.deceasedConsorts || []).map(c => String(c.name || '').trim())
+      ].filter(Boolean));
+      const drawDistinctConsortName = (reserved, source = 'folk', family = '') => {
+          let choices;
+          if (source === 'selection') {
+              const families = family && /氏$/.test(family) ? [family] : SELECTION_FAMILIES;
+              choices = families.flatMap(surname => PERSONAL_GIVEN_NAMES.map(given => `${surname}·${given}`));
+          } else if (source === 'tribute') {
+              choices = FOREIGN_GIVEN_NAMES;
+          } else {
+              choices = FOLK_SURNAMES.flatMap(surname => PERSONAL_GIVEN_NAMES.map(given => `${surname}${given}`));
+          }
+          const start = Math.floor(Math.random() * choices.length);
+          for (let i = 0; i < choices.length; i++) {
+              const candidate = choices[(start + i) % choices.length];
+              if (!reserved.has(candidate)) return candidate;
+          }
+          // 即使所有預設姓名都已使用，也不會分配重複姓名。
+          const base = choices[start] || '佳人';
+          let index = 2;
+          while (reserved.has(`${base}·${index}`)) index++;
+          return `${base}·${index}`;
+      };
+      const generateConsortName = (state, source = 'folk', family = '') =>
+          drawDistinctConsortName(collectConsortNames(state), source, family);
+
+      const SPECIAL_CONSORTS = [
+          {id:'diao_chan',name:'貂蟬',rarity:'legendary',avatar:'🌙',age:18,fertility:86,affection:68,skillName:'閉月',skillEffect:'內廷案件簡查與徹查成功率各提高10個百分點。'},
+          {id:'wang_zhaojun',name:'王昭君',rarity:'legendary',avatar:'❄️',age:19,fertility:82,affection:66,skillName:'和親之姿',skillEffect:'所有尚未征服國家的年度邦交衰退再減少1點。'},
+          {id:'xi_shi',name:'西施',rarity:'legendary',avatar:'🌊',age:18,fertility:88,affection:65,skillName:'浣紗',skillEffect:'微服私訪的基礎體力消耗降低2點。'},
+          {id:'yang_yuhuan',name:'楊玉環',rarity:'legendary',avatar:'🌺',age:20,fertility:84,affection:70,skillName:'霓裳',skillEffect:'每年民心增加2，但宮廷年度費用增加50兩。'},
+          {id:'zhen_mi',name:'甄宓',rarity:'historical',avatar:'💠',age:19,fertility:80,affection:64,skillName:'洛神',skillEffect:'她誕下的皇嗣出生時文治+8、資質+5。'},
+          {id:'yu_ji',name:'虞姬',rarity:'historical',avatar:'🗡️',age:18,fertility:78,affection:66,skillName:'垓下情深',skillEffect:'防守戰敗或棄守造成的民心損失減少3點。'},
+          {id:'zhao_feiyan',name:'趙飛燕',rarity:'historical',avatar:'🕊️',age:18,fertility:76,affection:67,skillName:'掌中舞',skillEffect:'翻牌額外增加5好感；替她診脈少消耗1體力。'},
+          {id:'zhangsun',name:'長孫皇后',rarity:'historical',avatar:'👑',age:20,fertility:80,affection:72,skillName:'賢后',skillEffect:'冊立為皇后時，上朝事件成功率提高5個百分點。'},
+          {id:'xiaozhuang',name:'孝莊',rarity:'historical',avatar:'🦅',age:21,fertility:79,affection:70,skillName:'輔政',skillEffect:'皇位交接時百官忠誠損失減少5點。'},
+          {id:'wei_zifu',name:'衛子夫',rarity:'historical',avatar:'🎵',age:18,fertility:85,affection:65,skillName:'椒房儉德',skillEffect:'后妃與皇嗣的年度宮廷費用降低10%。'}
+      ];
+      const SPECIAL_CONSORT_MAP=Object.fromEntries(SPECIAL_CONSORTS.map(c=>[c.id,c]));
+      const allConsortRecords=state=>[
+          ...(state?.consorts||[]),
+          ...(state?.historicalConsorts||[]).flatMap(group=>group.consorts||[]),
+          ...(state?.deceasedConsorts||[])
+      ];
+      const acquiredSpecialConsortIds=state=>new Set(allConsortRecords(state).map(c=>c.specialConsortId).filter(Boolean));
+      const activeSpecialConsort=(state,id,options={})=>(state?.consorts||[]).some(c=>
+          c.specialConsortId===id && c.alive!==false && !c.inColdPalace && Number(c.affection)>=60 &&
+          (!options.empressOnly||c.rank==='皇后'));
+      const successionLossForState=(state,heir)=>Math.max(0,successionLoss(heir)-
+          (activeSpecialConsort(state,'xiaozhuang')?5:0));
+      const specialConsortStatus=(state,id)=>{
+          const current=(state?.consorts||[]).find(c=>c.specialConsortId===id);
+          if(current)return {status:'current',label:current.inColdPalace?'冷宮中':'現任后妃',person:current};
+          const deceased=(state?.deceasedConsorts||[]).find(c=>c.specialConsortId===id);
+          if(deceased)return {status:'dead',label:'已故',person:deceased};
+          const historical=(state?.historicalConsorts||[]).flatMap(g=>g.consorts||[]).find(c=>c.specialConsortId===id);
+          if(historical)return {status:'historical',label:'歷代后妃',person:historical};
+          return {status:'unknown',label:'尚未相遇',person:null};
+      };
+      const drawConsortCandidate=(state,source='folk',random=Math.random)=>{
+          const acquired=acquiredSpecialConsortIds(state);
+          const remaining=SPECIAL_CONSORTS.filter(c=>!acquired.has(c.id));
+          const pity=Math.max(0,Math.min(7,Math.floor(Number(state?.beautyPity)||0)));
+          let pool=[];
+          if(remaining.length&&pity>=7)pool=remaining;
+          else if(remaining.length){
+              const roll=random();
+              const rarity=roll<.02?'legendary':roll<.10?'historical':null;
+              if(rarity)pool=remaining.filter(c=>c.rarity===rarity);
+          }
+          if(pool.length){
+              const special=pool[Math.floor(random()*pool.length)];
+              return {...special,specialConsortId:special.id,source,nextBeautyPity:0};
+          }
+          return {name:generateConsortName(state,source),source,rarity:'ordinary',nextBeautyPity:remaining.length?Math.min(7,pity+1):0};
+      };
+      const consortFromCandidate=(candidate,bio,ordinaryAffection=50)=>{
+          const special=candidate?.specialConsortId&&SPECIAL_CONSORT_MAP[candidate.specialConsortId];
+          const ordinaryAvatars=['🌸','🌺','🌷','🌹','🌻'];
+          return makeConsort(special?{
+              id:royalNewId('consort'),name:special.name,rank:'答應',title:'',age:special.age,fertility:special.fertility,
+              affection:special.affection,bio,isSoulmate:false,inColdPalace:false,avatar:special.avatar,
+              specialConsortId:special.id,specialRarity:special.rarity
+          }:{id:royalNewId('consort'),name:candidate.name,rank:'答應',title:'',affection:ordinaryAffection,bio,
+              isSoulmate:false,inColdPalace:false,avatar:ordinaryAvatars[Math.floor(Math.random()*ordinaryAvatars.length)]});
+      };
+
+      // 老玩家存檔相容：只替換原本缺乏個人姓名的佔位名稱，保留其他所有欄位。
+      // 同一批更新先保留已存在的個人姓名，再為佔位人物分配未被使用的新姓名。
+      const migrateLegacyConsortNames = (state) => {
+          const isPlaceholder = c => {
+              const name = String(c?.name || '').trim();
+              return name === '民間女子' || name === '異國佳麗' ||
+                  (c?.bio === '選秀入宮' && /氏$/.test(name));
+          };
+          const archived = Array.isArray(state.historicalConsorts) ? state.historicalConsorts : [];
+          const active = Array.isArray(state.consorts) ? state.consorts : [];
+          const everyone = [...active, ...archived.flatMap(h => Array.isArray(h.consorts) ? h.consorts : []),
+              ...(state.deceasedConsorts||[])];
+          const reserved = new Set(everyone.filter(c => !isPlaceholder(c)).map(c => String(c.name || '').trim()).filter(Boolean));
+          const migrateOne = c => {
+              if (!c || !isPlaceholder(c)) return c;
+              const oldName = String(c.name || '');
+              const source = oldName === '民間女子' ? 'folk' : oldName === '異國佳麗' ? 'tribute' : 'selection';
+              const newName = drawDistinctConsortName(reserved, source, source === 'selection' ? oldName : '');
+              reserved.add(newName);
+              const oldAutomaticTitle = (source === 'folk' && c.title === '奇') ||
+                  (source === 'tribute' && c.title === '貢');
+              return {...c, name: newName, legacyName: c.legacyName || oldName,
+                  // 舊版固定「奇」「貢」封號不再強制套用，仍可於冊封視窗自由指定。
+                  title: oldAutomaticTitle ? '' : c.title};
+          };
+          return {
+              ...state,
+              consorts: active.map(migrateOne),
+              historicalConsorts: archived.map(h => ({...h,
+                  consorts: Array.isArray(h.consorts) ? h.consorts.map(migrateOne) : h.consorts
+              }))
+          };
+      };
+
+      const ENEMIES = [
+        { id:'hui', name: '回部', strength: 100, loot: 200, aggression:1 },
+        { id:'burma', name: '緬甸', strength: 150, loot: 300, aggression:1 },
+        { id:'three_feudatories', name: '三藩餘孽', strength: 220, loot: 400, aggression:1 },
+        { id:'dzungar', name: '準噶爾', strength: 300, loot: 500, aggression:1 },
+        { id:'russia', name: '沙俄', strength: 450, loot: 800, aggression:1 },
+        { id:'japan', name: '東瀛', strength: 600, loot: 1000, aggression:1 },
+        { id:'britain', name: '英吉利', strength: 800, loot: 1500, aggression:1 },
+        { id:'france', name: '法蘭西', strength: 1000, loot: 2000, aggression:1 },
+        { id:'germany', name: '德意志', strength: 1300, loot: 2500, aggression:1 },
+        { id:'america', name: '美利堅', strength: 1600, loot: 3000, aggression:1 },
+      ];
+      const DIPLOMACY_GIFTS = [
+          {silver:200,relation:5,label:'薄禮'},
+          {silver:500,relation:12,label:'厚禮'},
+          {silver:1000,relation:20,label:'國禮'}
+      ];
+      const COALITION_RATIOS=[1,.7,.5,.3];
+      const normalizeBattleLines = (raw,provinces=null) => {
+          const validProvinceMap=Array.isArray(provinces)
+              ? new Map(provinces.map(province=>[String(province.id),province])) : null;
+          const grouped=new Map();
+          (Array.isArray(raw)?raw:[]).forEach((line,lineIndex)=>{
+          const provinceId=line?.provinceId;
+          if(provinceId==null || (validProvinceMap&&!validProvinceMap.has(String(provinceId))))return;
+          const attackers=(Array.isArray(line?.attackers)?line.attackers:[]).map((attacker,rank)=>{
+              const enemy=enemyById(attacker?.enemyId)||ENEMIES.find(item=>item.name===attacker?.name)||ENEMIES[0];
+              const strength=Math.max(1,Number(attacker?.strength)||enemy.strength);
+              const ratio=Number.isFinite(Number(attacker?.ratio))?Number(attacker.ratio):(COALITION_RATIOS[rank]??.2);
+              return {...attacker,enemyId:enemy.id,name:attacker?.name||enemy.name,strength,ratio,contribution:Math.round(strength*ratio)};
+          });
+          if(!attackers.length)return;
+          const normalized={...line,id:line?.id||royalNewId(`battle_line_${lineIndex}`),provinceId,attackers,
+              coalitionStrength:Math.max(1,Math.round(attackers.reduce((sum,item)=>sum+item.strength*item.ratio,0))||Number(line?.coalitionStrength)||1),
+              assignedTroops:Math.max(0,Number(line?.assignedTroops)||0),commanderId:line?.commanderId??null,
+              viceId:line?.viceId??null,strategistId:line?.strategistId??null,abandon:!!line?.abandon};
+          const key=String(provinceId),existing=grouped.get(key);
+          if(!existing){grouped.set(key,{...normalized,_merged:false});return;}
+          grouped.set(key,{...existing,_merged:true,attackers:[...existing.attackers,...normalized.attackers]});
+          });
+          return [...grouped.values()].map(line=>{
+              const uniqueAttackers=new Map();
+              line.attackers.forEach(attacker=>{
+                  const key=String(attacker.enemyId||attacker.name),old=uniqueAttackers.get(key);
+                  if(!old||Number(attacker.strength)>Number(old.strength))uniqueAttackers.set(key,attacker);
+              });
+              const attackers=[...uniqueAttackers.values()].sort((a,b)=>Number(b.strength)-Number(a.strength)).map((attacker,rank)=>{
+                  const ratio=COALITION_RATIOS[rank]??.2;
+                  return {...attacker,ratio,contribution:Math.round(Number(attacker.strength)*ratio)};
+              });
+              const province=validProvinceMap?.get(String(line.provinceId));
+              const merged=!!line._merged;
+              const {_merged,...clean}=line;
+              return {...clean,provinceName:province?.name||line.provinceName,attackers,
+                  coalitionStrength:Math.max(1,Math.round(attackers.reduce((sum,item)=>sum+item.contribution,0))),
+                  assignedTroops:merged?0:line.assignedTroops,commanderId:merged?null:line.commanderId,
+                  viceId:merged?null:line.viceId,strategistId:merged?null:line.strategistId,abandon:merged?false:line.abandon};
+          });
+      };
+      const initialEnemyDiplomacy = () => Object.fromEntries(ENEMIES.map(enemy=>[enemy.id,{relation:50,lastGiftYear:null}]));
+      const normalizeEnemyDiplomacy = raw => Object.fromEntries(ENEMIES.map(enemy=>{
+          const saved=raw&&raw[enemy.id]||{};
+          return [enemy.id,{relation:Math.max(0,Math.min(100,Number.isFinite(Number(saved.relation))?Number(saved.relation):50)),lastGiftYear:saved.lastGiftYear??null}];
+      }));
+      const enemyById = id => ENEMIES.find(enemy=>enemy.id===id);
+      const dynastyEnemyGrowth = year => {
+          const y=Math.max(1,Math.floor(Number(year)||1));
+          return Math.min(y,20)*5+Math.max(0,Math.min(y-20,40))*3+Math.max(0,y-60);
+      };
+      const playerResourceModifier = (state,year) => {
+          const y=Math.max(1,Number(year)||1);
+          const armyRatio=Math.max(0,Math.min(2,(Number(state.army)||0)/(50+(y-1)*5)));
+          const landPower=(state.provinces||[]).reduce((sum,p)=>sum+(Number(p.development)||0)+20,0);
+          const landRatio=Math.max(0,Math.min(2,landPower/(130+(y-1)*15)));
+          const moneyRatio=Math.max(0,Math.min(2,Math.max(0,Number(state.treasury)||0)/(1000+(y-1)*250)));
+          return Math.max(-.15,Math.min(.15,(armyRatio*.5+landRatio*.35+moneyRatio*.15-1)*.15));
+      };
+      const enemyActualStrength = (enemy,state,year) => Math.max(1,Math.round((enemy.strength+dynastyEnemyGrowth(year))*(1+playerResourceModifier(state,year))));
+      const relationMultiplier = relation => Math.pow(Math.max(0,(100-Math.max(0,Math.min(100,Number(relation)||0)))/50),1.064);
+      const enemyInvasionChance = (enemy,state,eligibleEnemies) => {
+          const diplomacy=normalizeEnemyDiplomacy(state.enemyDiplomacy)[enemy.id];
+          const marriage=(state.royalMarriages||[]).find(m=>m.kind==='foreign'&&m.enemyId===enemy.id&&m.status==='active');
+          const totalWeight=Math.max(1,(eligibleEnemies||[]).reduce((sum,item)=>sum+(Number(item.aggression)||1),0));
+          const marriageMultiplier=marriage&&!marriage.protectionSuspended ? .5 : 1;
+          const exponent=(Number(enemy.aggression)||1)*relationMultiplier(diplomacy.relation)*marriageMultiplier/totalWeight;
+          return Math.max(0,Math.min(.95,1-Math.pow(1-.35,exponent)));
+      };
+      const battleOutcome = (winRate,random=Math.random) => {
+          const rate=Math.max(0,Math.min(95,Number(winRate)||0));
+          if(random()*100<rate){
+              if(rate>=85)return {key:'glorious',label:'輝煌大捷',kind:'win',casualty:.05,morale:10,loot:1.5};
+              if(rate>=70)return {key:'major_win',label:'大勝敵軍',kind:'win',casualty:.10,morale:8,loot:1.25};
+              if(rate>=45)return {key:'win',label:'普通勝利',kind:'win',casualty:.15,morale:5,loot:1};
+              if(rate>=25)return {key:'narrow_win',label:'險勝',kind:'win',casualty:.20,morale:3,loot:.8};
+              return {key:'costly_win',label:'慘勝',kind:'win',casualty:.25,morale:1,loot:.5};
+          }
+          if(rate>=40&&rate<=60&&random()<.25)return {key:'draw',label:'兩軍相持',kind:'draw',casualty:.15,morale:-3,loot:0};
+          if(rate>=45)return {key:'defeat',label:'普通戰敗',kind:'loss',casualty:.40,morale:-20,loot:0};
+          if(rate>=25)return {key:'rout',label:'全軍潰敗',kind:'loss',casualty:.45,morale:-25,loot:0};
+          return {key:'crushing_defeat',label:'慘敗',kind:'loss',casualty:.50,morale:-30,loot:0};
+      };
+      const prepareAnnualInvasions = (sourceState,targetYear,random=Math.random) => {
+          let marriages=(sourceState.royalMarriages||[]).map(marriage=>{
+              const princess=(sourceState.royalFamily||[]).find(p=>String(p.id)===String(marriage.princessId));
+              if(princess?.alive===false&&['active','suspended'].includes(marriage.status))return {...marriage,status:'ended',protectionSuspended:true,endedAtDynastyYear:targetYear,endReason:'princessDeath'};
+              if(marriage.kind==='domestic'&&marriage.status==='active'){
+                  const archived=(sourceState.retiredMinisters||[]).find(m=>String(m.id)===String(marriage.spouseMinisterId));
+                  if(archived?.alive===false)return {...marriage,status:'widowed',endedAtDynastyYear:targetYear,endReason:'spouseDeath'};
+              }
+              return marriage;
+          });
+          let diplomacy=normalizeEnemyDiplomacy(sourceState.enemyDiplomacy);
+          const conqueredSet=new Set((sourceState.conqueredEnemies||[]).map(Number));
+          ENEMIES.forEach((enemy,index)=>{
+              if(conqueredSet.has(index))return;
+              const protectedMarriage=marriages.find(m=>m.kind==='foreign'&&m.enemyId===enemy.id&&m.status==='active'&&!m.protectionSuspended);
+              const decayReduction=((sourceState.unlockedTechs||[]).includes('translation_school')?1:0)+
+                  (activeSpecialConsort(sourceState,'wang_zhaojun')?1:0);
+              diplomacy[enemy.id]={...diplomacy[enemy.id],relation:Math.max(0,diplomacy[enemy.id].relation-Math.max(0,(protectedMarriage?2:5)-decayReduction))};
+          });
+          const threshold=150+targetYear*40;
+          const eligible=ENEMIES.filter((enemy,index)=>enemy.strength<=threshold&&!conqueredSet.has(index));
+          const temp={...sourceState,enemyDiplomacy:diplomacy,royalMarriages:marriages};
+          const attacks=[];
+          if((sourceState.provinces||[]).length)eligible.forEach(enemy=>{
+              const chance=enemyInvasionChance(enemy,temp,eligible);
+              if(random()>=chance)return;
+              const province=sourceState.provinces[Math.floor(random()*sourceState.provinces.length)];
+              const strength=enemyActualStrength(enemy,temp,targetYear);
+              attacks.push({enemyId:enemy.id,name:enemy.name,strength,chance,provinceId:province.id,provinceName:province.name});
+              const marriage=marriages.find(m=>m.kind==='foreign'&&m.enemyId===enemy.id&&m.status==='active'&&!m.protectionSuspended);
+              if(marriage){
+                  marriages=marriages.map(m=>m.id===marriage.id?{...m,status:'suspended',protectionSuspended:true,breachedAtDynastyYear:targetYear}:m);
+                  diplomacy[enemy.id]={...diplomacy[enemy.id],relation:Math.max(0,diplomacy[enemy.id].relation-25)};
+              }
+          });
+          const grouped=new Map();
+          attacks.forEach(attack=>{const key=String(attack.provinceId);if(!grouped.has(key))grouped.set(key,[]);grouped.get(key).push(attack);});
+          const lines=[...grouped.values()].map((items,index)=>{
+              const attackers=items.slice().sort((a,b)=>b.strength-a.strength||ENEMIES.findIndex(e=>e.id===a.enemyId)-ENEMIES.findIndex(e=>e.id===b.enemyId));
+              let coalition=0;
+              const detailed=attackers.map((attacker,rank)=>{const ratio=COALITION_RATIOS[rank]??.2;const contribution=attacker.strength*ratio;coalition+=contribution;return {...attacker,ratio,contribution:Math.round(contribution)};});
+              return {id:`battle_${targetYear}_${index}_${items[0].provinceId}`,provinceId:items[0].provinceId,provinceName:items[0].provinceName,
+                  attackers:detailed,coalitionStrength:Math.round(coalition),assignedTroops:0,commanderId:null,viceId:null,strategistId:null,abandon:false};
+          });
+          if(lines.length){
+              const localIds=new Set((sourceState.provinces||[]).flatMap(p=>(p.officials||[]).filter(Boolean).map(String)));
+              const available=new Map((sourceState.ministers||[]).filter(m=>!localIds.has(String(m.id))).map(m=>[String(m.id),m.id]));
+              const used=new Set();
+              const savedRoles={};
+              ['commanderId','viceId','strategistId'].forEach(key=>{
+                  const raw=(sourceState.defenseSetup||sourceState.warSetup)?.[key],id=available.get(String(raw));
+                  if(id!=null&&!used.has(String(id))){savedRoles[key]=id;used.add(String(id));}else savedRoles[key]=null;
+              });
+              lines[0]={...lines[0],...savedRoles,assignedTroops:lines.length===1?Math.max(0,Number(sourceState.army)||0):0};
+          }
+          return {enemyDiplomacy:diplomacy,royalMarriages:marriages,pendingBattleLines:lines};
+      };
+
+      // === 戰爭領土保護 ===
+      const enemyTerritoryName = enemyName => `${enemyName}舊地`;
+      const territoryId = territory => territory?.id == null || String(territory.id).trim()==='' ? null : String(territory.id);
+      const sameTerritory = (left, right) => {
+          const leftId=territoryId(left),rightId=territoryId(right);
+          return leftId!=null&&rightId!=null&&leftId===rightId;
+      };
+      const hasEnemyHomeland = (state, enemyName) =>
+          [...(state.provinces || []), ...(state.lostProvinces || [])]
+              .some(prov => String(prov.name || '') === enemyTerritoryName(enemyName));
+      // 保護現有省份：不合併既有同名地塊，也不以省名當成收復時的唯一身分。
+      const reclaimOccupiedProvinces = (state, occupierName) => {
+          const recovered = (state.lostProvinces || []).filter(prov => prov.occupier === occupierName);
+          const ownedIds = new Set((state.provinces || []).map(prov => String(prov.id)));
+          const provinces = [...(state.provinces || [])];
+          for (const prov of recovered) {
+              if (!ownedIds.has(String(prov.id))) {
+                  provinces.push({...prov, occupier: undefined, officials: [null, null]});
+                  ownedIds.add(String(prov.id));
+              }
+          }
+          return {provinces, recovered,
+              lostProvinces: (state.lostProvinces || []).filter(prov => prov.occupier !== occupierName)};
+      };
+      const hasConqueredAllEnemies = state => ENEMIES.every((_, i) =>
+          (state.conqueredEnemies || []).some(index => Number(index) === i)) &&
+          !(state.lostProvinces || []).length;
+      const normalizeTerritoryState = state => {
+          const prepare=(list,scope)=>(Array.isArray(list)?list:[]).filter(item=>item&&typeof item==='object').map((item,index)=>({
+              ...item,id:territoryId(item)??`legacy_province_${scope}_${index}_${String(item.name||'unnamed').replace(/\s+/g,'_')}`,
+              occupier:scope==='owned'?undefined:item.occupier,
+              officials:Array.isArray(item.officials)?[item.officials[0]??null,item.officials[1]??null]:[null,null]
+          }));
+          const merge=(left,right)=>{
+              const leftScore=(left.officials||[]).filter(Boolean).length,rightScore=(right.officials||[]).filter(Boolean).length;
+              const preferred=Number(right.development)>Number(left.development)?right:left;
+              const occupier=[right.occupier,left.occupier].find(value=>value!=null&&String(value).trim()!=='');
+              return {...left,...right,...preferred,id:left.id,occupier,
+                  development:Math.max(Number(left.development)||0,Number(right.development)||0),
+                  officials:leftScore>=rightScore?left.officials:right.officials};
+          };
+          const toMap=list=>{const map=new Map();list.forEach(item=>{const key=String(item.id);map.set(key,map.has(key)?merge(map.get(key),item):item);});return map;};
+          const owned=toMap(prepare(state.provinces,'owned'));
+          const lost=toMap(prepare(state.lostProvinces,'lost'));
+          [...lost.entries()].forEach(([id,territory])=>{
+              const hasOccupier=territory.occupier!=null&&String(territory.occupier).trim()!=='';
+              if(hasOccupier){owned.delete(id);return;}
+              const restored={...territory,occupier:undefined};
+              owned.set(id,owned.has(id)?merge(owned.get(id),restored):restored);
+              lost.delete(id);
+          });
+          const provinces=[...owned.values()],lostProvinces=[...lost.values()];
+          const conquered=new Set((state.conqueredEnemies||[]).map(Number)
+              .filter(index=>Number.isInteger(index)&&index>=0&&index<ENEMIES.length));
+          ENEMIES.forEach((enemy,index)=>{
+              if(provinces.some(province=>String(province.name||'')===enemyTerritoryName(enemy.name)))conquered.add(index);
+              else conquered.delete(index);
+          });
+          return {...state,provinces,lostProvinces,conqueredEnemies:[...conquered]};
+      };
+
+      const TECHNOLOGIES = [
+          { id: 'tax_reform', name: '攤丁入畝', desc: '廢除人頭稅，按地畝徵銀。稅收效率+20%。', totalSilver: 2500, totalEnergy: 100, reqYear: 5 },
+          { id: 'waterworks', name: '河工水利', desc: '整治河道與灌溉。每次地方建設的基礎發展效果提高25%。', totalSilver: 3000, totalEnergy: 100, reqYear: 8 },
+          { id: 'grand_council', name: '軍機處', desc: '中樞決策機構。所有行動體力消耗減少 20%。', totalSilver: 4000, totalEnergy: 150, reqYear: 10 },
+          { id: 'official_assessment', name: '考成法', desc: '定期考核百官。每年結算後貪腐率降低0.5個百分點，最低5%。', totalSilver: 4500, totalEnergy: 140, reqYear: 12 },
+          { id: 'grain_transport', name: '漕運整頓', desc: '整頓漕糧與地方運輸。地方上繳收入增加20%。', totalSilver: 5000, totalEnergy: 150, reqYear: 18 },
+          { id: 'western_movement', name: '洋務運動', desc: '師夷長技以制夷。軍隊基礎戰力+50%，但每年民心-2。', totalSilver: 6000, totalEnergy: 200, reqYear: 20 },
+          { id: 'translation_school', name: '同文館', desc: '培養通曉外務的人才。外交贈禮邦交效果提高25%，每年邦交衰退少1點。', totalSilver: 5500, totalEnergy: 160, reqYear: 22 },
+          { id: 'new_army', name: '編練新軍', desc: '採用西式操典。徵兵數量+50%，軍費開支+30%。', totalSilver: 5000, totalEnergy: 150, reqYear: 25 },
+          { id: 'military_farms', name: '屯田制度', desc: '軍民並耕以供軍需。年度軍隊維持費降低20%。', totalSilver: 6500, totalEnergy: 180, reqYear: 28 },
+          { id: 'railway', name: '鐵路建設', desc: '修築鐵路，通達四方。各地發展度增長速度翻倍。', totalSilver: 10000, totalEnergy: 250, reqYear: 30 },
+          { id: 'modern_academy', name: '新式學堂', desc: '革新皇家教育。皇嗣與百官皇家書院的年度能力成長提高20%（四捨五入）。', totalSilver: 8000, totalEnergy: 220, reqYear: 30 },
+      ];
+
+      const ACHIEVEMENTS = [
+          { id: 'rich', name: '多財善賈', desc: '國庫超過 20,000 兩', condition: (s) => s.treasury >= 20000, title: '富有四海' },
+          { id: 'breeder', name: '百子千孫', desc: '擁有 20 名以上子女', condition: (s) => s.childrenList.length >= 20, title: '多福皇帝' },
+          { id: 'conqueror', name: '天可汗', desc: '征服 8 個以上外敵', condition: (s) => s.conqueredEnemies.length >= 8, title: '天可汗' },
+          { id: 'longevity', name: '萬歲爺', desc: '在位超過 50 年', condition: (s) => s.year >= 50, title: '萬歲爺' },
+          { id: 'sage', name: '千古一帝', desc: '民心>95, 軍力>300, 國庫>1萬', condition: (s) => s.stability >= 95 && s.army >= 300 && s.treasury >= 10000, title: '聖祖' },
+          { id: 'supreme_ruler', name: '武功蓋世', desc: '軍力超過 500', condition: (s) => s.army >= 500, title: '天策上將' },
+          { id: 'prosperous', name: '盛世繁華', desc: '所有現有城市的發展度全部達到 300', condition: (s) => Array.isArray(s.provinces) && s.provinces.length > 0 && s.provinces.every(p => Number(p.development) >= 300), title: '盛世明君' },
+          { id: 'technocrat', name: '革新先驅', desc: '完成全部科技', condition: (s) => TECHNOLOGIES.every(tech => (s.unlockedTechs || []).includes(tech.id)), title: '維新領袖' },
+          { id: 'talent_magnet', name: '廣納賢才', desc: '擁有 20 名以上官員', condition: (s) => s.ministers.length >= 20, title: '伯樂再世' },
+          { id: 'harem_master', name: '後宮佳麗', desc: '擁有 10 名以上妃嬪', condition: (s) => s.consorts.length >= 10, title: '風流天子' },
+      ];
+
+      const initialMaxMinister = DEFAULT_MINISTERS.reduce((acc, curr) => {
+          const score = curr.civil + curr.military;
+          return score > acc.score ? { name: curr.name, score: score } : acc;
+      }, { name: '無', score: 0 });
+
+      // === v1.1.9 統一貪腐率：初始10%，最低5%，最高30% ===
+      // 同一數值同時決定年度歲入損耗比例與年度新貪污案件觸發機率。
+      // 舊存檔原有數值予以保留，但低於5%的數值一律遷移至5%。
+      const DEFAULT_CORRUPTION_RATE = 0.10;
+      const MIN_CORRUPTION_RATE = 0.05;
+      const MAX_CORRUPTION_RATE = 0.30;
+      const normalizeCorruptionRate = (rawRate) => {
+          if (rawRate === undefined || rawRate === null || rawRate === '') return DEFAULT_CORRUPTION_RATE;
+          const parsed = Number(rawRate);
+          if (!Number.isFinite(parsed)) return DEFAULT_CORRUPTION_RATE;
+          return Math.round(Math.max(MIN_CORRUPTION_RATE, Math.min(MAX_CORRUPTION_RATE, parsed)) * 10000) / 10000;
+      };
+      const calculateAnnualCorruptionCost = (annualIncome, rate) => {
+          const numericIncome = Number(annualIncome);
+          const safeIncome = Number.isFinite(numericIncome) ? Math.max(0, numericIncome) : 0;
+          return Math.floor(safeIncome * normalizeCorruptionRate(rate));
+      };
+      const formatCorruptionPercentage = rate => `${Math.round(normalizeCorruptionRate(rate) * 10000) / 100}%`;
+
+      const INITIAL_STATE = {
+        gameId: null,
+        year: 1,
+        eraName: '天命', 
+        playerName: '',  
+        treasury: 1000,
+        population: 3000,
+        annualTaxRate: 3,
+        lastForcedTaxDynastyYear: null,
+        army: 50, 
+        stability: 70,
+        health: 100,
+        energy: 100,
+        age: 16,
+        civil: 60, military: 60, // 帝王進修數值：原始皇帝採用60／60，歷代人物獨立保存
+        imperialStudyYear: 1, imperialStudyCount: 0,
+        academyRecords: {}, academyAnnualReport: null,
+        ministerTrainingRoster: {}, ministerTrainingLastSettledYear: 1, ministerTrainingAnnualReport: null,
+        bulkAppointmentScope: {primeMinister:true,revenueMinister:true,warMinister:true,provinceGovernor:true,provinceMagistrate:true},
+        autoAppointmentIdleIds: [],
+        pendingRetirementPlan: null, retirementPreparedYear: null, retirementPreparedRolls: null,
+        corruptionRate: DEFAULT_CORRUPTION_RATE,
+        corruptionRecords: {},
+        corruptionCases: [],
+        corruptionGroups: [],
+        corruptionHistory: [],
+        corruptionReductionYear: 1,
+        corruptionReductionThisYear: 0,
+        recruitPity: 0, // 科舉單抽與文武十連共用保底進度
+        beautyPity: 0, // 選秀與微服佳人共用：連續7次普通後，第8次保證特殊佳人
+        recruitedSpecialIds: [],
+        recruitableSpecialIds: [], // 退休後已故的特殊人才，可再次進入單抽與十連招募池
+        pendingRecruitDraw: null,
+        
+        ministers: DEFAULT_MINISTERS,
+        retiredMinisters: [], // 已告老／離職官員的完整歷史紀錄
+        pendingRetirements: [], // v1.1.2：年滿70歲待請旨的官員 ID，可跨存檔保存
+        provinces: DEFAULT_PROVINCES,
+        lostProvinces: [],
+        childrenList: [],
+        crownPrinceId: null,
+        currentEmperorId: null,
+        dynastyId: null,
+        accessionAge: 16,
+        royalFamily: [],
+        emperorHistory: [],
+        // 歷代後宮的完整封存紀錄；不屬於現任皇帝後宮，也不參與生育或費用計算。
+        historicalConsorts: [],
+        deceasedConsorts: [],
+        palaceCases: [],
+        palaceChronicle: [],
+        pendingPalaceEvent: null,
+        pendingBirthSettlement: false,
+        pendingBabyNames: [], // 已出生但尚待皇帝賜名；存檔保留，不能跳過
+        pendingHaremNews: [], pendingConsortCrises: [], pendingConsortIllnesses: [], palaceTruces: [],
+        pendingAnnualDraft: null,
+        inventory: {},
+        imperialShopYear: null,
+        imperialShopStock: [],
+        pendingItemRewards: [],
+        pendingItemNotices: [],
+        pendingDeathCandidates: [],
+        rescuedThisDynastyYear: [],
+        rescuedThisDynastyYearValue: 1,
+        dynastyYear: 1,
+        
+        consorts: [
+          { id: 1, name: '富察氏', title: '孝賢', rank: '皇后', affection: 80, bio: '賢良淑德', isSoulmate: false, inColdPalace: false },
+          { id: 2, name: '烏拉那拉氏', title: '', rank: '貴妃', affection: 60, bio: '性格剛烈', isSoulmate: false, inColdPalace: false },
+          { id: 3, name: '高佳氏', title: '慧', rank: '貴妃', affection: 75, bio: '溫婉可人', isSoulmate: false, inColdPalace: false },
+        ],
+
+        centralOfficials: { primeMinister: null, revenueMinister: null, warMinister: null },
+        warSetup: { commanderId: null, viceId: null, strategistId: null, targetIndex: 0 },
+        defenseSetup: { commanderId: null, viceId: null, strategistId: null },
+        enemyDiplomacy: initialEnemyDiplomacy(),
+        royalMarriages: [],
+        pendingBattleLines: [],
+        
+        unlockedTechs: [],
+        techProgress: {}, 
+        unlockedAchievements: [],
+        activeTitle: '',
+        
+        statsHistory: {
+          maxMinister: initialMaxMinister, maxChild: { name: '無', score: 0 },
+          maxTreasury: 1000, maxConsortCount: 3, maxDescendantCount: 0
+        },
+        conqueredEnemies: [],
+        incomingInvasion: null,
+        
+        gameOver: false,
+        gameWon: false,
+        endReason: '',
+        // 統一成果固定歸屬首次完成統一的皇帝，繼位不重置、不得重複刷新。
+        unificationGameId: null,
+        unificationYear: null,
+        unificationAttributionUnknown: false,
+      };
+
+      const TUTORIAL_CONTENT = {
+          INTRO: { title: "皇上吉祥", desc: "歡迎登基！\n\n🏆 遊戲目標：【征服天下】，消滅所有敵對勢力！\n\n【國庫】歸零則破產\n【民心】歸零則起義；民心可以超過100，但人口稅收最多按100民心計算\n【健康】歸零則駕崩\n\n每年會恢復【體力】，但健康越低，體力上限會從100逐漸降至80；養生亦十分重要。王朝累計年份不會因皇帝繼位重置，會持續影響敵國解鎖、敵軍成長與前期戰敗民心保護。\n\n【事件資源保底】所有必須裁決才能繼續的事件，在銀兩或體力不足時都至少保留一個免費選項。若舊存檔或未來事件意外出現全部選項不可用，系統會追加「資源不足，暫緩處理」的免費退路並扣民心2點，確保遊戲不會卡死。\n\n【世界排行榜】七種榜單各顯示前20名；視窗底部固定顯示本局玩家在目前榜單的實際名次及成績，即使未進入前20名也能查看。" },
+          CLOUD: { title: "Google 登入與五槽雲端存檔", desc: "遊客不登入仍可開始遊戲，並使用原本瀏覽器即時存檔。Google 登入只增加雲端功能，不會清除或自動覆蓋本機進度。\n\n● 開始頁以及遊戲頂端系統設定旁的雲端按鈕，都可開啟同一個雲端存檔面板。每個 Google 帳號有5個獨立槽位。\n● 點擊空白槽的「建立新遊戲」會先返回正常開始頁面；玩家設定年號與皇帝姓名並按下登基大典後，才建立遊戲並綁定所選槽位。\n● 遊戲中也能明確選擇把目前進度存入空白槽。讀取雲端存檔前會要求確認；讀取成功後才替換目前畫面，錯誤時保留本機進度。\n● 已綁定槽位的遊戲會在進度變更後自動同步，也可按「立即同步」。遊客模式與未選槽位時不會呼叫雲端寫入。\n● 每次寫入使用 revision 檢查。若同一槽位已被其他分頁或裝置更新，系統停止覆寫並提示重新讀取，不會自動重送舊資料。\n● 槽位可改名或刪除；刪除需要再次確認。登出只清除本頁登入與槽位連結，不會刪除本機或雲端資料。\n● 槽位摘要顯示皇帝、年號、年份、更新時間、國庫、官員、后妃、後代、統一狀態與遊戲編號。" },
+          TREASURY: { title:'皇家寶庫・背包、商店與物品', desc:'皇家寶庫分為背包與皇家商店。\n\n【背包】\n● 背包最多100格，依持有的物品種類計算；同一種物品不論數量只占一格。物品預設按稀世、珍貴、普通排序，可篩選健康藥品、賞賜物品、文武培養及特殊物品。\n● 使用一件物品不消耗體力，也沒有年度次數限制。皇帝健康、官員忠誠及妃嬪好感上限100；皇嗣文武沿用999上限，官員文武沿用既有無硬上限規則。\n● 普通人參、百年人參、宮廷秘製靈藥分別使現任皇帝健康+2、+5、+15。御賜錦緞與御賜金錠使在世官員忠誠+5、+12。金簪、玉如意、夜明珠使現任後宮在世妃嬪好感+5、+10、+25，冷宮妃嬪也可使用。\n● 啟蒙書冊使在世皇嗣文治+3；孫子兵法使官員或皇嗣武力+5；帝王治世秘典使官員或皇嗣文治+12；武穆遺書使官員或皇嗣武力+12。九轉還魂丹不能在背包主動使用。\n● 使用前須選擇人物並確認；已達上限的人物仍會顯示但不可選。丟棄物品永久生效且不退款，稀世物品須二次確認。\n\n【皇家商店】\n● 每個王朝年度只進貨一次，繼位不刷新。一張商品卡等於一件庫存，購買後該卡標示已售出。\n● 御賜錦緞、金簪、啟蒙書冊每種3至8件；御賜金錠、玉如意、孫子兵法每種1至3件。普通人參每年獨立10%機率上架一件；稀世物品不販售。\n\n【事件取得】\n● 每次微服有15%進入6種物品事件；每次上朝有10%進入4種物品事件。年度物品事件只在原有30%年度事件門檻通過後，占事件池10%，不另外增加年度事件。\n● 查辦貪官、商賈獻策、私訪書院、良醫獻方、民間節慶及藩屬進貢的指定正面結果有20%取得合理物品；其他未指定舊事件不強行掉落。\n● 滿100格又抽到新種類時，原物品固定進入待領佇列。整理出空格後可領取同一件物品，不能重抽；放棄付費取物事件時只退該次交易銀兩，體力及其他事件結果不退。\n\n【九轉還魂】\n● 九轉還魂丹只在人物正在判定死亡、尚未正式死亡時使用；已故人物不能事後復活。自然死亡會合併列出，事件致死、妃嬪病危及皇帝健康歸零會在死亡提交前裁定。\n● 每救一人消耗一顆；皇帝獲救後健康固定30並取消該次駕崩，其他人物保留原ID、身分、年齡、能力、官職、婚姻與親屬資料。獲救者當年不重複死亡，未來年度恢復正常判定。\n● 奉旨處死、賜死及依法行刑是玩家主動裁決，不可使用還魂丹。背包、商店、待領獎勵及救治流程都會寫入本機與五槽雲端存檔。' },
+          FINANCE: { title: "戶部 - 歲入與貪腐", desc: "每年會收到基礎撥款、人口稅收、地方上繳與戶部／科技加成。實際民心可以超過100，但人口稅收倍率最多只按100民心計算。\n\n● 國家貪腐率同時代表年度歲入損耗比例與新貪污案件觸發機率；新遊戲初始10%，最低5%，最高30%。\n● 每年只擲一次全國案件判定；案件觸發後，才依官員忠誠加權抽選涉案者。忠誠越低，抽選權重越高；官員人數不會提高全國觸發機率。\n● 貪腐損耗 = 當年歲入 × 國家貪腐率，只扣一次；個別案件金額只是該筆損耗分帳，不會再額外扣國庫。\n● 軍機處可簡查、徹查、追查同黨及重查退休／離職／死亡官員舊案；案件會保存犯案時職位與文、武、忠誠、資質及年齡。\n● 簡查消耗2體力、徹查5體力、追查同黨4體力；銀兩成本及調查成功率公式維持不變。\n● 小案、中案、大案正式定罪分別降低貪腐率0.5、1、2個百分點；每年查貪最多降低3個百分點，且不可低於5%。\n● 從寬發落不降低貪腐率；證據不足強行判刑可能造成冤案，且不降低貪腐率。\n● 追贓只追回案件剩餘未追回金額，不會重複入庫或重複扣款。\n● 年度財報限制在螢幕高度內，中央內容可用滾輪或手機滑動；關閉鍵與底部「朕知道了」固定可見。\n● 財報中的百官皇家書院結果會逐人顯示訓練前數值、實際增加量及訓練後文治／武力總值。\n● 科舉單抽銀300、十連銀3,000，兩者皆不消耗體力，並共用招募池及100抽保底。" },
+          CORRUPTION: { title: '軍機處・貪官密查', desc: '年度結算時，任職官員依忠誠進行貪污判定；貪污金額計入國家年度貪腐損耗，不額外扣款。軍機處可調查、揭露同黨、御前裁決及追贓。每個貪腐集團最多3人；退休、離職、死亡後仍保留歷史案件。正式處罰且有確切罪證才降低貪腐率，每年上限3個百分點。從寬不降低；證據不足強行判刑有冤案風險。'},
+          RECRUIT: { title: '吏部招賢・文武綜合招募', desc: '招募入口位於吏部的「人才招募」分頁。\n\n● 科舉單抽銀300，文武合併十連銀3,000；兩者都不消耗體力。\n● 單抽與十連使用同一招募池：傳奇1%、歷史9%、普通90%，並共用100抽保底。\n● 十連依序結算10次；若在中途觸發保底，剩餘抽數會從新一輪重新累積。十名候選人全部展示後，可自由選擇1至10人，也可一鍵全部收下。\n● 十連錄取多人後只顯示一個「本次錄取名單」，集中列出所有能力、資質及特殊技能；單抽仍顯示單人結果。\n● 尚有未招募傳奇時，保底目標為傳奇；傳奇皆不可招募後，改保底可招募的歷史人才。\n● 任職中的特殊人才不會重複出現；健在退休、辭官或遭逐出的特殊人才也不會回到招募池。只有退休後已故的特殊人才會重新加入。\n● 暫時沒有任何可招募特殊人才時，保底進度原值保留，普通抽取不會浪費進度。\n● 已在十連出現但未選擇的人才，之後仍可再次出現。\n● 普通人才會隨機成為文官或武將專精：主能力45～85、副能力30～70、忠誠60～89、資質35～80。丞相每20點文治提供1點招募加成，最多5點，因此主能力最高約90。\n● 特殊人才使用固定初始能力與專屬技能；技能不升級，但人物仍可進修及參加皇家書院訓練。'} ,
+          COURT: { title: '上朝聽政・御前裁決', desc: '每次上朝聽政消耗10點體力，從14類朝政事件中隨機出現一件，包含人才舉薦、藩屬進貢、海貿、御史死諫、河道水患、糧價、地方豪強、工部獻策、邊關急報、軍餉短缺、水師操練、將領爭功、外邦求和及京營火器事故。\n\n● 皇帝文治影響政務事件成功率：每10點文治增加1個百分點，部分正面收益也隨能力提高，最高加成20%。\n● 皇帝武力影響軍務事件成功率：每10點武力增加1個百分點，部分正面收益也隨能力提高，最高加成20%。\n● 各事件會顯示依皇帝能力計算的成功率，判定成功率最高95%。\n● 部分事件可選擇直接支出銀兩處理，避免承擔隨機判定風險。\n● 黃河決堤及京畿糧價在國庫不足時可選擇免費處置，但會分別損失民心8點與4點。其他朝政事件也至少有一個不需要額外銀兩的選項。\n● 軍餉核查失敗最多只會動用現有銀兩，不會使國庫因隱性事件支出降成負數。\n● 御史死諫降低貪腐率時，與其他年度查貪效果共用每年最多3個百分點的降低上限。' },
+          MINISTERS: { title: "吏部 - 知人善任", desc: "吏部分為「官職任命、官員清單、皇家書院、人才招募」四個分頁。\n\n【官職任命】\n● 丞相、戶部尚書主要看文治；兵部尚書主要看武力。任命會消耗體力，同一官員不能同時擔任兩個常設官職。\n● 百官統籌任命可勾選中央三職、地方總督與地方巡撫；先顯示合併總詔，再一次套用並按實際異動數計算體力，不花銀兩，也不改動戰時軍職。\n\n【官員清單與批次操作】\n● 詳細清單顯示類型、官職、年齡、文治、武力、忠誠、資質及特殊能力；可搜尋姓名，篩選人才類型、任職狀態、近告老或忠誠危險官員。\n● 可按文治、武力、資質、忠誠、年齡或文武合計排序。點擊官員可查看詳細資料；手機可左右滑動表格。\n● 勾選多名官員可批次賞賜、進修或逐出。賞賜每人銀100、基礎體力5並忠誠+10；進修依每人目前能力計算銀兩、每人消耗基礎體力5，且各自依資質獨立判定成長。\n● 批次逐出不花銀兩或體力，但會先列出所有人再次確認，並同步解除中央、地方與軍職；離任資料保存在名人堂。\n\n【人才招募與特殊人才】\n● 科舉單抽銀300、十連銀3,000；兩者都不消耗體力，機率相同並共用100抽保底。特殊人才技能固定，只在符合職位及戰況時生效。\n\n【百官皇家書院】\n● 改為詳細清單，集中顯示姓名、官職、年齡、文治、武力、忠誠、資質、課程、訓練後總值與特殊技能；手機可左右滑動。\n● 最多同時訓練10名16歲以上官員。經世之學文+6、騎射之學武+6、文武兼修文+3／武+3；每人每年總成長固定6點。\n● 年度訓練不受資質影響，不收銀兩或體力，也不設100點能力上限；財報會列出訓練前、增加量及訓練後總值。\n\n【離任、退休與名人堂】\n● 官員滿70歲上疏告老，可支付2,000兩慰留一次至73歲；退休官員每年依年齡判定自然死亡。\n● 特殊人才只有退休後已故才重新加入招募池；健在退休、辭官或逐出者不會再入池。名人堂保存任職、退休、已故、辭官及逐出資料。" },
+          PROVINCES: { title: "戶部 - 疆域建設", desc: "管理大清版圖、地方建設與各省官員。\n\n● 每座城市有總督與巡撫兩個常設職位；同一官員不能同時擔任其他中央或地方官職。\n● 總督看文治，會提高地方稅收；巡撫看武力，年度結算時提高治安與軍事加成。任命消耗體力。\n● 城市建設消耗銀兩與體力，基礎增加5點發展度；范仲淹擔任該省總督時額外+1。\n● 官職空缺提示會依城市分組。點擊「前往某地任命」會直接捲到該城市、短暫標示城市卡片，並聚焦第一個空缺選單。\n● 百官統籌任命可分別決定是否重排地方總督與巡撫；地方依發展度由高至低優先配置。" },
+          WAR: { title: "兵部 - 開疆拓土與多線防守", desc: "配置主將、副將與軍師，進攻敵國或抵禦入侵。中央官員可以領兵，地方任職官員不能離開駐地；同一人不能兼任軍職，多線防守時也不能跨戰線重複出戰。\n\n【敵國解鎖與成長】\n● 入侵資格門檻＝150＋王朝累計年份×40；已征服且沒有佔領大清失土的敵國不再一般入侵。每個合資格敵國各自擲骰並隨機選一個現有省份，同年可多國來犯。\n● 敵軍年份成長：第1～20年每年+5，第21～60年每年+3，第61年起每年+1。玩家軍隊、疆域發展與國庫按50%／35%／15%形成最多±15%戰力修正；只改變敵軍強度，不改變入侵意願。\n\n【聯軍與分兵】\n● 多國攻擊同一省份時，按實際戰力由高至低以100%／70%／50%／30%／其後各20%合併為一條聯軍戰線；攻擊不同省份則形成多條戰線。\n● 所有戰線必須先分配兵力與不重複將領，或明確棄守，再一次統一結算。投入兵力總和不得超過全國兵力；預備兵不參戰也不承受傷亡。\n● 城市守城加成＝發展度÷400，最高30%。每條實際防守戰線費用200兩，國庫不足時最多扣到現有銀兩；棄守免費、不擲勝率、不損兵，但省份直接失守。\n\n【戰力與勝率】\n● 將領加成＝主將武力×1.2＋副將武力×0.8＋軍師文武合計×0.5。韓信擔任軍師時權重0.65，李靖0.75。\n● 我軍總戰力＝投入兵力×（1＋將領加成÷100），再套用職位相符的技能與守城加成。基礎勝率＝我軍戰力÷（敵軍有效戰力×1.8）×100%，再加皇帝武力政策、關羽與張良加成，最高95%。\n● 主動進攻消耗銀500與基礎體力20；勝利可取得敵國舊地與戰利品。收復失土只歸還原城市，不建立重複領土。\n\n【九種戰果】\n● 先按畫面勝率判定正式勝利；勝率85以上勝利為輝煌大捷、70以上大勝、45以上普通勝利、25以上險勝，其餘為慘勝。基礎傷亡依序5%、10%、15%、20%、25%。\n● 未勝且勝率40～60時有25%成為兩軍相持，傷亡15%；防守保留省份，進攻不征服也無戰利品。其餘失敗依勝率分為普通戰敗40%、全軍潰敗45%、慘敗50%傷亡。\n● 防守民心依戰果為+10／+8／+5／+3／+1／-3／-20／-25／-30；進攻各級勝利-5、相持-5、失敗-10。第1～5王朝年只承受50%防守戰敗或棄守損失，第6～10年承受75%，第11年起完整計算。多場戰果完全累計，民心可超過100。\n\n【特殊武將技能】\n● 關羽主將勝率+5%；呂布主將最終戰力+15%；岳飛主將損兵-20%；趙雲防守副將先減少5點失敗民心損失再套前期倍率；張飛副將使敵軍有效戰力-10%；韓信軍師權重0.65；霍去病進攻主將勝利戰利品+20%；張良軍師勝率+5%。\n● 孫武軍師使敵軍有效戰力-10%；白起進攻主將使敵軍-15%；項羽主將在技能前勝率低於50%時戰力+25%；李靖軍師權重0.75；吳起副將戰力+12%。\n● 衛青進攻主將損兵-15%；徐達進攻副將使敵軍-8%；戚繼光防守主將損兵-20%；周瑜進攻軍師戰力+10%；郭子儀防守副將勝利時民心額外+3。軍職選單的★只在技能能實際觸發時顯示。" },
+          HAREM: { title: "內廷 - 後宮管理", desc: "與妃嬪互動，延綿子嗣。\n\n● 妃嬪各有年齡，40歲起生育能力逐年下降；30年間總降幅平均30點、個人差異20～40點，每年扣減不固定；已診脈數值變動後必須重新請太醫診脈。\n● 70歲起有逐年提高的病危風險，御前可選太醫救治，成功救回也會永久降低生育能力。\n● 皇子、公主出生時會彈出免費賜名視窗，並顯示天生培養傾向、資質及初始文武；若同年多人出生，逐一賜名。\n● 冊封／調整位分、封號時會頒布聖旨，皇后不得重複。\n● 翻牌成功後成為孕妃，下一年生產；孕期翻牌增加好感，但不重複受孕。\n● 冷宮懷孕有20%流產風險，太醫安胎200兩可降為5%。\n● 每年有25%機率發生宮鬥，分一般／重大／致命三類。\n● 只有致命宮鬥可能直接致死；救治失敗後70%重傷、30%死亡。\n● 內廷案件簿可跨皇帝查看與重查，調查不會產生假證據。\n● 舊案每滿五年成功率減10個百分點，新線索下一次調查+20點；未破案影響相關后妃好感與後續宮鬥。\n● 翻牌未受孕不跳通知；宮鬥裁決及重大結果均由皇帝親自確認。" },
+          BEAUTIES: { title:'佳人錄・特殊后妃', desc:'選秀與微服私訪偶遇佳人共用特殊佳人池與保底。\n\n● 每次出現佳人候選時，傳奇2%、歷史8%、普通90%；連續7次普通後，第8次保證特殊佳人。候選一出現就重置保底，即使遣散或婉拒也相同。\n● 傳奇佳人為貂蟬、王昭君、西施、楊玉環；歷史佳人為甄宓、虞姬、趙飛燕、長孫皇后、孝莊、衛子夫。\n● 納入後以答應起步。已納入過的特殊佳人不會重複出現，死亡後也不會回到候選池；全部收錄後停止累積保底。\n● 技能共同條件為本人在世、仍屬現任皇帝後宮、未入冷宮且好感至少60；長孫皇后另須冊立為皇后。\n● 佳人錄顯示收錄數與現任、歷代、已故狀態。未相遇者只顯示剪影，不提前揭露技能數值。\n\n【專屬效果】\n● 貂蟬：內廷調查+10個百分點。王昭君：未征服國邦交年衰退-1。西施：微服體力-2。楊玉環：每年民心+2、宮廷費+50。\n● 甄宓：親生新生皇嗣文治+8、資質+5。虞姬：防守戰敗或棄守民心損失-3。趙飛燕：翻牌好感額外+5、本人診脈體力-1。\n● 長孫皇后：冊立皇后時上朝判定+5個百分點。孝莊：繼位忠誠損失-5。衛子夫：后妃與皇嗣宮廷費-10%。' },
+          PALACE: {title:"深宮秘聞 - 宮鬥與案件",desc:"🏯 宮鬥在至少兩位可參與妃嬪時，每年25%機率觸發，最多一件。\n\n一般宮鬥：爭寵、口角、位分、流言；不直接致死。\n重大宮鬥：失竊、御膳、結黨、爭儲；可成立案件。\n致命宮鬥：毒酒、皇嗣遇險、胎動不安、深宮血案。\n\n救治失敗後70%重傷、30%死亡；胎動不安則以流產代替。\n\n內廷案件簿可重查未破案件，簡單查問50%，徹查內廷85%（銀200、體力10）；未查清不能賜死。\n\n舊案每擱置5年簡查／徹查成功率各減10點，最低10%／45%；新線索使下一次調查增加20點、最高95%。未破案件會持續留下好感與劇情影響，所有卷宗跨皇帝保存。"},
+          BUREAU: { title: "宗人府 - 皇室血脈與婚姻", desc: "保存歷代皇帝、后妃、皇族成員與公主婚姻。皇位繼承優先由成年太子、皇子承繼；無成年皇子時可選擇符合資格的男性宗親。親緣不明的舊資料保留紀錄但不臆測關係。\n\n● 太子必須在世、年滿16歲、未被逐出且未曾登基；自然死亡、逐出或舊存檔資格失效時會自動撤銷太子身分。\n● 繼位者30歲以前登基健康100；31歲起每增加1歲降低1點，最低50。主動禪讓與駕崩繼位使用相同規則。\n● 婚姻紀錄分為外邦和親與國內賜婚，會保存成婚王朝年份、配偶及目前狀態；公主改名會同步更新婚姻紀錄。\n● 皇帝駕崩或繼位不會中斷公主婚姻。公主死亡時婚姻終止；國內駙馬死亡時公主守寡，均不可再嫁。\n● 已婚公主不可逐出宮廷；駙馬退休、辭官或逐出不會抹除婚姻歷史。" },
+          DIPLOMACY: { title: "禮部 - 邦交、贈禮與和親", desc: "十個敵國各有獨立邦交值，初始50、範圍0～100。一般每年自然下降5；有效和親期間每年只下降2。\n\n【贈禮】\n● 每個敵國每個王朝年只能收禮一次。薄禮200兩／邦交+5，厚禮500兩／+12，國禮1,000兩／+20。\n\n【外邦和親】\n● 只有在世、未被逐出、年滿16歲且未婚的公主可以和親；有效期間該國入侵機率乘以50%。外嫁公主若已入仕，會解除全部官職並退出百官皇家書院。\n● 和親國仍會獨立判定入侵。一旦入侵即為背盟：邦交-25、婚姻保留、外交保障暫停；暫停期間再次入侵不重複扣25。\n● 背盟至少滿2個王朝年、邦交達60、國庫有500兩且該國沒有待結算戰線，才能重新議和並恢復原婚姻保障。\n● 公主死亡後保障永久終止；再次和親必須使用另一位合資格公主。\n\n【國內賜婚】\n● 成年未婚且未被逐出的公主可許配給一位非皇室在朝官員，立即忠誠+20、最高100，不花銀兩或體力。公主仍可入仕；官員離任不解除婚姻，死亡後公主守寡。" },
+          SCHOOL: { title: "上書房・皇家書院", desc: "皇子、公主和未成年皇帝可就讀皇家書院。清單集中顯示身分、年齡、文治、武力、資質、天賦、自動課程、預估訓練後總值、學籍、婚姻與可用操作。\n\n● 新生皇嗣永久獲得文治之才、武略之才或文武雙全天賦。資質0～39時雙全10%、40～59時15%、60～79時20%、80～100時30%；其餘機率由文、武均分。\n● 舊存檔文治高出武力至少15點判定文治，武力高出文治至少15點判定武略，差距14點內判定文武雙全；不重抽且不改動既有能力。\n● 快速培養每次先依年齡、資質與隨機決定總成長，再按文治75%／25%、武略25%／75%、雙全50%／50%分配，四捨五入後維持相同總點數。\n● 6～15歲入學，16歲畢業；每人一次費用1,500兩。文治自動修經世、武略自動修騎射、雙全自動文武兼修，不可手動選課或轉課。\n● 書院原始年度成長為文+12、武+12或文武各+6；新式學堂完成後每項+20%並四捨五入。既有學業成長與履歷保留，下一學年改按固定天賦。\n● 重傷停課且不補課；皇帝繼位後學籍照常保留。滿6歲才發合併入學通知，5歲不提前通知。\n● 出生免費賜名並顯示天賦、資質、初始文武；成年16歲自動入仕。成年未婚公主可許配官員，使忠誠+20。" },
+          IMPERIAL_STUDY: { title: '御書房・帝王進修',desc:'成年皇帝每年最多進修3次。每次300兩、10體力：經世文治+8、兵法武力+8、兼修各+4。\n每10點文治／武力使對應政務／軍事奏摺正面效果+1%，最多+20%；不減少負面影響及成本，後宮調查維持原機率。'},
+          WORKS: { title: "工部 - 改革變法", desc: "科技皆需分5階段投入，完成後永久生效；解鎖年份依目前皇帝在位年數判斷。\n\n● 攤丁入畝：稅收效率+20%。\n● 河工水利：城市建設基礎發展+25%。\n● 軍機處：行動體力消耗減少20%。\n● 考成法：每年結算後貪腐率-0.5個百分點，最低5%。\n● 漕運整頓：地方上繳收入+20%。\n● 洋務運動：軍隊基礎戰力+50%，每年民心-2。\n● 同文館：外交贈禮效果+25%，每年邦交衰退少1點。\n● 編練新軍：徵兵+50%，軍費+30%。\n● 屯田制度：計入編練新軍後的年度軍隊維持費再降低20%。\n● 鐵路建設：城市建設基礎發展翻倍，可與河工水利疊加。\n● 新式學堂：皇嗣及百官皇家書院年度成長+20%，各項四捨五入。\n\n革新先驅成就需完成全部11項科技。" },
+          ADVENTURE: { title: "微服私訪", desc: "皇上出宮體察民情，每次消耗基礎體力15；軍機處科技折扣照常生效。事件畫面會顯示本次體力成本，並在說明或選項直接列出實際數值影響。\n\n● 偶遇佳人：可新增1名初封答應、初始好感50，或婉拒且不改變數值。\n● 查辦貪官：銀兩+400～1,199、民心+5。\n● 體察民情：民心+10。\n● 市井遊玩：健康最多+5。\n● 商賈獻策：銀兩+150～599。\n● 私訪書院：可新增1名官員並使民心+4；不任官則免費且民心+2。\n● 賑濟孤老：支付120兩使民心+8；國庫不足時可免費親自安撫，使民心+1。\n● 訪察河道：民心+6。\n● 良醫獻方：健康最多+8。\n● 民間節慶：民心+5。\n● 遭遇刺客：健康-10。\n\n民心增加不再受100上限限制；本版不改變各事件原有出現機率。" }
+      };
+      TUTORIAL_CONTENT.INTRO.desc = TUTORIAL_CONTENT.INTRO.desc
+          .replace('敵國解鎖、敵軍成長與前期戰敗民心保護','敵國解鎖、敵軍成長、科技開放與前期戰敗民心保護')
+          .replace('【世界排行榜】七種榜單各顯示前20名；視窗底部固定顯示本局玩家在目前榜單的實際名次及成績，即使未進入前20名也能查看。','【世界排行榜】七種榜單各顯示前20名；詳細表格顯示帝號、年號、在位年數與榜單成績，並可展開同一局的其他保存成績。視窗底部固定顯示本局玩家在目前榜單的實際名次及成績，即使未進入前20名也能查看。');
+      TUTORIAL_CONTENT.WORKS.desc = TUTORIAL_CONTENT.WORKS.desc.replace('解鎖年份依目前皇帝在位年數判斷','解鎖年份依王朝累計年份判斷；皇帝繼位不會重新計時');
+      TUTORIAL_CONTENT.TREASURY.desc = TUTORIAL_CONTENT.TREASURY.desc.replace('使用前須選擇人物並確認；','使用前會以詳細清單顯示人物身分、年齡、文治、武力、相關數值及使用後結果，再選擇人物並確認；');
+      TUTORIAL_CONTENT.RECRUIT.desc = TUTORIAL_CONTENT.RECRUIT.desc.replace('可自由選擇1至10人，也可一鍵全部收下','可自由選擇0至10人，也可一鍵全部收下；選擇0人須再次確認，已支付的3,000兩不退還，十次抽取仍計入保底');
+      TUTORIAL_CONTENT.MINISTERS.desc = TUTORIAL_CONTENT.MINISTERS.desc
+          .replace('百官統籌任命可勾選中央三職、地方總督與地方巡撫；','百官統籌任命可事先勾選中央三職、地方總督與地方巡撫，選擇會保存；')
+          .replace('不花銀兩，也不改動戰時軍職。','不花銀兩，也不改動未勾選職務及戰時軍職。')
+          .replace('勾選多名官員可批次賞賜、進修或逐出。','勾選多名官員可批次賞賜、進修、逐出，或設定及解除「一鍵任命保留空閒」。被鎖定者不參與統籌自動分配；若其現職屬本次勾選範圍會解除並保持空閒，未勾選職務不動，且仍可手動任命或出征。');
+      TUTORIAL_CONTENT.INTRO.desc = TUTORIAL_CONTENT.INTRO.desc.replace('【健康】歸零則駕崩',
+          '【人口】歸零則國家崩潰；人口會隨城市、稅率、募兵與遣散變動\n【健康】歸零則駕崩');
+      TUTORIAL_CONTENT.FINANCE.desc += '\n\n【年度稅率與人口】\n● 每年可免費設定一至十成的人口稅率，預設三成；調整只影響人口稅，不改變基礎撥款、地方上繳與其他收入。\n● 一成至十成的人口稅分別為原三成稅收的33%、67%、100%、133%、167%、200%、233%、267%、300%、333%。一、二成提高民心與人口成長；四成起逐步降低；六成起屬苛稅，八成起有嚴重懲罰。\n● 強徵稅賦每個王朝累計年只能一次，繼位不重置；不受年度稅率影響，仍消耗5體力、民心-5。\n● 年度人口基礎成長率＝1%＋城市數×0.5%，最高3%，再加上稅率調整。人口以萬人為單位，人口耗盡即國家崩潰。';
+      TUTORIAL_CONTENT.PROVINCES.desc += '\n● 地方任命選單同時顯示年齡、文治與武力；★代表該官員在目前職位有可生效的特殊能力。\n● 人口基礎成長率會依現有城市數量計算；失去或收復城市不會立即移動人口，但會影響下一次年度結算。';
+      TUTORIAL_CONTENT.WAR.desc += '\n\n【人口與募兵】\n● 基礎募兵千人數＝人口÷500向下取整＋城市數×2，再套用兵部尚書、皇帝武力及編練新軍加成。實際每增加10千軍隊會消耗1萬人口；遣散10千軍隊返還1萬人口。戰死士兵不會返還人口。';
+      TUTORIAL_CONTENT.WAR.desc += '\n\n【疆域與失土資料】\n● 每塊土地使用永久ID，在現有疆域與失土之間搬移；失守不會刪除土地，收復也不會另外建立同一塊土地。\n● 敵國舊地以實際持有狀態同步征服紀錄；若舊地被第三國佔領，收復後會自動恢復原屬敵國的征服狀態。\n● 舊存檔若包含重複土地、缺少ID、幽靈戰線或同城市重複戰線，讀取時會自動修復；同名但不同ID的合法土地仍分別保留。';
+      TUTORIAL_CONTENT.MINISTERS.desc += '\n\n【固定批次操作列】\n● 官員清單的賞賜、進修與逐出按鈕固定在遊戲畫面底部，捲動長清單後不必返回頁首。';
+      TUTORIAL_CONTENT.CLOUD.desc += '\n\n【登入操作】\n● Google登入會另開OAuth授權視窗；授權成功後回到遊戲按「完成Google登入」。遊戲進行中可直接使用頂端「Google登入／槽位」按鈕。';
+      TUTORIAL_CONTENT.CLOUD.desc = TUTORIAL_CONTENT.CLOUD.desc
+          .replace('登出只清除本頁登入與槽位連結，不會刪除本機或雲端資料。','雲端槽位遊戲登出前會先強制同步；只有同步成功才會登出並返回開始頁面，同步失敗會取消登出。')
+          + '\n\n【同步保護】\n● 已連結雲端的遊戲會在本機保存原帳號、槽位、遊戲編號、revision及待同步狀態；重新開頁或讀取本機存檔時仍會核對。v1.3.1舊存檔登入後若只有一個相同遊戲編號的槽位，會自動補上綁定；若多個槽位相符，會暫停並要求玩家自行選擇。\n● 登入逾期、帳號不符、同步失敗或版本衝突時，遊戲會暫停操作。玩家可重新登入、重新同步、檢查槽位或下載本機備份，但不能忽略錯誤轉為離線分支。\n● 從未連結雲端槽位的遊客本機遊戲不受限制，仍可離線遊玩。';
+      TUTORIAL_CONTENT.TREASURY.desc = TUTORIAL_CONTENT.TREASURY.desc.replace(
+          '御賜錦緞、金簪、啟蒙書冊每種3至8件；御賜金錠、玉如意、孫子兵法每種1至3件。普通人參每年獨立10%機率上架一件；稀世物品不販售。',
+          '新年度固定進貨16件：御賜錦緞、金簪、啟蒙書冊每種4件；御賜金錠、玉如意、孫子兵法每種1件；最後1件有10%機率為普通人參，否則從六種常規商品隨機補入。已生成的當年度庫存不回溯更改；稀世物品不販售。');
+      TUTORIAL_CONTENT.WAR.desc = TUTORIAL_CONTENT.WAR.desc
+          .replace('已征服且沒有佔領大清失土的敵國不再一般入侵。', '已征服敵國完全退出年度入侵判定，即使仍佔有大清失土也不會主動來犯；失土須由玩家主動出征收復。')
+          .replace('所有戰線必須先分配兵力與不重複將領，或明確棄守，再一次統一結算。投入兵力總和不得超過全國兵力；預備兵不參戰也不承受傷亡。', '同年只有一個目標城市時，不論單國或多國聯軍都以單一戰線投入全軍，沿用上次保存的主將、副將與軍師，不需分兵。只有不同城市同時受襲才需分配兵力與不重複將領，或明確棄守，再一次統一結算；預備兵不參戰也不承受傷亡。')
+          + '\n\n【技能標示】\n● 進攻與防守軍職選單都以★標示目前職位真正能觸發的專屬技能；防守部署另集中顯示本戰線已生效技能。';
+      TUTORIAL_CONTENT.DIPLOMACY.desc += '\n\n【征服後外交】\n● 國家被征服後，邦交值停止增減並只保留為歷史紀錄；不可再贈禮、和親或重新議和，也不再進行年度入侵判定。若仍佔有大清失土，必須由玩家主動出征收復。';
+      TUTORIAL_CONTENT.SCHOOL.desc += '\n\n【多選與底部操作】\n● 皇嗣清單可多選，批量培養、入學與逐出宮廷按鈕固定在遊戲畫面底部。批量培養支援每人1、5、10次，銀兩或體力不足時整批不執行；最大可培養次數保留為單人操作。\n● 批量入學會依每人天賦分別自動分班，並按每人1,500兩一次扣款；若名單含未滿6歲、已滿16歲、已入學、已畢業、已故或已逐出者，會在同一通知依原因分組列名，整批不入學也不扣款。國庫不足時會列出所需、現有與不足銀兩。\n● 批量逐出只確認一次，同步撤銷官職、太子身分與皇家書院學籍；已有國內賜婚或外邦和親紀錄的公主不可逐出。';
+      TUTORIAL_CONTENT.RECRUIT.desc += '\n\n【錄取通知】\n● 科舉單抽、文武十連、微服書院及上朝舉薦統一使用新官入朝視窗。單人招募顯示姓名、年齡、文治、武力、忠誠、資質與特殊技能；十連只顯示一份合併名單，不逐人跳出。詳細資料仍寫入起居注。';
+      TUTORIAL_CONTENT.RECRUIT.desc += '\n\n【金榜翻牌】\n● 科舉單抽先顯示一張殿試名帖，點擊翻開後才揭曉完整資料。十抽可逐張翻開、翻開下一張、一鍵依序揭曉或直接跳過動畫，再進入原有候選清單選擇招募0至10人。\n● 翻牌只是揭曉已固定的抽取結果，不會重新抽取，也不改變銀兩、機率或共用保底；牌背不會提前透露稀有度。';
+      TUTORIAL_CONTENT.HAREM.desc += '\n\n【翻牌與探望】\n● 選定妃嬪翻牌後，敬事房會以宮廷名牌動畫呈現封號、位分及姓名；動畫期間不能重複操作，體力、好感及懷孕判定只結算一次。\n● 已懷孕妃嬪使用獨立的探望過場，不再播放翻牌動畫；是否傳出喜脈仍依原規則由太醫後續奏報。';
+      TUTORIAL_CONTENT.MINISTERS.desc += '\n● 底部批次操作列固定在整個遊戲畫面最下方，官員清單捲動到任何位置都不會消失；開啟玩法說明、更新說明或其他全螢幕視窗時會暫時隱藏，避免遮擋。';
+      TUTORIAL_CONTENT.SCHOOL.desc += '\n● 皇嗣底部批次操作列在玩法說明、更新說明或其他全螢幕視窗開啟時會暫時隱藏，關閉視窗後恢復。';
+      TUTORIAL_CONTENT.SCHOOL.desc = TUTORIAL_CONTENT.SCHOOL.desc
+          .replace('成年16歲即可依原官制入仕。','年滿16歲免費自動冊封為官，不消耗體力。')
+          .replace('適齡與畢業通知只在年度摘要顯示，不強制跳窗。','皇嗣滿6歲時會合併顯示入學通知；畢業結果仍集中列於年度摘要。');
+      TUTORIAL_CONTENT.SCHOOL.desc += '\n\n【成年入仕與入學提醒】\n● 皇子、公主年滿16歲後自動入朝為官；舊存檔中16～69歲、仍在世、未外嫁且從未離任的皇嗣會在下一次年度結算補冊封。\n● 公主國內賜婚後仍可任官；在朝公主也能外邦和親，但和親後會解除全部官職與百官書院學籍，並以「和親離朝」保存名人堂紀錄。\n● 皇嗣滿6歲時，同年度適齡者合併顯示一次入學提醒，可直接前往上書房，不會每人各跳一個視窗。\n● 皇嗣資料改以響應式詳細卡片完整顯示，身分、婚姻、能力、資質、學籍、訓練後數值、履歷及操作不再被最右側裁切。';
+      TUTORIAL_CONTENT.DIPLOMACY.desc += '\n● 在朝公主仍可外邦和親；和親完成後自動離開朝廷並解除既有官職，國內賜婚則不影響公主任官。';
+      TUTORIAL_CONTENT.FINANCE.desc += '\n\n【新增財政科技】\n● 漕運整頓使年度財報中的地方上繳收入增加20%；考成法在當年貪腐損耗及案件結算完成後，使下一年的貪腐率降低0.5個百分點，最低5%。\n● 屯田制度會在編練新軍30%額外軍費計入後，再將整筆年度軍隊維持費降低20%。';
+      TUTORIAL_CONTENT.PROVINCES.desc += '\n\n【建設科技】\n● 河工水利使每次城市建設的5點基礎發展提高25%並四捨五入；鐵路建設使基礎發展翻倍，兩者可疊加，范仲淹的額外+1最後加入。';
+      TUTORIAL_CONTENT.DIPLOMACY.desc += '\n\n【同文館】\n● 完成同文館後，所有贈禮的邦交增加量提高25%並四捨五入；一般與有效和親的年度邦交衰退都減少1點。畫面會直接顯示科技生效後數值。';
+      TUTORIAL_CONTENT.SCHOOL.desc += '\n\n【新式學堂】\n● 完成新式學堂後，皇嗣及百官皇家書院每項年度能力成長提高20%並四捨五入；皇嗣的自動課程、預估總值與財報都顯示實際成長。';
+      TUTORIAL_CONTENT.MINISTERS.desc += '\n\n【新式學堂】\n● 百官皇家書院原始課程為文+6、武+6或文武各+3；完成新式學堂後各項提高20%並四捨五入，清單與財報顯示實際數值。';
+      TUTORIAL_CONTENT.HAREM.desc += '\n\n【入口位置】\n● 內廷案件簿固定放在后宮管理頁面上方；主畫面不再顯示重複入口。';
+      TUTORIAL_CONTENT.INTRO.desc += '\n\n【低體力預警】\n● 玩家主動操作若會使剩餘體力低於10，扣除前會顯示目前體力、消耗及剩餘體力並再次確認；剩餘正好10不提示。取消不扣資源，免費操作及年度自動結算不提示。';
+      TUTORIAL_CONTENT.WAR.desc += '\n\n【軍職配置記憶】\n● 主動進攻與防守分開保存最近使用的主將、副將及軍師。單一防守戰線會自動套用防守配置；多線防守只套用第一條戰線，其餘須另行指派。官員離任、死亡或改任地方官後會自動從失效配置移除。';
+      TUTORIAL_CONTENT.PROVINCES.desc += '\n● 地方官員選單在任命後會保留目前頁面及捲動位置；官員一旦改任地方總督或巡撫，失效的進攻與防守軍職記憶會自動解除。';
+      TUTORIAL_CONTENT.CLOUD.desc += '\n\n【閒置續玩保護】\n● 已連結雲端的遊戲在分頁重新可見或視窗重新取得焦點時，會先核對登入、帳號、槽位、遊戲編號及revision；核對完成前不能操作。登入逾期時必須重新登入原帳號，不可返回開始頁面另開同局分支。\n● 建立雲端新遊戲時，只有遠端槽位成功建立後才切換本機畫面；既有槽位會核對遊戲編號並更新同一份Drive檔案，不會因每次同步新增另一份存檔檔案。';
+
+      const generateName = (isBoy, existingNames = []) => {
+        const n = isBoy ? ['弘', '永', '綿', '奕', '載', '胤', '福', '玄', '岳'] : ['固倫', '和碩', '榮壽', '莊靜'];
+        const w = ['曆', '晝', '琰', '詝', '淳', '佳', '安', '寧', '樂', '正', '德', '才', '基', '業'];
+        let name = "";
+        let attempts = 0;
+        do { name = n[Math.floor(Math.random() * n.length)] + w[Math.floor(Math.random() * w.length)]; attempts++; } while (existingNames.includes(name) && attempts < 20);
+        return name;
+      };
+
+      // 皇子、公主出生賜名和上書房改名共用：只能使用中文及間隔號，不以姓名作人物 ID。
+      const normalizeRoyalChildName = value => String(value == null ? '' : value).trim();
+      const royalChildNameError = (state, royalId, candidate) => {
+          const name=normalizeRoyalChildName(candidate);
+          if (!name) return '請先輸入皇子或公主的姓名。';
+          if (Array.from(name).length>12 || !/^[\u3400-\u9FFF\uF900-\uFAFF·・]+$/.test(name))
+              return '姓名請使用 1～12 個中文字，可包含間隔號「·」。';
+          const duplicate=(state.royalFamily||[]).some(r=>String(r.id)!==String(royalId)&&r.name===name) ||
+              (state.childrenList||[]).some(c=>String(c.royalId||royalIdOf(c,state))!==String(royalId)&&c.name===name);
+          return duplicate?'皇室已有同名成員，請另賜姓名。':null;
+      };
+      const suggestRoyalChildName = (state, gender, exceptRoyalId=null) => {
+          const names=new Set([
+              ...(state.royalFamily||[]).filter(r=>String(r.id)!==String(exceptRoyalId)).map(r=>r.name),
+              ...(state.childrenList||[]).filter(c=>String(c.royalId||royalIdOf(c,state))!==String(exceptRoyalId)).map(c=>c.name)
+          ]);
+          let name=generateName(gender==='male',[...names]);
+          for(let tries=0; names.has(name)&&tries<250;tries++) name=generateName(gender==='male',[...names]);
+          if(names.has(name)) {
+              const prefix=gender==='male'?'弘':'寧';
+              for(const tail of ['一','二','三','四','五','六','七','八','九','十','安','康','瑞','祥','澤','瑾']) {
+                  if(!names.has(prefix+tail)) return prefix+tail;
+              }
+          }
+          return name;
+      };
+      const applyRoyalChildName = (input, royalId, newName) => {
+          const state=normalizeRoyalState(input), id=String(royalId);
+          const member=(state.royalFamily||[]).find(r=>String(r.id)===id);
+          const child=(state.childrenList||[]).find(c=>String(c.royalId||royalIdOf(c,state))===id);
+          const oldName=child?.name||member?.name||'';
+          if(!oldName || royalChildNameError(state,id,newName)) return state;
+          const name=normalizeRoyalChildName(newName);
+          const childId=child?.id??member?.childId;
+          const updateMinister=m=>{
+              const linked=childId!=null && m.royalChildId!=null && String(m.royalChildId)===String(childId);
+              const legacy=!linked && m.royalChildId==null && isRoyalChildMinister(m) &&
+                  /^(皇子|公主|長公主|宗室|宗親)\s/.test(String(m.name||'')) &&
+                  String(m.name||'').endsWith(` ${oldName}`);
+              if(!linked&&!legacy) return m;
+              const prefix=String(m.name||'').match(/^(皇子|公主|長公主|宗室|宗親)\s+/)?.[0] ||
+                  (child?.gender==='female'?'公主 ':'皇子 ');
+              return {...m,name:prefix+name};
+          };
+          const maxChild=state.statsHistory?.maxChild;
+          const isCurrentMax=!!maxChild && (
+              (maxChild.royalId!=null && String(maxChild.royalId)===id) ||
+              (maxChild.royalId==null && maxChild.name===oldName)
+          );
+          return {...state,
+              childrenList:(state.childrenList||[]).map(c=>String(c.royalId||royalIdOf(c,state))===id?{...c,name}:c),
+              royalFamily:(state.royalFamily||[]).map(r=>String(r.id)===id?{...r,name}:r),
+              royalMarriages:(state.royalMarriages||[]).map(m=>String(m.princessId)===id?{...m,princessName:name}:m),
+              academyRecords:Object.fromEntries(Object.entries(state.academyRecords||{}).map(([key,record])=>
+                  [key,String(key)===id?{...record,name}:record])),
+              ministers:(state.ministers||[]).map(updateMinister),
+              retiredMinisters:(state.retiredMinisters||[]).map(updateMinister),
+              statsHistory:isCurrentMax?{...state.statsHistory,maxChild:{...maxChild,name,royalId:id}}:state.statsHistory,
+              palaceCases:(state.palaceCases||[]).map(c=>({...c,
+                  ...(String(c.victimId)===String(childId)?{victimName:name}:{}),
+                  ...(String(c.attackerId)===String(childId)?{attackerName:name}:{}),
+                  ...(String(c.culpritId)===String(childId)?{culpritName:name}:{})})),
+              pendingBabyNames:(state.pendingBabyNames||[]).filter(q=>String(q.royalId)!==id)
+          };
+      };
+
+      // --- UI Components ---
+
+      const RANDOM_ERA_NAMES = [
+          '承熙','景和','昭明','永熙','弘化','承安','開泰','元和','景祐','隆和',
+          '康熙','雍正','乾隆','嘉慶','道光','咸豐','同治','光緒','宣統','順治',
+          '崇德','永昌','天啟','景泰','建元','紹興','明德','永寧','承平','啟元'
+      ];
+      const RANDOM_EMPEROR_GIVEN_NAMES = [
+          '玄燁','胤禛','弘曆','永琰','旻寧','奕詝','載淳','載湉','溥儀','弘晝',
+          '胤祥','胤禩','胤祺','弘晟','永琪','綿愷','奕訢','奕譞','載漪','載灃',
+          '景珩','承祐','弘昀','永珩','景煊','承煜','允恆','弘曜','永琮','載安'
+      ];
+      const randomFrom = list => list[Math.floor(Math.random() * list.length)];
+      const generateRandomEraName = () => randomFrom(RANDOM_ERA_NAMES);
+      const generateRandomEmperorName = () => `愛新覺羅·${randomFrom(RANDOM_EMPEROR_GIVEN_NAMES)}`;
+

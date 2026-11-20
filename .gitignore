@@ -1,0 +1,26 @@
+# Google clasp OAuth credentials must never be committed.
+.clasprc.json
+.clasprc.json.*
+
+# Dependencies and generated output.
+node_modules/
+dist/
+build/
+coverage/
+
+# Temporary verification and local working files.
+.clasp-verify-*/
+qing-clasp-verify-*/
+*.tmp
+*.temp
+*.log
+*.bak
+*.backup
+*~
+
+# Editor and operating-system files.
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini

@@ -1,0 +1,2297 @@
+      function App() {
+        // 初始化時先載入舊存檔，避免首次 render 用預設值覆蓋存檔。
+        const [initialSave] = useState(readAutoSave);
+        const [initialCloudBinding] = useState(readCloudBinding);
+        const [isGameStarted, setIsGameStarted] = useState(!!initialSave);
+        const [gameState, setGameState] = useState(initialSave ? initialSave.gameState : INITIAL_STATE);
+        const [currentView, setCurrentView] = useState('THRONE'); 
+        const [treasuryTab,setTreasuryTab]=useState('BAG');
+        const [inventoryFilter,setInventoryFilter]=useState('全部');
+        const [selectedUseItemId,setSelectedUseItemId]=useState(null);
+        const [deathRescueSelection,setDeathRescueSelection]=useState([]);
+        const scrollPositionsRef = useRef({});
+        const getScrollMemoryKey = element => {
+            if (!(element instanceof HTMLElement) || !element.classList.contains('overflow-y-auto')) return null;
+            if (element.dataset.scrollKey) return element.dataset.scrollKey;
+            const dialog=element.closest('[role="dialog"]');
+            const main=element.closest('main');
+            const scopeRoot=dialog||main||document.body;
+            const scopeName=dialog?`dialog:${dialog.getAttribute('aria-label')||'unnamed'}`:main?`view:${currentView}`:'global';
+            const index=[...scopeRoot.querySelectorAll('.overflow-y-auto')].indexOf(element);
+            return `${scopeName}:${index}`;
+        };
+        const rememberScrollPosition = event => {
+            const key=getScrollMemoryKey(event.target);
+            if(key)scrollPositionsRef.current[key]=event.target.scrollTop;
+        };
+        useLayoutEffect(()=>{
+            document.querySelectorAll('.overflow-y-auto').forEach(element=>{
+                const key=getScrollMemoryKey(element);
+                const savedTop=key?scrollPositionsRef.current[key]:null;
+                if(Number.isFinite(savedTop))element.scrollTop=savedTop;
+            });
+        });
+        const [currentEvent, setCurrentEvent] = useState(null);
+        const [logs, setLogs] = useState(initialSave ? initialSave.logs : []);
+        const logScrollRef = useRef(null);
+        const logWasAtBottomRef = useRef(true);
+        // 位分改為獨立冊封視窗：避免手機上小型選單難點擊。
+        const [editingConsortId, setEditingConsortId] = useState(null);
+        const [draftConsortRank, setDraftConsortRank] = useState('答應');
+        const [draftConsortTitle, setDraftConsortTitle] = useState('');
+        // 皇帝對妃嬪的冊封，以及中央／地方官員任命共用聖旨展示。
+        const [imperialEdict, setImperialEdict] = useState(null);
+        const [bulkAppointmentDraft, setBulkAppointmentDraft] = useState(null);
+        const [logExpanded, setLogExpanded] = useState(false); 
+        const [provinceAppointmentTarget, setProvinceAppointmentTarget] = useState(null);
+        const provinceAppointmentHandledRef = useRef(null);
+        const [feedbackMessage, setFeedbackMessage] = useState(null);
+        const [gameDialog,setGameDialog]=useState(null);
+        const gameDialogResolverRef=useRef(null);
+        const openGameDialog=config=>new Promise(resolve=>{
+            if(gameDialogResolverRef.current)gameDialogResolverRef.current(false);
+            gameDialogResolverRef.current=resolve;
+            setGameDialog({...config,value:String(config.value??'')});
+        });
+        const requestGameConfirm=(message,options={})=>openGameDialog({type:'confirm',message,...options});
+        const requestGamePrompt=(message,value='',options={})=>openGameDialog({type:'prompt',message,value,...options});
+        const resolveGameDialog=result=>{
+            const resolve=gameDialogResolverRef.current;
+            gameDialogResolverRef.current=null;
+            setGameDialog(null);
+            if(resolve)resolve(result);
+        };
+        const processingTurnRef = useRef(false);
+        const battleSettlementRef = useRef(false);
+
+        const [examResult, setExamResult] = useState(null);
+        const [recruitReveal, setRecruitReveal] = useState(null);
+        const [yearReport, setYearReport] = useState(null); 
+        const [deathEvent, setDeathEvent] = useState(null); 
+        const [retireEvent, setRetireEvent] = useState(null); 
+        const [isTransitioning, setIsTransitioning] = useState(false); 
+        const [showVictoryModal, setShowVictoryModal] = useState(false);
+        const [showHeirSelection, setShowHeirSelection] = useState(false);
+        const [consortVisitTransition, setConsortVisitTransition] = useState(null);
+        const consortVisitProcessingRef = useRef(false);
+        const [showAchievements, setShowAchievements] = useState(false);
+        const [showImportModal, setShowImportModal] = useState(false);
+        const [showSystemSettings, setShowSystemSettings] = useState(false);
+        const [showRestartConfirm, setShowRestartConfirm] = useState(false);
+        const [bureauTab, setBureauTab] = useState('TREE');
+        const [showReleaseNotes, setShowReleaseNotes] = useState(false);
+        const [showGameManual, setShowGameManual] = useState(false);
+        const [manualTab, setManualTab] = useState('PALACE');
+        const [showPalaceCases, setShowPalaceCases] = useState(false);
+        const [showMinisterArchive,setShowMinisterArchive] = useState(false);
+        const [ministerArchiveFilter,setMinisterArchiveFilter] = useState('all');
+        const [ministerSortKey,setMinisterSortKey] = useState('default');
+        const [ministerSortDirection,setMinisterSortDirection] = useState('desc');
+        const [ministerTab,setMinisterTab] = useState('APPOINTMENTS');
+        const [ministerSearch,setMinisterSearch] = useState('');
+        const [ministerTypeFilter,setMinisterTypeFilter] = useState('all');
+        const [ministerStatusFilter,setMinisterStatusFilter] = useState('all');
+        const [selectedMinisterIds,setSelectedMinisterIds] = useState([]);
+        const [ministerDetailId,setMinisterDetailId] = useState(null);
+        const [marriageDialog,setMarriageDialog] = useState(null);
+        const [selectedCorruptionCaseId,setSelectedCorruptionCaseId] = useState(null);
+        const [academyBatchOpen,setAcademyBatchOpen]=useState(false);
+        const [academyBatchIds,setAcademyBatchIds]=useState([]);
+        const [showBeautyRegistry,setShowBeautyRegistry]=useState(false);
+        const [schoolTrainingCount,setSchoolTrainingCount]=useState('5');
+        const [selectedRoyalChildIds,setSelectedRoyalChildIds]=useState([]);
+        const [imperialStudyCourse,setImperialStudyCourse]=useState('civil');
+        const [editingRoyalChildId, setEditingRoyalChildId] = useState(null);
+        const [draftRoyalChildName, setDraftRoyalChildName] = useState('');
+        const [royalNamingError, setRoyalNamingError] = useState('');
+        const successionInProgressRef = useRef(false); 
+        
+        // Google Sheets 共用世界排行榜
+        const [showLeaderboard, setShowLeaderboard] = useState(false);
+        const [leaderboardData, setLeaderboardData] = useState([]);
+        const [leaderboardMine, setLeaderboardMine] = useState({});
+        const [leaderboardTab, setLeaderboardTab] = useState('WORLD'); 
+        const [leaderboardExpandedId,setLeaderboardExpandedId] = useState(null);
+        const [isLeaderboardLoading, setIsLeaderboardLoading] = useState(false);
+        const [leaderboardError, setLeaderboardError] = useState('');
+
+        // Google OAuth2 授權碼登入與五槽雲端存檔；Session Token 僅保存在目前分頁。
+        const [showCloudPanel, setShowCloudPanel] = useState(false);
+        const [cloudConfig, setCloudConfig] = useState({enabled:false, oauthReady:false, maxSlots:5, loading:true});
+        const [cloudToken, setCloudToken] = useState('');
+        const [cloudUser, setCloudUser] = useState(null);
+        const [cloudLoginState, setCloudLoginState] = useState(()=>{try{return sessionStorage.getItem('qing_cloud_oauth_state')||'';}catch(error){return '';}});
+        const [cloudAuthUrl, setCloudAuthUrl] = useState('');
+        const [cloudSlots, setCloudSlots] = useState(Array.from({length:5},(_,index)=>({slot:index+1,empty:true})));
+        const [cloudSlot, setCloudSlot] = useState(null);
+        const [cloudRevision, setCloudRevision] = useState(0);
+        const [cloudName, setCloudName] = useState('');
+        const [cloudBusy, setCloudBusy] = useState(false);
+        const [cloudStatus, setCloudStatus] = useState('遊客模式');
+        const [cloudSavedAt, setCloudSavedAt] = useState('');
+        const [pendingCloudNewGameSlot, setPendingCloudNewGameSlot] = useState(null);
+        const [appBooting,setAppBooting]=useState(true);
+        const [cloudSessionChecking,setCloudSessionChecking]=useState(false);
+        const [cloudBinding,setCloudBinding]=useState(()=>initialCloudBinding&&initialSave?.gameState?.gameId===initialCloudBinding.gameId?initialCloudBinding:null);
+        const [cloudGuard,setCloudGuard]=useState(()=>initialCloudBinding&&initialSave?.gameState?.gameId===initialCloudBinding.gameId?{
+            type:'login',message:'這是已連結雲端槽位的遊戲。請登入原本的 Google 帳號，核對雲端版本後才能繼續。'}:null);
+        const cloudLatestRef = useRef({isGameStarted,gameState,logs});
+        const cloudContextRef = useRef({token:'',slot:null,revision:0,name:''});
+        const cloudDirtyRef = useRef(false);
+        const cloudTimerRef = useRef(null);
+        const cloudWritingRef = useRef(false);
+        const cloudPauseRef = useRef(false);
+        const cloudGenerationRef = useRef(0);
+        const cloudSyncRef = useRef(null);
+        const cloudSyncBlockedRef = useRef(false);
+        const cloudSessionCheckRef=useRef(null);
+        const cloudSessionCheckBusyRef=useRef(false);
+        const saveCloudBinding=binding=>{setCloudBinding(binding);writeCloudBinding(binding);};
+        const clearCloudBinding=()=>{setCloudBinding(null);writeCloudBinding(null);};
+        const pauseForCloudError=error=>{
+            const message=error?.message||'雲端操作失敗';
+            const binding=readCloudBinding();
+            if(!isGameStarted||!binding||binding.gameId!==gameState.gameId)return message;
+            const authError=/登入.*(?:逾期|無效|登出)|重新登入/.test(message);
+            const conflict=!!error?.conflict||message.includes('CONFLICT');
+            saveCloudBinding({...binding,dirty:true});cloudDirtyRef.current=true;cloudSyncBlockedRef.current=true;
+            setCloudGuard({type:authError?'login':conflict?'conflict':'sync',message:authError?'Google 登入已逾期或失效。遊戲已暫停，請重新登入原帳號後同步。':conflict?'雲端已有較新的版本，系統已停止覆寫。請先下載本機備份，再檢查並讀取雲端槽位。':`雲端連線失敗，遊戲已暫停以避免本機與雲端進度分岔。\n\n${message}`});
+            if(authError){setCloudToken('');setCloudUser(null);try{sessionStorage.removeItem('qing_cloud_session');}catch(ignore){}}
+            return message;
+        };
+        const restoreCloudBinding=(result,token)=>{
+            let binding=readCloudBinding();
+            if(!binding&&isGameStarted&&gameState.gameId){
+                const legacyMatches=(result.slots||[]).filter(item=>String(item.gameId)===String(gameState.gameId));
+                if(legacyMatches.length===1){
+                    const slot=legacyMatches[0];
+                    binding={userId:result.user?.id,slot:Number(slot.slot),revision:Number(slot.revision)||0,name:slot.name||'',gameId:gameState.gameId,dirty:false};
+                    saveCloudBinding(binding);
+                }else if(legacyMatches.length>1){
+                    setCloudGuard({type:'conflict',message:'這份舊版本機進度同時出現在多個雲端槽位，無法安全判斷原本連結。請先下載本機備份，再從雲端面板選擇正確槽位讀取。'});
+                    setCloudStatus('舊版槽位連結待確認・遊戲已暫停');
+                    return true;
+                }
+            }
+            if(!binding||binding.gameId!==gameState.gameId)return false;
+            saveCloudBinding(binding);
+            if(!isGameStarted)return false;
+            if(String(result.user?.id)!==String(binding.userId)){
+                setCloudGuard({type:'login',message:'目前登入的 Google 帳號不是這局雲端存檔原本綁定的帳號。請登出後改用原帳號登入。'});
+                setCloudStatus('帳號不符・遊戲已暫停');
+                return true;
+            }
+            const slot=(result.slots||[]).find(item=>Number(item.slot)===Number(binding.slot));
+            if(!slot||String(slot.gameId)!==String(binding.gameId)){
+                setCloudGuard({type:'conflict',message:'原本綁定的雲端槽位已不存在，或已被另一局遊戲取代。系統不會自動覆蓋，請先下載本機備份並檢查槽位。'});
+                setCloudStatus('雲端槽位不符・遊戲已暫停');
+                return true;
+            }
+            setCloudSlot(Number(slot.slot));setCloudRevision(Number(slot.revision)||0);setCloudName(slot.name||binding.name||'');setCloudSavedAt(slot.updatedAt||'');
+            cloudContextRef.current={token,slot:Number(slot.slot),revision:Number(slot.revision)||0,name:slot.name||binding.name||''};
+            cloudDirtyRef.current=!!binding.dirty;
+            const remoteNewer=Number(slot.revision)>Number(binding.revision||0);
+            if(remoteNewer){
+                cloudSyncBlockedRef.current=true;
+                setCloudGuard({type:'conflict',message:'雲端槽位已有較新的版本。為避免覆蓋其他裝置的進度，請先下載本機備份，再從雲端槽位重新讀取。'});
+                setCloudStatus('雲端版本衝突・遊戲已暫停');
+            }else if(binding.dirty){
+                cloudSyncBlockedRef.current=true;
+                setCloudGuard({type:'sync',message:'這局遊戲仍有尚未同步的本機進度。請先重新同步，成功後才能繼續。'});
+                setCloudStatus('尚有未同步進度・遊戲已暫停');
+            }else{
+                cloudSyncBlockedRef.current=false;setCloudGuard(null);setCloudStatus(`已連結：槽位 ${slot.slot}`);
+            }
+            return true;
+        };
+
+        useEffect(() => {
+            let active = true;
+            (async()=>{
+                try{
+                    const config=await qingCloudGas('getCloudPublicConfig');
+                    if(!active)return;
+                    setCloudConfig({...config,enabled:!!config?.oauthReady,loading:false});
+                    let session='';
+                    try{session=sessionStorage.getItem('qing_cloud_session')||'';}catch(error){}
+                    if(session){
+                        try{
+                            const result=await refreshCloudSlots(session);
+                            if(!active)return;
+                            setCloudToken(session);setCloudUser(result.user||null);
+                            if(!restoreCloudBinding(result,session))setCloudStatus(`已登入：${result.user?.name||'Google 玩家'}`);
+                        }catch(error){
+                            try{sessionStorage.removeItem('qing_cloud_session');}catch(ignore){}
+                            if(readCloudBinding())setCloudGuard({type:'login',message:'Google 登入已逾期或失效。這局雲端遊戲已暫停，請重新登入原帳號。'});
+                        }
+                    }
+                }catch(error){
+                    if(active){setCloudConfig({enabled:false,oauthReady:false,maxSlots:5,loading:false,error:error.message});setCloudStatus('雲端設定未完成');}
+                }finally{if(active)setAppBooting(false);}
+            })();
+            return () => { active=false; };
+        }, []);
+
+        useEffect(() => {
+            cloudContextRef.current={token:cloudToken,slot:cloudSlot,revision:cloudRevision,name:cloudName};
+        },[cloudToken,cloudSlot,cloudRevision,cloudName]);
+
+        useEffect(() => {
+            cloudLatestRef.current={isGameStarted,gameState,logs};
+            const context=cloudContextRef.current;
+            if(!context.token||!context.slot||!isGameStarted||!gameState.gameId||cloudPauseRef.current)return;
+            cloudGenerationRef.current+=1;
+            cloudDirtyRef.current=true;
+            if(cloudBinding&&cloudBinding.gameId===gameState.gameId)saveCloudBinding({...cloudBinding,dirty:true});
+            if(cloudTimerRef.current)clearTimeout(cloudTimerRef.current);
+            cloudTimerRef.current=setTimeout(()=>{cloudTimerRef.current=null;cloudSyncRef.current?.(false);},4000);
+            return ()=>{if(cloudTimerRef.current)clearTimeout(cloudTimerRef.current);};
+        },[isGameStarted,gameState,logs]);
+
+        // 每次國庫或人數改變都立即保存峰值，避免同一年內先增加、後減少而遺失紀錄。
+        useEffect(() => {
+            setGameState(previous => withLeaderboardPeaks(previous));
+        }, [gameState.treasury, gameState.consorts?.length, gameState.childrenList?.length]);
+        
+        const [activeTutorial, setActiveTutorial] = useState('INTRO'); 
+        const [viewedTutorials, setViewedTutorials] = useState([]);
+
+        const namingQueue=gameState.pendingBabyNames||[];
+        const birthNaming=namingQueue[0]||null;
+        const namingRoyalId=birthNaming?.royalId||editingRoyalChildId;
+        const namingMember=namingRoyalId?(gameState.royalFamily||[]).find(r=>String(r.id)===String(namingRoyalId)):null;
+        useEffect(()=>{
+            if(birthNaming) setDraftRoyalChildName(birthNaming.suggestedName||'');
+            else if(editingRoyalChildId) setDraftRoyalChildName(
+                (gameState.childrenList||[]).find(c=>String(c.royalId||royalIdOf(c,gameState))===String(editingRoyalChildId))?.name || '');
+            setRoyalNamingError('');
+        },[birthNaming?.id,editingRoyalChildId]); 
+
+        const lastEnergyRef = useRef(gameState.energy);
+        useEffect(() => {
+            const oldValue = lastEnergyRef.current;
+            lastEnergyRef.current = gameState.energy;
+            if (isGameStarted && oldValue > 20 && gameState.energy <= 20 && gameState.energy >= 0) {
+                setNotifications(prev => [...prev, {title: '⚡ 龍體疲憊', text: `目前體力僅剩 ${gameState.energy}！請注意休息，可結束本年恢復體力。`}]);
+            }
+        }, [gameState.energy, isGameStarted]);
+        // 健康可能在微服私訪、事件、年度結算中改變；上限縮減時立即修正剩餘體力。
+        useEffect(() => {
+            const cap = getMaxEnergy(gameState.health);
+            if (gameState.energy > cap) {
+                setGameState(prev => {
+                    const currentCap = getMaxEnergy(prev.health);
+                    return prev.energy > currentCap ? {...prev, energy: currentCap} : prev;
+                });
+            }
+        }, [gameState.health, gameState.energy]);
+        const dangerousMinisters = gameState.ministers.filter(m => m.loyalty < 20);
+        const dangerousConsorts = gameState.consorts.filter(c => c.affection < 20 && !c.inColdPalace);
+
+        const createFreshGame = (eraName, playerName) => {
+            const gameId = royalNewId('run');
+            const finalEraName = String(eraName||'').trim() || generateRandomEraName();
+            const finalPlayerName = String(playerName||'').trim() || generateRandomEmperorName();
+            const base = JSON.parse(JSON.stringify(INITIAL_STATE));
+            const state = normalizeRoyalState({
+                ...base, gameId, currentEmperorId: `emperor_${gameId}`,
+                consorts:(base.consorts||[]).map(makeConsort),
+                dynastyId: `dynasty_${gameId}`, accessionAge: 16,
+                eraName: finalEraName,
+                playerName: finalPlayerName,
+                corruptionRate: DEFAULT_CORRUPTION_RATE,
+                unlockedAchievements: [],
+                unificationGameId: null, unificationYear: null, unificationAttributionUnknown: false
+            });
+            const firstLog=`奉天承運，皇帝詔曰：朕繼承大統，改元${finalEraName}，定名${finalPlayerName}。`;
+            return {state,logs:[firstLog]};
+        };
+
+        const handleStartGame = async (eraName, playerName) => {
+            const fresh=createFreshGame(eraName,playerName);
+            const targetSlot=Number(pendingCloudNewGameSlot)||null;
+            cloudPauseRef.current=true;
+            if(targetSlot){
+                const previousSave=readAutoSave(),previousBinding=readCloudBinding();
+                if(!cloudToken){
+                    if(previousSave){setGameState(previousSave.gameState);setLogs(previousSave.logs);setIsGameStarted(true);}
+                    if(previousBinding)setCloudGuard({type:'login',message:'Google登入已失效，未建立新的雲端遊戲。請重新登入原帳號後再操作。'});
+                    setCloudStatus('需要重新登入・未建立新遊戲');setPendingCloudNewGameSlot(null);cloudPauseRef.current=false;
+                    return;
+                }
+                const payload={version:2,savedAt:Date.now(),gameState:cleanGameStateForSave(fresh.state),logs:fresh.logs};
+                const saveName=`${fresh.state.eraName}・${fresh.state.playerName}`.slice(0,40);
+                setCloudBusy(true);
+                try{
+                    const saved=await qingCloudGas('saveCloudGame',cloudToken,targetSlot,saveName,payload,0);
+                    cloudSyncBlockedRef.current=false;setCloudGuard(null);clearCloudBinding();
+                    setGameState(fresh.state);setLogs(fresh.logs);setCurrentView('THRONE');setShowSystemSettings(false);setIsGameStarted(true);
+                    setCloudSlot(targetSlot);setCloudRevision(saved.revision);setCloudName(saved.name);setCloudSavedAt(saved.updatedAt||'');
+                    saveCloudBinding({userId:cloudUser?.id,slot:targetSlot,revision:saved.revision,name:saved.name,gameId:fresh.state.gameId,dirty:false});
+                    cloudDirtyRef.current=false;setCloudStatus(`已連結：槽位 ${targetSlot}`);
+                    await refreshCloudSlots(cloudToken);
+                    showMessage(`新遊戲已建立於雲端槽位 ${targetSlot}`,'success');
+                }catch(error){
+                    if(previousSave){setGameState(previousSave.gameState);setLogs(previousSave.logs);setIsGameStarted(true);}
+                    if(previousBinding)setCloudGuard({type:'login',message:'雲端新遊戲建立失敗，系統已保留並恢復原本的遊戲；請核對登入與槽位後再試。'});
+                    setCloudStatus('雲端建立失敗・原遊戲已保留');
+                    showMessage(`${error.message||'雲端槽位建立失敗'}；未切換或建立本機新遊戲`,'error');
+                }finally{
+                    setCloudBusy(false);setPendingCloudNewGameSlot(null);cloudPauseRef.current=false;
+                }
+            }else{
+                cloudSyncBlockedRef.current=false;setCloudGuard(null);clearCloudBinding();
+                setCloudSlot(null);setCloudRevision(0);setCloudName('');setCloudSavedAt('');cloudDirtyRef.current=false;
+                setCloudStatus(cloudUser?`已登入：${cloudUser.name||cloudUser.email||'Google 玩家'}`:'遊客模式');
+                setGameState(fresh.state);setLogs(fresh.logs);setCurrentView('THRONE');setShowSystemSettings(false);setIsGameStarted(true);
+                setPendingCloudNewGameSlot(null);
+                setTimeout(()=>{cloudPauseRef.current=false;},100);
+            }
+        };
+
+        const showMessage = (msg, type = 'error') => { setFeedbackMessage({ text: msg, type }); setTimeout(() => setFeedbackMessage(null), 3000); };
+
+        const copyToClipboard = async (value) => {
+            // GAS iframe 中 navigator.clipboard 不一定可用，因此保留傳統複製後備。
+            try {
+                if (navigator.clipboard?.writeText) {
+                    await navigator.clipboard.writeText(value);
+                    return true;
+                }
+            } catch (error) { console.warn('剪貼簿 API 無法使用：', error); }
+            const el = document.createElement('textarea');
+            el.value = value;
+            el.style.position = 'fixed';
+            el.style.left = '-9999px';
+            document.body.appendChild(el);
+            el.focus();
+            el.select();
+            let copied = false;
+            try { copied = document.execCommand('copy'); }
+            catch (error) { console.warn('傳統複製失敗：', error); }
+            document.body.removeChild(el);
+            return copied;
+        };
+        const downloadBackup = (content, filename) => {
+            const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            setTimeout(() => URL.revokeObjectURL(url), 3000);
+        };
+
+        // 每次遊戲數據或起居注變更後立即寫入本機，重新開啟網頁自動恢復。
+        // 不使用 debounce：避免使用者操作後立刻關閉分頁而遺失最後一次操作。
+        const [autoSaveStatus, setAutoSaveStatus] = useState(initialSave ? '已恢復上次進度' : '待開始遊戲');
+        useEffect(() => {
+            if (!isGameStarted || !gameState.gameId) return;
+            try {
+                const payload = {
+                    version: 2,
+                    savedAt: Date.now(),
+                    gameState: cleanGameStateForSave(normalizeRoyalState(gameState)),
+                    logs
+                };
+                localStorage.setItem(QING_SAVE_KEY, JSON.stringify(payload));
+                setAutoSaveStatus('已自動存檔');
+            } catch (error) {
+                console.error('即時存檔失敗：', error);
+                setAutoSaveStatus('自動存檔失敗');
+            }
+        }, [isGameStarted, gameState, logs]);
+
+        const handleSave = () => {
+            try {
+                localStorage.setItem(QING_SAVE_KEY, JSON.stringify({
+                    version: 2, savedAt: Date.now(),
+                    gameState: cleanGameStateForSave(normalizeRoyalState(gameState)), logs
+                }));
+                setAutoSaveStatus('已自動存檔');
+                showMessage('目前進度已儲存！', 'success');
+            } catch (err) { console.error(err); showMessage('儲存失敗，請檢查瀏覽器儲存空間', 'error'); }
+        };
+
+        const handleLoad = () => {
+            const saved = readAutoSave();
+            if (!saved) { showMessage('目前沒有可讀取的本機存檔', 'error'); return; }
+            const binding=readCloudBinding();
+            const linked=!!binding&&String(binding.gameId)===String(saved.gameState.gameId);
+            cloudPauseRef.current=true;
+            setGameState(saved.gameState);
+            setLogs(saved.logs);
+            setCurrentView('THRONE');
+            setCurrentEvent(null);
+            setShowVictoryModal(false);
+            setShowHeirSelection(false);
+            setShowSystemSettings(false);
+            if(linked){
+                saveCloudBinding(binding);setCloudSlot(Number(binding.slot));setCloudRevision(Number(binding.revision)||0);setCloudName(binding.name||'');cloudDirtyRef.current=!!binding.dirty;
+                const slot=(cloudSlots||[]).find(item=>Number(item.slot)===Number(binding.slot));
+                if(!cloudToken||String(cloudUser?.id)!==String(binding.userId)){
+                    setCloudGuard({type:'login',message:'這份本機進度已連結雲端槽位。請登入原本的 Google 帳號並核對版本後再繼續。'});setCloudStatus('需要重新登入・遊戲已暫停');
+                }else if(!slot||String(slot.gameId)!==String(binding.gameId)||Number(slot.revision)>Number(binding.revision||0)){
+                    setCloudGuard({type:'conflict',message:'雲端槽位不存在、已被取代或已有較新版本。請先下載本機備份，再檢查並讀取雲端槽位。'});setCloudStatus('雲端版本待核對・遊戲已暫停');
+                }else if(binding.dirty){
+                    setCloudGuard({type:'sync',message:'本機存檔含有尚未同步的進度。請先重新同步，成功後才能繼續。'});setCloudStatus('尚有未同步進度・遊戲已暫停');
+                }else{setCloudGuard(null);setCloudStatus(`已連結：槽位 ${binding.slot}`);}
+            }else{
+                clearCloudBinding();setCloudGuard(null);setCloudSlot(null);setCloudRevision(0);setCloudName('');setCloudSavedAt('');cloudDirtyRef.current=false;
+                setCloudStatus(cloudUser?`已登入：${cloudUser.name||cloudUser.email||'Google 玩家'}`:'遊客模式');
+            }
+            setIsGameStarted(true);
+            setTimeout(()=>{cloudPauseRef.current=false;},150);
+            showMessage('已恢復最近一次自動存檔', 'success');
+        };
+
+        const makeSavePayload = () => ({
+            version: 2,
+            savedAt: Date.now(),
+            gameState: cleanGameStateForSave(normalizeRoyalState(gameState)),
+            logs
+        });
+
+        const refreshCloudSlots = async (token = cloudToken) => {
+            if(!token)throw new Error('請先登入 Google 帳號。');
+            try{
+                const result=await qingCloudGas('listCloudSaves',token);
+                setCloudUser(result.user||null);
+                const bySlot=new Map((Array.isArray(result.slots)?result.slots:[]).map(item=>[Number(item.slot),item]));
+                setCloudSlots(Array.from({length:Number(cloudConfig.maxSlots)||5},(_,index)=>bySlot.get(index+1)||{slot:index+1,empty:true}));
+                return result;
+            }catch(error){pauseForCloudError(error);throw error;}
+        };
+
+        const validateBoundCloudSession=async()=>{
+            const binding=readCloudBinding();
+            if(!isGameStarted||!binding||String(binding.gameId)!==String(gameState.gameId))return true;
+            if(cloudSessionCheckBusyRef.current)return false;
+            if(!cloudToken){
+                setCloudGuard({type:'login',message:'這局遊戲已連結雲端，但目前沒有有效登入。請重新登入原帳號並核對槽位後繼續。'});
+                setCloudStatus('需要重新登入・遊戲已暫停');
+                return false;
+            }
+            cloudSessionCheckBusyRef.current=true;setCloudSessionChecking(true);
+            try{
+                const result=await refreshCloudSlots(cloudToken);
+                const guarded=restoreCloudBinding(result,cloudToken);
+                return guarded&&!cloudSyncBlockedRef.current;
+            }catch(error){return false;}
+            finally{cloudSessionCheckBusyRef.current=false;setCloudSessionChecking(false);}
+        };
+        cloudSessionCheckRef.current=validateBoundCloudSession;
+        useEffect(()=>{
+            const check=()=>{if(document.visibilityState==='visible')cloudSessionCheckRef.current?.();};
+            window.addEventListener('focus',check);
+            document.addEventListener('visibilitychange',check);
+            return ()=>{window.removeEventListener('focus',check);document.removeEventListener('visibilitychange',check);};
+        },[]);
+
+        const beginCloudLogin = async () => {
+            const popup=window.open('about:blank','qing_google_login','popup,width=520,height=720');
+            setCloudBusy(true);
+            setCloudStatus('正在建立 Google 授權…');
+            try{
+                const result=await qingCloudGas('getGoogleAuthUrl');
+                setCloudLoginState(result.state);
+                setCloudAuthUrl(result.url);
+                try{sessionStorage.setItem('qing_cloud_oauth_state',result.state);}catch(error){}
+                if(popup)popup.location.href=result.url;
+                else showMessage('瀏覽器阻擋了登入視窗，請按面板中的「重新開啟 Google 授權」','error');
+                setCloudStatus('等待 Google 授權完成');
+            }catch(error){
+                if(popup)popup.close();
+                setCloudStatus('登入啟動失敗');showMessage(error.message||'無法開啟 Google 登入','error');
+            }finally{setCloudBusy(false);}
+        };
+
+        const completeCloudLogin = async () => {
+            if(!cloudLoginState){showMessage('請先按「使用 Google 帳號登入」完成授權','error');return;}
+            setCloudBusy(true);setCloudStatus('正在完成 Google 登入…');
+            try{
+                const handoff=await qingCloudGas('consumeCloudLoginHandoff',cloudLoginState);
+                const result=await refreshCloudSlots(handoff.sessionToken);
+                setCloudToken(handoff.sessionToken);setCloudUser(result.user||null);setCloudLoginState('');setCloudAuthUrl('');
+                try{sessionStorage.setItem('qing_cloud_session',handoff.sessionToken);sessionStorage.removeItem('qing_cloud_oauth_state');}catch(error){}
+                if(!restoreCloudBinding(result,handoff.sessionToken))setCloudStatus(`已登入：${result.user?.name||'Google 玩家'}`);
+                showMessage('Google 帳號登入成功','success');
+            }catch(error){setCloudStatus('尚未取得登入結果');showMessage(error.message||'Google 登入尚未完成','error');}
+            finally{setCloudBusy(false);}
+        };
+
+        const cloudLogout = async () => {
+            const storedBinding=readCloudBinding();
+            const activeBoundGame=!!isGameStarted&&storedBinding?.gameId===gameState.gameId;
+            const activeLinkedGame=activeBoundGame&&Number(cloudSlot)===Number(storedBinding.slot)&&String(cloudUser?.id)===String(storedBinding.userId);
+            if(!await requestGameConfirm(activeLinkedGame?'系統會先把目前進度同步至雲端；同步成功後才會登出並返回開始頁面。確定登出嗎？':'確定登出目前的 Google 帳號嗎？',{title:'登出 Google 帳號'}))return;
+            if(cloudTimerRef.current)clearTimeout(cloudTimerRef.current);
+            const token=cloudToken;
+            setCloudBusy(true);
+            if(activeLinkedGame){
+                const synced=await cloudSync(true);
+                if(!synced){setCloudBusy(false);showMessage('雲端同步未完成，已取消登出。請先排除同步問題。','error');return;}
+            }
+            if(token){try{await qingCloudGas('logoutCloudSession',token);}catch(error){setCloudBusy(false);showMessage('登出連線失敗，帳號與遊戲仍保持登入。','error');return;}}
+            setCloudToken('');setCloudUser(null);setCloudSlot(null);setCloudRevision(0);setCloudName('');setCloudSavedAt('');
+            setCloudSlots(Array.from({length:5},(_,index)=>({slot:index+1,empty:true})));
+            cloudDirtyRef.current=false;cloudContextRef.current={token:'',slot:null,revision:0,name:''};
+            setCloudStatus('遊客模式');
+            try{sessionStorage.removeItem('qing_cloud_session');sessionStorage.removeItem('qing_cloud_oauth_state');}catch(error){}
+            setCloudLoginState('');setCloudAuthUrl('');setCloudBusy(false);setShowCloudPanel(false);
+            if(activeLinkedGame){setCloudGuard(null);setIsGameStarted(false);setCurrentEvent(null);setYearReport(null);}
+            else if(activeBoundGame)setCloudGuard({type:'login',message:'這局遊戲仍綁定原本的雲端帳號。請登入原帳號並核對槽位後才能繼續。'});
+            else setCloudGuard(null);
+        };
+
+        const applyLoadedCloudSave = (loaded,slotRecord) => {
+            const normalized=normalizeLoadedGame(loaded.payload);
+            if(!normalized)throw new Error('雲端存檔格式不完整，未覆蓋目前進度。');
+            cloudPauseRef.current=true;
+            setGameState(normalized.gameState);setLogs(normalized.logs);setIsGameStarted(true);
+            setCurrentView('THRONE');setCurrentEvent(null);setYearReport(null);setShowVictoryModal(false);setShowHeirSelection(false);
+            setCloudSlot(Number(loaded.slot));setCloudRevision(Number(loaded.revision)||0);setCloudName(loaded.name||slotRecord?.name||`雲端存檔 ${loaded.slot}`);
+            setCloudSavedAt(loaded.updatedAt||'');cloudDirtyRef.current=false;
+            saveCloudBinding({userId:cloudUser?.id,slot:Number(loaded.slot),revision:Number(loaded.revision)||0,name:loaded.name||slotRecord?.name||'',gameId:normalized.gameState.gameId,dirty:false});
+            cloudSyncBlockedRef.current=false;setCloudGuard(null);
+            setCloudStatus(`已連結：槽位 ${loaded.slot}`);setShowCloudPanel(false);setShowSystemSettings(false);
+            setTimeout(()=>{cloudPauseRef.current=false;},150);
+        };
+
+        const loadCloudSlot = async slotRecord => {
+            if(!cloudToken||slotRecord?.empty)return;
+            if(isGameStarted&&!await requestGameConfirm(`讀取「${slotRecord.name}」會取代目前畫面中的進度；本機自動存檔仍可在讀取前另行下載備份。確定讀取嗎？`,{title:'讀取雲端存檔'}))return;
+            setCloudBusy(true);
+            try{
+                const loaded=await qingCloudGas('loadCloudSave',cloudToken,slotRecord.slot);
+                applyLoadedCloudSave(loaded,slotRecord);
+                showMessage(`已讀取雲端槽位 ${slotRecord.slot}`,'success');
+            }catch(error){pauseForCloudError(error);showMessage(error.message||'雲端讀取失敗，目前進度未變更','error');}
+            finally{setCloudBusy(false);}
+        };
+
+        const createCloudGame = async slotRecord => {
+            if(!cloudToken||!slotRecord?.empty)return;
+            if(isGameStarted&&!await requestGameConfirm('這會建立一局全新的遊戲並切換到該局；目前進度不會自動寫入這個空白槽。確定繼續嗎？',{title:'建立雲端新遊戲'}))return;
+            if(isGameStarted&&cloudSlot&&!await cloudSync(true)){showMessage('目前雲端進度尚未同步，已取消建立新遊戲。','error');return;}
+            cloudPauseRef.current=true;
+            setPendingCloudNewGameSlot(Number(slotRecord.slot));
+            setShowCloudPanel(false);setShowSystemSettings(false);setIsGameStarted(false);
+        };
+
+        const saveCurrentToCloudSlot = async slotRecord => {
+            if(!cloudToken||!slotRecord?.empty||!isGameStarted||!gameState.gameId)return;
+            const binding=readCloudBinding();
+            if(binding&&String(binding.gameId)===String(gameState.gameId)){showMessage('目前遊戲已連結雲端槽位，不能另存成第二份雲端檔案。','error');return;}
+            const saveName=`${gameState.eraName||'本朝'}・${gameState.playerName||'皇帝'}`.slice(0,40);
+            setCloudBusy(true);
+            try{
+                const saved=await qingCloudGas('saveCloudGame',cloudToken,slotRecord.slot,saveName,makeSavePayload(),0);
+                setCloudSlot(slotRecord.slot);setCloudRevision(saved.revision);setCloudName(saved.name);setCloudSavedAt(saved.updatedAt||'');
+                saveCloudBinding({userId:cloudUser?.id,slot:Number(slotRecord.slot),revision:saved.revision,name:saved.name,gameId:gameState.gameId,dirty:false});
+                cloudDirtyRef.current=false;setCloudStatus(`已連結：槽位 ${slotRecord.slot}`);
+                await refreshCloudSlots(cloudToken);
+                showMessage(`目前進度已建立於雲端槽位 ${slotRecord.slot}`,'success');
+            }catch(error){showMessage(error.message||'建立雲端存檔失敗','error');}
+            finally{setCloudBusy(false);}
+        };
+
+        const cloudSync = async (force=false) => {
+            const context=cloudContextRef.current;
+            const latest=cloudLatestRef.current;
+            if(!context.token||!context.slot||!latest.isGameStarted||!latest.gameState?.gameId)return false;
+            if(!force&&!cloudDirtyRef.current)return true;
+            if(cloudWritingRef.current){cloudDirtyRef.current=true;return false;}
+            const generation=cloudGenerationRef.current;
+            let succeeded=false;
+            cloudWritingRef.current=true;setCloudStatus(`同步槽位 ${context.slot}…`);
+            const payload={version:2,savedAt:Date.now(),gameState:cleanGameStateForSave(normalizeRoyalState(latest.gameState)),logs:latest.logs};
+            try{
+                const expectedGameId=readCloudBinding()?.gameId||latest.gameState.gameId;
+                const saved=await qingCloudGas('saveCloudGame',context.token,context.slot,context.name,payload,context.revision,expectedGameId);
+                cloudContextRef.current={...context,revision:saved.revision,name:saved.name};
+                setCloudRevision(saved.revision);setCloudName(saved.name);setCloudSavedAt(saved.updatedAt||'');
+                setCloudSlots(previous=>previous.map(item=>Number(item.slot)===Number(context.slot)?{
+                    ...item,empty:false,name:saved.name,revision:saved.revision,updatedAt:saved.updatedAt,...(saved.summary||{})
+                }:item));
+                const stillDirty=generation!==cloudGenerationRef.current;
+                if(!stillDirty)cloudDirtyRef.current=false;
+                const previousBinding=readCloudBinding();
+                saveCloudBinding({userId:cloudUser?.id||previousBinding?.userId,slot:Number(context.slot),revision:saved.revision,name:saved.name,gameId:latest.gameState.gameId,dirty:stillDirty});
+                cloudSyncBlockedRef.current=false;
+                if(!stillDirty)setCloudGuard(null);
+                setCloudStatus(`已同步：槽位 ${context.slot}`);
+                succeeded=true;
+            }catch(error){
+                cloudDirtyRef.current=true;
+                const message=error.message||'雲端同步失敗';
+                const previousBinding=readCloudBinding();
+                if(previousBinding)saveCloudBinding({...previousBinding,dirty:true});
+                const authError=/登入.*(?:逾期|無效|登出)|重新登入/.test(message);
+                const conflict=!!error.conflict||message.includes('CONFLICT');
+                cloudSyncBlockedRef.current=true;
+                setCloudGuard({type:authError?'login':conflict?'conflict':'sync',message:authError?'Google 登入已逾期或失效。遊戲已暫停，請重新登入原帳號後同步。':conflict?'雲端已有較新的版本，系統已停止覆寫。請先下載本機備份，再檢查並讀取雲端槽位。':`雲端同步失敗，遊戲已暫停以避免本機與雲端進度分岔。\n\n${message}`});
+                setCloudStatus(conflict?'雲端版本衝突・遊戲已暫停':authError?'登入失效・遊戲已暫停':'同步失敗・遊戲已暫停');
+                if(authError){setCloudToken('');setCloudUser(null);try{sessionStorage.removeItem('qing_cloud_session');}catch(ignore){}}
+                showMessage(message,'error');
+            }finally{
+                cloudWritingRef.current=false;
+                if(cloudDirtyRef.current&&!cloudSyncBlockedRef.current&&!cloudTimerRef.current)cloudTimerRef.current=setTimeout(()=>{cloudTimerRef.current=null;cloudSyncRef.current?.(false);},4000);
+            }
+            return succeeded;
+        };
+        cloudSyncRef.current=cloudSync;
+        const retryCloudGuard = async () => {
+            if(!cloudToken){setShowCloudPanel(true);return;}
+            cloudSyncBlockedRef.current=false;setCloudBusy(true);
+            const ok=await cloudSync(true);
+            setCloudBusy(false);
+            if(ok){setCloudGuard(null);showMessage('雲端同步完成，可以繼續遊戲。','success');}
+        };
+        const renameCloudSlot = async slotRecord => {
+            const name=await requestGamePrompt('輸入新的雲端存檔名稱（最多40字）',slotRecord.name||'',{title:'雲端存檔改名',maxLength:40,danger:false});
+            if(name===null)return;
+            setCloudBusy(true);
+            try{
+                const result=await qingCloudGas('renameCloudSave',cloudToken,slotRecord.slot,name,slotRecord.revision);
+                if(Number(cloudSlot)===Number(slotRecord.slot)){setCloudRevision(result.revision);setCloudName(result.name);setCloudSavedAt(result.updatedAt||'');const binding=readCloudBinding();if(binding)saveCloudBinding({...binding,revision:result.revision,name:result.name});}
+                await refreshCloudSlots(cloudToken);showMessage('雲端存檔已改名','success');
+            }catch(error){pauseForCloudError(error);showMessage(error.message||'改名失敗','error');}
+            finally{setCloudBusy(false);}
+        };
+
+        const deleteCloudSlot = async slotRecord => {
+            if(!await requestGameConfirm(`確定刪除槽位 ${slotRecord.slot}「${slotRecord.name}」？此操作無法由遊戲畫面復原。`,{title:'刪除雲端存檔'}))return;
+            setCloudBusy(true);
+            try{
+                await qingCloudGas('deleteCloudSave',cloudToken,slotRecord.slot,slotRecord.revision);
+                if(Number(cloudSlot)===Number(slotRecord.slot)){
+                    setCloudSlot(null);setCloudRevision(0);setCloudName('');setCloudSavedAt('');cloudDirtyRef.current=false;
+                    clearCloudBinding();setCloudGuard(null);cloudSyncBlockedRef.current=false;
+                    setCloudStatus(`已登入：${cloudUser?.name||cloudUser?.email||'Google 玩家'}`);
+                }
+                await refreshCloudSlots(cloudToken);showMessage('雲端槽位已刪除；目前本機進度仍保留','success');
+            }catch(error){pauseForCloudError(error);showMessage(error.message||'刪除失敗','error');}
+            finally{setCloudBusy(false);}
+        };
+        const handleExportSave = async () => {
+            try {
+                const encoded = encodeSaveText(makeSavePayload());
+                const copied = await copyToClipboard(encoded);
+                if (copied) {
+                    showMessage('存檔代碼已複製！建議另外下載備份檔。', 'success');
+                } else {
+                    downloadBackup(encoded, '大清帝國模擬器-存檔代碼.txt');
+                    showMessage('瀏覽器不允許複製，已改成下載存檔代碼 TXT。', 'success');
+                }
+            } catch (error) {
+                console.error('導出失敗', error);
+                showMessage('導出失敗：' + error.message, 'error');
+            }
+        };
+        const handleDownloadBackup = () => {
+            try {
+                const encoded = encodeSaveText(makeSavePayload());
+                downloadBackup(encoded, '大清帝國模擬器-存檔代碼.txt');
+                showMessage('備份檔已下載，可在「代碼讀檔」選取匯入。', 'success');
+            } catch (error) { console.error(error); showMessage('備份下載失敗：' + error.message, 'error'); }
+        };
+        const processImport = (code) => {
+            try {
+                const parsed = decodeSaveText(code);
+                const imported = normalizeLoadedGame(parsed);
+                if (!imported) return {ok: false, error: '找不到有效的 gameState。請使用本遊戲導出的完整存檔，不是排行榜或單一人物資料。'};
+                if (!Array.isArray(imported.gameState.ministers) || !Array.isArray(imported.gameState.provinces)) {
+                    return {ok: false, error: '存檔缺少官員或省份資料，無法安全恢復。'};
+                }
+                // 原本的存檔在成功驗證前絕不覆蓋；React 更新後才由即時存檔保存新資料。
+                cloudPauseRef.current=true;
+                setGameState(imported.gameState);
+                setLogs(imported.logs);
+                setCurrentView('THRONE');
+                setCurrentEvent(null);
+                setYearReport(null);
+                setShowVictoryModal(false);
+                setShowHeirSelection(false);
+                setShowImportModal(false);
+                setShowSystemSettings(false);
+                clearCloudBinding();setCloudGuard(null);cloudSyncBlockedRef.current=false;
+                setCloudSlot(null);setCloudRevision(0);setCloudName('');setCloudSavedAt('');cloudDirtyRef.current=false;
+                setCloudStatus(cloudUser?`已登入：${cloudUser.name||cloudUser.email||'Google 玩家'}`:'遊客模式');
+                setIsGameStarted(true);
+                setAutoSaveStatus('已導入存檔');
+                setTimeout(()=>{cloudPauseRef.current=false;},150);
+                showMessage('代碼讀取成功！已恢復遊戲並啟用即時存檔。', 'success');
+                return {ok: true};
+            } catch (error) {
+                console.error('代碼讀檔失敗：', error);
+                return {ok: false, error: error?.message || '無法讀取存檔，請確認代碼完整。'};
+            }
+        };
+
+        // 世界排行榜：透過 Apps Script 伺服器存取 Google Sheets。
+        const fetchLeaderboard = () => {
+            setShowLeaderboard(true);
+            setIsLeaderboardLoading(true);
+            setLeaderboardError('');
+            if (typeof google === 'undefined' || !google.script || !google.script.run) {
+                setIsLeaderboardLoading(false);
+                setLeaderboardError('請由部署後的 Google Apps Script 網頁開啟遊戲。');
+                return;
+            }
+            google.script.run
+                .withSuccessHandler(result => {
+                    if (!result || !result.ok || !Array.isArray(result.data)) {
+                        setLeaderboardError(result?.error || '排行榜回傳格式不正確');
+                        setLeaderboardData([]);
+                        setLeaderboardMine({});
+                    } else {
+                        setLeaderboardData(result.data);
+                        setLeaderboardMine(result.mine || {});
+                    }
+                    setIsLeaderboardLoading(false);
+                })
+                .withFailureHandler(error => {
+                    setLeaderboardError(error?.message || String(error));
+                    setIsLeaderboardLoading(false);
+                })
+                .getLeaderboard(gameState.gameId || '');
+        };
+
+        const submitScore = (stateToSave = gameState, silent = false, onDone = null) => {
+            if (typeof google === 'undefined' || !google.script || !google.script.run) {
+                if (!silent) showMessage('目前無法連線至世界排行榜', 'error');
+                if (onDone) onDone();
+                return;
+            }
+            try {
+                const currentMaxMinister = peakNonRoyalMinister(stateToSave.ministers);
+                const currentMaxChild = (stateToSave.childrenList || []).reduce((acc, curr) => {
+                    const score = Number(curr.civil || 0) + Number(curr.military || 0);
+                    return score > acc.score ? { name: curr.name, score } : acc;
+                }, { name: '無', score: 0 });
+                const history = stateToSave.statsHistory || {};
+                const minister = historicalNonRoyalMinister(history, currentMaxMinister);
+                const child = history.maxChild?.score >= currentMaxChild.score ? history.maxChild : currentMaxChild;
+                const peaks = leaderboardPeaksOf(stateToSave);
+                const record = {
+                    name: stateToSave.playerName || '無名氏',
+                    years: stateToSave.year,
+                    eraName: stateToSave.eraName || '天命',
+                    maxMinisterScore: minister.score,
+                    maxMinisterName: minister.name,
+                    maxChildScore: child.score,
+                    maxChildName: child.name,
+                    gameId: stateToSave.gameId,
+                    dynastyId: stateToSave.dynastyId || '',
+                    unificationOwnerGameId: stateToSave.unificationGameId ||
+                        (stateToSave.unificationAttributionUnknown ? 'unknown' : ''),
+                    gameWon: !!(stateToSave.unificationGameId &&
+                        stateToSave.unificationGameId === stateToSave.gameId &&
+                        (stateToSave.gameWon || hasConqueredAllEnemies(stateToSave))),
+                    winYears: stateToSave.unificationGameId === stateToSave.gameId
+                        ? (stateToSave.unificationYear || stateToSave.year) : 0,
+                    ...peaks
+                };
+                if (!record.gameId) return;
+                google.script.run
+                    .withSuccessHandler(result => {
+                        if (!result?.ok) {
+                            console.warn('世界排行榜儲存失敗：', result?.error);
+                            if (!silent) showMessage(result?.error || '成績儲存失敗', 'error');
+                            if (onDone) onDone();
+                            return;
+                        }
+                        if (!silent) showMessage('世界排行榜成績已更新！', 'success');
+                        if (onDone) onDone();
+                        else if (showLeaderboard) fetchLeaderboard();
+                    })
+                    .withFailureHandler(error => {
+                        console.warn('世界排行榜連線失敗：', error);
+                        if (!silent) showMessage('排行榜儲存失敗：' + (error?.message || error), 'error');
+                        if (onDone) onDone();
+                    })
+                    .submitLeaderboardScore(record);
+            } catch (err) {
+                console.error(err);
+                if (!silent) showMessage('無法提交排行榜', 'error');
+                if (onDone) onDone();
+            }
+        };
+
+        // 舊玩家紀錄遷移：包含舊版 qing_leaderboard 及目前自動存檔。
+        // 僅在雲端確認完成匯入後標記，失敗時下次進入遊戲會重試。
+        const legacyImportRunningRef = useRef(false);
+        useEffect(() => {
+            if (legacyImportRunningRef.current) return;
+            if (typeof google === 'undefined' || !google.script?.run) return;
+            legacyImportRunningRef.current = true;
+            let rawRecords = [];
+            try {
+                const legacy = localStorage.getItem('qing_leaderboard');
+                if (legacy) {
+                    const parsed = JSON.parse(legacy);
+                    if (Array.isArray(parsed)) rawRecords = parsed;
+                }
+            } catch (err) { console.warn('舊排行榜讀取失敗', err); }
+
+            // 兼容舊版缺少 gameId 的成績：用固定內容建立穩定識別碼，避免重複匯入。
+            const legacyId = (record) => {
+                const str = JSON.stringify([record.name, record.eraName, record.years, record.timestamp, record.maxMinisterName, record.maxChildName]);
+                let hash = 2166136261;
+                for (let i = 0; i < str.length; i++) {
+                    hash = Math.imul(hash ^ str.charCodeAt(i), 16777619);
+                }
+                return 'run_legacy_' + (hash >>> 0).toString(16);
+            };
+            const legacyRecords = rawRecords.filter(r => r && typeof r === 'object').map(r => ({
+                gameId: /^run_[A-Za-z0-9_-]{1,80}$/.test(String(r.gameId || '')) ? r.gameId : legacyId(r),
+                name: r.name || r.playerName || '無名氏',
+                eraName: r.eraName || '天命',
+                years: r.years ?? r.year ?? 1,
+                maxMinisterScore: isRoyalChildMinister({name: r.maxMinisterName}) ? 0 : (r.maxMinisterScore || 0),
+                maxMinisterName: isRoyalChildMinister({name: r.maxMinisterName}) ? '無' : (r.maxMinisterName || '無'),
+                maxChildScore: r.maxChildScore || 0,
+                maxChildName: r.maxChildName || '無',
+                gameWon: r.gameWon === true || r.gameWon === 'true',
+                winYears: r.winYears || r.unificationYear || 0,
+                dynastyId: r.dynastyId || '',
+                unificationOwnerGameId: r.unificationOwnerGameId || '',
+                maxTreasury: r.maxTreasury ?? r.treasury ?? 0,
+                maxConsortCount: r.maxConsortCount ?? r.consortCount ?? 0,
+                maxDescendantCount: r.maxDescendantCount ?? r.descendantCount ?? r.childCount ?? 0
+            }));
+            const snapshot = readAutoSave();
+            if (snapshot?.gameState?.gameId) {
+                const st = snapshot.gameState;
+                const peak = (arr) => (arr || []).reduce((best, v) => {
+                    const score = Number(v.civil || 0) + Number(v.military || 0);
+                    return score > best.score ? { score, name: v.name || '無' } : best;
+                }, { score: 0, name: '無' });
+                const minNow = peakNonRoyalMinister(st.ministers), childNow = peak(st.childrenList);
+                const m = historicalNonRoyalMinister(st.statsHistory, minNow);
+                const c = st.statsHistory?.maxChild?.score >= childNow.score ? st.statsHistory.maxChild : childNow;
+                const peaks = leaderboardPeaksOf(st);
+                legacyRecords.push({
+                    gameId: st.gameId, name: st.playerName || '無名氏', eraName: st.eraName || '天命',
+                    years: st.year || 1, maxMinisterScore: m.score || 0, maxMinisterName: m.name || '無',
+                    maxChildScore: c.score || 0, maxChildName: c.name || '無',
+                    dynastyId: st.dynastyId || '',
+                    unificationOwnerGameId: st.unificationGameId || (st.unificationAttributionUnknown ? 'unknown' : ''),
+                    gameWon: !!(st.unificationGameId && st.unificationGameId === st.gameId &&
+                        (st.gameWon || hasConqueredAllEnemies(st))),
+                    winYears: st.unificationGameId === st.gameId ? (st.unificationYear || st.year || 1) : 0,
+                    ...peaks
+                });
+                // 同一個本機王朝的舊記錄如已能辨認原統一者，不得把後代也視為首次統一者。
+                const owner = st.unificationGameId || (st.unificationAttributionUnknown ? 'unknown' : '');
+                const archivedIds = new Set((st.emperorHistory || []).map(h => String(h.gameId || '')));
+                for (const r of legacyRecords) {
+                    if (!owner || !archivedIds.has(String(r.gameId))) continue;
+                    r.dynastyId = st.dynastyId || r.dynastyId;
+                    r.unificationOwnerGameId = owner;
+                    if (r.gameId !== owner) { r.gameWon = false; r.winYears = 0; }
+                    else if (!r.winYears && st.unificationYear) r.winYears = st.unificationYear;
+                }
+            }
+            const pending = [...new Map(legacyRecords.map(r => [r.gameId, r])).values()];
+            if (!pending.length) return;
+            let offset = 0;
+            let fallbackMode = false;
+            // 兼容尚未部署批次匯入函式的舊版 GAS 後端。
+            // 特別注意：google.script.run 的動態方法在呼叫當下可能拋出 TypeError，
+            // withFailureHandler 不會捕捉這種同步錯誤，因此必須 try/catch。
+            const importOneByOne = (batch, index, onDone) => {
+                if (index >= batch.length) { onDone(); return; }
+                try {
+                    google.script.run
+                        .withSuccessHandler(result => {
+                            if (!result?.ok) {
+                                console.warn('舊玩家單筆成績匯入失敗：', result?.error);
+                                return; // 不標記已完成，下一次載入可重試
+                            }
+                            importOneByOne(batch, index + 1, onDone);
+                        })
+                        .withFailureHandler(err => console.warn('舊玩家單筆匯入連線失敗：', err))
+                        .submitLeaderboardScore(batch[index]);
+                } catch (err) {
+                    // 讓遊戲畫面正常渲染，不因後端函式缺失而白屏。
+                    console.warn('舊玩家匯入暫時不可用，不影響遊戲：', err);
+                }
+            };
+            const importNext = () => {
+                if (offset >= pending.length) {
+                    try { localStorage.setItem('qing_leaderboard_migrated_v1', new Date().toISOString()); } catch (ignore) {}
+                    console.info('舊版玩家成績已同步至世界排行榜：', pending.length);
+                    return;
+                }
+                const batch = pending.slice(offset, offset + 200);
+                const advance = () => { offset += batch.length; importNext(); };
+                if (fallbackMode) { importOneByOne(batch, 0, advance); return; }
+                try {
+                    google.script.run
+                        .withSuccessHandler(result => {
+                            if (!result?.ok) {
+                                console.warn('舊玩家紀錄批次匯入失敗，嘗試逐筆備援：', result?.error);
+                                fallbackMode = true;
+                                importOneByOne(batch, 0, advance);
+                                return;
+                            }
+                            advance();
+                        })
+                        .withFailureHandler(err => {
+                            // GAS 舊版本若不認識函式，改為逐筆提交。
+                            console.warn('批次匯入不可用，改以逐筆模式：', err);
+                            fallbackMode = true;
+                            importOneByOne(batch, 0, advance);
+                        })
+                        .importExistingLeaderboardScores(batch);
+                } catch (err) {
+                    console.warn('後端缺少批次匯入函式，改以逐筆模式：', err);
+                    fallbackMode = true;
+                    importOneByOne(batch, 0, advance);
+                }
+            };
+            // 即使雲端服務發生問題，也不能讓 React 初始化中斷。
+            try { importNext(); } catch (err) { console.warn('舊紀錄同步已跳過：', err); }
+        }, []);
+
+        useEffect(() => { if (showVictoryModal) submitScore(gameState, true); }, [showVictoryModal]);
+        useEffect(() => { if (gameState.gameOver && gameState.gameId) submitScore(gameState, true); }, [gameState.gameOver]);
+
+        useEffect(() => {
+            let tutorialKey = null;
+            if (currentView === 'MINISTERS') tutorialKey = 'MINISTERS';
+            else if (currentView === 'PROVINCES') tutorialKey = 'PROVINCES';
+            else if (currentView === 'WAR' || currentView === 'DEFEND') tutorialKey = 'WAR';
+            else if (currentView === 'HAREM') tutorialKey = 'HAREM';
+            else if (currentView === 'SCHOOL') tutorialKey = 'SCHOOL';
+            else if (currentView === 'BUREAU') tutorialKey = 'BUREAU';
+            else if (currentView === 'WORKS') tutorialKey = 'WORKS';
+            else if (currentView === 'ADVENTURE') tutorialKey = 'ADVENTURE';
+            else if (currentView === 'TREASURY') tutorialKey = 'TREASURY';
+
+            if (tutorialKey && !viewedTutorials.includes(tutorialKey)) {
+                setActiveTutorial(tutorialKey);
+                setViewedTutorials(prev => [...prev, tutorialKey]);
+            }
+        }, [currentView, viewedTutorials]);
+
+        useLayoutEffect(() => {
+            const container=logScrollRef.current;
+            if(container&&logWasAtBottomRef.current)container.scrollTop=container.scrollHeight;
+        }, [logs, logExpanded]);
+
+        useEffect(() => { successionInProgressRef.current = false; }, [gameState.gameId]);
+        useEffect(() => {
+          if (gameState.gameOver || successionInProgressRef.current) return;
+          // 年度宮鬥與生產必須結算完畢，才可觸發駕崩、繼位或終局，避免案件人物跨皇帝錯置。
+          if ((gameState.pendingDeathCandidates||[]).length || gameState.pendingPalaceEvent || gameState.pendingBirthSettlement || gameState.pendingAnnualDraft ||
+              (gameState.pendingBabyNames||[]).length || (gameState.pendingHaremNews||[]).length || (gameState.pendingConsortCrises||[]).length || (gameState.pendingConsortIllnesses||[]).length || getPendingRetirementMinisters(gameState).length ||
+              gameState.pendingRetirementPlan || gameState.retirementPreparedYear) return;
+          const allEnemiesDefeated = hasConqueredAllEnemies(gameState);
+          if (allEnemiesDefeated && !gameState.gameWon && !showVictoryModal &&
+              (!gameState.unificationGameId || String(gameState.unificationGameId) === String(gameState.gameId))) {
+              if (currentEvent || currentView === 'MEMORIAL') return; // 戰報關閉後再呈現一統結局
+              setShowVictoryModal(true); return;
+          }
+          if (gameState.health <= 0) {
+              if((Number(gameState.inventory?.revival_pill)||0)>0){
+                  setGameState(previous=>({...previous,pendingDeathCandidates:[...(previous.pendingDeathCandidates||[]),{
+                      id:royalNewId('death'),kind:'emperor',personId:previous.currentEmperorId,name:previous.playerName,cause:'龍體衰竭'
+                  }]}));return;
+              }
+              const candidates = getSuccessionCandidates(gameState);
+              if (candidates.length) {
+                  const designated = candidates.find(c => c.relationship === 'son' && String(c.id) === String(gameState.crownPrinceId));
+                  if (designated) handleSuccession(designated, false);
+                  else setShowHeirSelection(true);
+              } else endGame('崩逝', '龍馭賓天，皇室並無符合資格的皇子或男性宗親，皇統中斷。');
+          } else if (gameState.stability <= 0) endGame('民變', '百姓揭竿而起，紫禁城被攻破。');
+          else if (gameState.treasury < 0) endGame('破產', '國庫耗盡，無力支付軍餉俸祿，大清亡了。');
+          else if (gameState.population <= 0) endGame('人口耗盡', '百姓流離、戶口斷絕，國家失去維繫根基而崩潰。');
+          else if (gameState.provinces.length === 0) endGame('亡國', '我大清疆土盡失。');
+        }, [gameState.health, gameState.stability, gameState.treasury, gameState.population, gameState.provinces, gameState.gameOver,
+            gameState.gameWon, gameState.unificationGameId, gameState.lostProvinces, gameState.childrenList, gameState.royalFamily, gameState.conqueredEnemies,
+            gameState.pendingPalaceEvent, gameState.pendingBirthSettlement, gameState.pendingAnnualDraft,
+            gameState.pendingDeathCandidates,gameState.inventory,
+            gameState.pendingBabyNames, gameState.pendingRetirements, gameState.pendingRetirementPlan, gameState.ministers, gameState.pendingConsortIllnesses,
+            showVictoryModal, currentEvent, currentView]);
+
+        const addLog = (msg) => { setLogs(prev => [...prev, `[${gameState.year}年] ${msg}`].slice(-100)); };
+        const endGame = (reason, detail) => setGameState(p => ({ ...p, gameOver: true, endReason: `${reason}: ${detail}` }));
+
+        // 統一監測新生皇嗣與新妃；新官改寫入起居注，不再逐名阻塞彈窗。
+        const [notifications, setNotifications] = useState([]);
+        const lastPalaceNoteRef = useRef((gameState.palaceChronicle||[]).slice(-1)[0]?.id||null);
+        useEffect(()=>{
+            const note=(gameState.palaceChronicle||[]).slice(-1)[0];
+            if (!note||note.id===lastPalaceNoteRef.current) return;
+            lastPalaceNoteRef.current=note.id;
+            if (note.text.startsWith('【宮女密報】')) setNotifications(q=>[...q,{
+                title:'📜 內廷舊案新線索',text:`${note.text} 可從「內廷案件簿」重新調查。`}]);
+        },[gameState.palaceChronicle]);
+        const previousPeopleRef = useRef({
+            gameId: gameState.gameId,
+            ministers: new Set(gameState.ministers.map(m => String(m.id))),
+            children: new Set(gameState.childrenList.map(c => String(c.id))),
+                consorts: new Set(gameState.consorts.map(c => String(c.id)))
+        });
+        useEffect(() => {
+            const previous = previousPeopleRef.current;
+            const sameRun = previous.gameId === gameState.gameId;
+            const newlyHired = sameRun ? gameState.ministers.filter(m => !previous.ministers.has(String(m.id))) : [];
+            const newborns = sameRun ? gameState.childrenList.filter(c => !previous.children.has(String(c.id))) : [];
+            const newlyAdmitted = sameRun ? gameState.consorts.filter(c => !previous.consorts?.has(String(c.id))) : [];
+            previousPeopleRef.current = {
+                gameId: gameState.gameId,
+                ministers: new Set(gameState.ministers.map(m => String(m.id))),
+                children: new Set(gameState.childrenList.map(c => String(c.id))),
+                consorts: new Set(gameState.consorts.map(c => String(c.id)))
+            };
+            const announcements = [
+                ...newborns.filter(c=>!(gameState.pendingBabyNames||[]).some(q=>String(q.royalId)===String(c.royalId))).map(c => ({title: '🎉 皇室添丁', text: `喜報！${c.motherName || '後宮'}誕下${c.gender === 'male' ? '皇子' : '公主'}「${c.name}」！目前共 ${gameState.childrenList.length} 名子女。`})),
+                ...newlyAdmitted.map(c => ({title: '🌸 新妃入宮', text: `${c.name}已奉旨納入後宮，初封「${c.title || ''}${c.rank}」。目前後宮共 ${gameState.consorts.length} 人。`}))
+            ];
+            if (announcements.length) setNotifications(q => [...q, ...announcements]);
+            if (newlyHired.length) newlyHired.forEach(m => setLogs(q => [...q, `[${gameState.year}年] 【新官入朝】${m.name}（${inferMinisterAge(m, gameState)}歲、文${Math.round(Number(m.civil)||0)}、武${Math.round(Number(m.military)||0)}）`].slice(-100)));
+        }, [gameState.ministers, gameState.childrenList, gameState.consorts, gameState.gameId]);
+
+        useEffect(()=>{
+            if(!isGameStarted || gameState.pendingRetirementPlan)return;
+            setGameState(prev=>syncMinisterCareers(prev));
+        },[isGameStarted,gameState.centralOfficials,gameState.provinces,gameState.warSetup,gameState.ministers.length]);
+
+        // 偵測「原本有人任職，現在空缺」：逐出官員、撤職及其他異動會立即提示。
+        // 初始空缺或剛讀取的舊存檔不跳彈窗，仍可在各介面查看完整待補清單。
+        const previousOpenPostsRef = useRef({
+            gameId: gameState.gameId,
+            keys: new Set(getOpenGovernmentPosts(gameState).map(post => post.key))
+        });
+        useEffect(() => {
+            const before = previousOpenPostsRef.current;
+            const current = getOpenGovernmentPosts(gameState);
+            previousOpenPostsRef.current = {
+                gameId: gameState.gameId,
+                keys: new Set(current.map(post => post.key))
+            };
+            if (!isGameStarted || before.gameId !== gameState.gameId || retireEvent) return;
+            const newlyOpen = current.filter(post => !before.keys.has(post.key));
+            if (!newlyOpen.length) return;
+            const names = newlyOpen.map(post => post.label).join('、');
+            setNotifications(q => [...q, {
+                title: '📜 吏部人事提醒',
+                text: `以下官職已出缺，請重新任命：\n${newlyOpen.map(post => '• ' + post.label).join('\n')}`,
+                posts:newlyOpen
+            }]);
+            setLogs(q => [...q, `[${gameState.year}年] 【官職出缺】${names}，請重新任命。`].slice(-100));
+        }, [gameState.centralOfficials, gameState.provinces, gameState.gameId, isGameStarted, retireEvent]);
+
+        // 老臣同年總覽：所有請退官員可任意點選，確認前不扣銀，確認後一次寫入存檔。
+        const selectRetirementChoice=(ministerId,action)=>{
+            setGameState(prev=>{
+                const plan=prev.pendingRetirementPlan;
+                if(!plan || !plan.ids.some(id=>String(id)===String(ministerId)))return prev;
+                const choices={...(plan.decisions||{}),[String(ministerId)]:action};
+                const expense=Object.values(choices).filter(x=>x==='retain').length*MINISTER_RETENTION_COST;
+                if(expense>prev.treasury) return prev;
+                return {...prev,pendingRetirementPlan:{...plan,decisions:choices}};
+            });
+        };
+        const confirmRetirementChoices=()=>{
+            const plan=gameState.pendingRetirementPlan;
+            if(!plan || plan.ids.some(id=>!plan.decisions?.[String(id)])) {
+                showMessage('請先為每位老臣選擇慰留或准退');return;
+            }
+            const cost=plan.ids.filter(id=>plan.decisions[String(id)]==='retain').length*MINISTER_RETENTION_COST;
+            if(cost>gameState.treasury){showMessage('國庫不足，請減少慰留人數');return;}
+            const retired=[];
+            const latest=syncMinisterCareers(gameState);
+            plan.ids.forEach(id=>{
+                if(plan.decisions[String(id)]==='retire'){
+                    const m=latest.ministers.find(x=>String(x.id)===String(id));
+                    if(m) retired.push(createMinisterArchiveRecord(latest,m,'age',Math.max(70,Number(m.age)+1),latest.year+1));
+                }
+            });
+            setGameState(prev=>{
+                const record=prev.pendingRetirementPlan;
+                if(!record||record.ids.some(id=>!record.decisions?.[String(id)]))return prev;
+                const amount=record.ids.filter(id=>record.decisions[String(id)]==='retain').length*MINISTER_RETENTION_COST;
+                if(prev.treasury<amount)return prev;
+                const base=syncMinisterCareers(prev),retiredIds=new Set(retired.map(m=>String(m.id)));
+                const royalRetirees=new Set(retired.filter(m=>m.royalChildId!=null).map(m=>String(m.royalChildId)));
+                return sanitizeAppointments({...base,
+                    treasury:prev.treasury-amount,
+                    pendingRetirementPlan:null,pendingRetirements:[],
+                    retirementPreparedYear:record.targetDynastyYear,
+                    retirementPreparedRolls:record.rolls,
+                    ministers:base.ministers.filter(m=>!retiredIds.has(String(m.id))).map(m=>
+                        record.decisions[String(m.id)]==='retain' ? {...m,retirementRetained:true,
+                            retainedAtDynastyYear:prev.dynastyYear,retainedByEmperor:prev.playerName,
+                            retainedByEmperorId:rulerIdOf(prev),retainedUntilAge:73,
+                            loyalty:Math.min(100,(Number(m.loyalty)||0)+10)}:m),
+                    ministerTrainingRoster:Object.fromEntries(Object.entries(prev.ministerTrainingRoster||{}).filter(([id])=>!retiredIds.has(String(id)))),
+                    retiredMinisters:[...(prev.retiredMinisters||[]),...retired],
+                    childrenList:(prev.childrenList||[]).map(c=>royalRetirees.has(String(c.id))?{...c,isAppointed:false}:c),
+                    royalFamily:(prev.royalFamily||[]).map(r=>royalRetirees.has(String(r.childId))?{...r,appointed:false}:r)
+                });
+            });
+            if(retired.length)setRetireEvent(retired);
+            addLog(`【老臣乞骸骨】${plan.ids.length}人請退，重金慰留${plan.ids.filter(id=>plan.decisions[String(id)]==='retain').length}人，恩准致仕${retired.length}人，支出${cost}兩。`);
+        };
+
+        // 忠誠在年度間因奏摺／政令歸零亦直接辭官，並保存任官史。
+        useEffect(()=>{
+            if(!isGameStarted || gameState.pendingRetirementPlan)return;
+            const resigning=(gameState.ministers||[]).filter(m=>Number(m.loyalty)<=0);
+            if(!resigning.length)return;
+            const career=syncMinisterCareers(gameState);
+            const departed=resigning.map(m=>createMinisterArchiveRecord(career,
+                career.ministers.find(x=>String(x.id)===String(m.id))||m,'loyalty',Number(m.age),null));
+            const departedIds=new Set(departed.map(m=>String(m.id)));
+            const departedRoyal=new Set(departed.filter(m=>m.royalChildId!=null).map(m=>String(m.royalChildId)));
+            setGameState(prev=>sanitizeAppointments({...syncMinisterCareers(prev),
+                ministers:(prev.ministers||[]).filter(m=>!departedIds.has(String(m.id))),
+                ministerTrainingRoster:Object.fromEntries(Object.entries(prev.ministerTrainingRoster||{}).filter(([id])=>!departedIds.has(String(id)))),
+                retiredMinisters:[...(prev.retiredMinisters||[]),...departed],
+                childrenList:(prev.childrenList||[]).map(c=>departedRoyal.has(String(c.id))?{...c,isAppointed:false}:c),
+                royalFamily:(prev.royalFamily||[]).map(r=>departedRoyal.has(String(r.childId))?{...r,appointed:false}:r)}));
+            setRetireEvent(departed);
+        },[gameState.ministers,isGameStarted,gameState.pendingRetirementPlan]);
+
+        const removeMinister = async (minister) => {
+            if (!await requestGameConfirm(`確定將官員「${minister.name}」逐出朝廷？其中央、地方與軍職任命將一併解除。`,{title:'逐出官員'})) return;
+            setGameState(p => {
+                const synced=syncMinisterCareers(p);
+                const current=synced.ministers.find(m=>String(m.id)===String(minister.id))||minister;
+                const archive=createMinisterArchiveRecord(synced,current,'expelled',Number(current.age),null);
+                return sanitizeAppointments({
+                    ...synced,
+                    ministers: synced.ministers.filter(m => String(m.id) !== String(minister.id)),
+                    retiredMinisters:[...(synced.retiredMinisters||[]),archive],
+                    ministerTrainingRoster:Object.fromEntries(Object.entries(synced.ministerTrainingRoster||{}).filter(([id])=>String(id)!==String(minister.id))),
+                    pendingRetirements:(synced.pendingRetirements||[]).filter(id=>String(id)!==String(minister.id)),
+                    centralOfficials: Object.fromEntries(Object.entries(synced.centralOfficials).map(([k,v]) => [k, String(v) === String(minister.id) ? null : v])),
+                    provinces: synced.provinces.map(prov => ({ ...prov, officials: prov.officials.map(id => String(id) === String(minister.id) ? null : id) })),
+                    warSetup: { ...synced.warSetup, commanderId: String(synced.warSetup.commanderId) === String(minister.id) ? null : synced.warSetup.commanderId,
+                        viceId: String(synced.warSetup.viceId) === String(minister.id) ? null : synced.warSetup.viceId,
+                        strategistId: String(synced.warSetup.strategistId) === String(minister.id) ? null : synced.warSetup.strategistId },
+                    childrenList: synced.childrenList.map(c => (minister.royalChildId === c.id || (minister.isRoyalChild && minister.name === `${c.gender === 'male' ? '皇子' : '公主'} ${c.name}`)) ? { ...c, isAppointed: false } : c)
+                });
+            });
+            addLog(`下旨將${minister.name}逐出朝廷，解除所有官職。`);
+        };
+        // 妃嬪不可被玩家逐出宮廷；可改封位分或打入／接出冷宮。
+        const openConsortRankEditor = (consort) => {
+            setDraftConsortTitle(String(consort.title || ''));
+            setDraftConsortRank(CONSORT_RANKS.includes(consort.rank) ? consort.rank : '答應');
+            setEditingConsortId(consort.id);
+        };
+        const issueConsortAppointment = () => {
+            const target = gameState.consorts.find(c => c.id === editingConsortId);
+            if (!target) { setEditingConsortId(null); return; }
+            if (!CONSORT_RANKS.includes(draftConsortRank)) { showMessage('請先選擇正確位分'); return; }
+            if (draftConsortRank === '皇后' && gameState.consorts.some(c => c.id !== target.id && c.rank === '皇后')) {
+                showMessage('後宮已有皇后，請先改封原皇后，再冊立新皇后'); return;
+            }
+            const title = draftConsortTitle.trim().slice(0, 8);
+            const newRank = draftConsortRank;
+            const oldRank = target.rank || '答應';
+            const oldTitle = target.title || '';
+            if (oldRank === newRank && oldTitle === title) {
+                showMessage('封號與位分沒有變動', 'success');
+                setEditingConsortId(null);
+                return;
+            }
+            const previousIndex = CONSORT_RANKS.indexOf(oldRank);
+            const nextIndex = CONSORT_RANKS.indexOf(newRank);
+            const type = nextIndex < previousIndex ? '晉封' : nextIndex > previousIndex ? '降封' : '改封';
+            const promotionAffection=type==='晉封'?10:0;
+            setGameState(prev => ({
+                ...prev,
+                consorts: prev.consorts.map(c => c.id === target.id ? {...c, title, rank: newRank,
+                    affection:Math.min(100,Math.max(1,Number(c.affection)||1)+promotionAffection)} : c)
+            }));
+            const fullNewRank = `${title}${newRank}`;
+            addLog(`【冊封聖旨】${type}${target.name}為${fullNewRank}${promotionAffection?`，好感增加${promotionAffection}點`:''}。`);
+            setEditingConsortId(null);
+            setImperialEdict({
+                title: '冊封后妃聖旨',
+                person: target.name,
+                text: `奉天承運，皇帝詔曰：${target.name}入侍內廷，今特旨${type}為「${fullNewRank}」，${promotionAffection?`並蒙聖恩，好感增加${promotionAffection}點，`:''}欽此。`,
+                date: `${gameState.eraName}${gameState.year}年`
+            });
+        };
+
+        
+        const handleSuccession = (heir, voluntary = false) => {
+            if ((gameState.pendingBabyNames||[]).length) { showMessage('請先為新生皇子、公主賜名'); return; }
+            if (gameState.pendingRetirementPlan||getPendingRetirementMinisters(gameState).length) { showMessage('請先裁決老臣告老與慰留奏請'); return; }
+            if (successionInProgressRef.current) return;
+            const candidates = getSuccessionCandidates(gameState);
+            const candidate = candidates.find(c => String(c.royalId) === String(heir?.royalId));
+            if (!candidate || candidate.gender !== 'male' || (voluntary && Number(candidate.age) < 16)) {
+                showMessage('這位宗室目前不符合繼位資格', 'error'); return;
+            }
+            successionInProgressRef.current = true;
+            const loyaltyLoss = Math.max(0,successionLoss(candidate)-(activeSpecialConsort(gameState,'xiaozhuang')?5:0));
+            const newEra = generateName(true, []).substring(1);
+            const newRunId = royalNewId('run');
+            // 舊朝排行榜獨立結算，下一任皇帝使用新 gameId。
+            submitScore(gameState, true);
+            setGameState(prev => {
+                const normalized = normalizeRoyalState(prev);
+                const nowRulerId = normalized.currentEmperorId;
+                const heirId = String(candidate.royalId);
+                const familyById = new Map(normalized.royalFamily.map(p => [String(p.id),p]));
+                const heirPerson = familyById.get(heirId) || makeRoyalMember(candidate,normalized);
+                const history = [...normalized.emperorHistory, {
+                    emperorId: nowRulerId, gameId: prev.gameId, name: prev.playerName || '無名氏',
+                    eraName: prev.eraName, reignYears: prev.year, accessionAge: prev.accessionAge ?? null,
+                    ageAtEnd: prev.age, endType: voluntary ? '禪讓' : '駕崩',
+                    successorId: heirId, successorName: heirPerson.name,
+                    conqueredCount: (prev.conqueredEnemies || []).length,
+                    didUnify: prev.unificationGameId === prev.gameId,
+                    unificationYear: prev.unificationGameId === prev.gameId ? prev.unificationYear : null,
+                    provinceCount: (prev.provinces || []).length, endingTreasury: prev.treasury,
+                    childCount: (prev.childrenList || []).length, archivedAt: new Date().toISOString()
+                }];
+                const family = normalized.royalFamily.map(r => r.id === nowRulerId ?
+                    {...r, reignStatus:'former', alive:voluntary, hasBeenEmperor:true, age:prev.age} :
+                    r.id === heirId ? {...r, hasBeenEmperor:true, reignStatus:'current'} : r);
+                // 已故皇帝的兒女全部留在族譜。只有新皇帝真正的兒女才能進上書房。
+                const newChildren = family.filter(r => String(r.fatherId) === heirId && r.id !== heirId &&
+                    r.alive !== false && !r.expelled).map(r => ({
+                        id:r.childId || r.id, royalId:r.id, name:r.name, gender:r.gender, age:r.age,
+                        aptitude:r.aptitude || 0, civil:r.civil || 0, military:r.military || 0,
+                        fatherId:heirId, motherId:r.motherId ?? null, motherName:r.motherName || '未知',
+                        generation:r.generation, isAdult:r.age >= 16, isAppointed:!!r.appointed,
+                        injuredUntil:r.injuredUntil||0
+                    }));
+                const reigningMinisterIds = new Set((prev.ministers || []).filter(m =>
+                    (m.royalChildId != null && [candidate.id, candidate.childId, candidate.royalId]
+                        .some(id => id != null && String(m.royalChildId) === String(id))) ||
+                    (m.isRoyalChild && /^(皇子|宗室|宗親)\s/.test(String(m.name||'')) &&
+                        m.name.endsWith(` ${candidate.name}`))).map(m => m.id));
+                const ministers = (prev.ministers || []).filter(m => !reigningMinisterIds.has(m.id)).map(m => {
+                    const child = normalized.childrenList.find(c => m.royalChildId != null && String(c.id) === String(m.royalChildId));
+                    return {...m, loyalty: Math.max(0,Math.round(Number(m.loyalty)||0) - loyaltyLoss),
+                        name: child && !newChildren.some(c => String(c.id) === String(child.id))
+                            ? `${child.gender === 'female' ? '長公主' : '宗室'} ${child.name}` : m.name};
+                });
+                const centralOfficials = Object.fromEntries(Object.entries(prev.centralOfficials || {}).map(([role,id])=>
+                    [role, reigningMinisterIds.has(id)?null:id]));
+                const provinces = (prev.provinces || []).map(prov => ({...prov,
+                    officials:(prov.officials||[null,null]).map(id=>reigningMinisterIds.has(id)?null:id)}));
+                const warSetup = {...prev.warSetup};
+                for(const role of ['commanderId','viceId','strategistId']) if(reigningMinisterIds.has(warSetup[role])) warSetup[role]=null;
+                const defenseSetup={...(prev.defenseSetup||prev.warSetup)};
+                for(const role of ['commanderId','viceId','strategistId']) if(reigningMinisterIds.has(defenseSetup[role])) defenseSetup[role]=null;
+                const successor = {
+                    ...prev, currentEmperorId:heirId, royalFamily:family, emperorHistory:history,
+                    historicalConsorts:[...(prev.historicalConsorts||[]), {
+                        emperorId:nowRulerId, emperorName:prev.playerName || '無名氏', eraName:prev.eraName,
+                        reignYears:prev.year, gameId:prev.gameId, successionType:voluntary?'禪讓':'駕崩',
+                        successorName:heirPerson.name, archivedAt:new Date().toISOString(),
+                        consorts:(prev.consorts||[]).map(c=>({...c, fertility:getFertility(c),
+                            royalConsortId:royalConsortIdOf(c,nowRulerId)}))
+                    }],
+                    consorts:[], gameId:newRunId, playerName:heirPerson.name, eraName:newEra,
+                    accessionAge:Number(candidate.age), year:1,
+                    age:Math.max(0,Math.round(Number(candidate.age)||16)),health:calculateSuccessionHealth(candidate),energy:getMaxEnergy(calculateSuccessionHealth(candidate)),
+                    civil:Number(heirPerson.civil??candidate.civil??60),military:Number(heirPerson.military??candidate.military??60),
+                    imperialStudyYear:Number(prev.dynastyYear)||1,imperialStudyCount:0,
+                    gameOver:false,gameWon:prev.gameWon || hasConqueredAllEnemies(prev),
+                    // 不轉移「首次統一者」資格，只繼承既有的統一事實與國土。
+                    unificationGameId:prev.unificationGameId || null,
+                    unificationYear:prev.unificationYear || null,
+                    unificationAttributionUnknown:!!prev.unificationAttributionUnknown,
+                    endReason:'',incomingInvasion:null,
+                    ministers,centralOfficials,provinces,warSetup,defenseSetup,childrenList:newChildren,crownPrinceId:null,
+                    ministerTrainingRoster:Object.fromEntries(Object.entries(prev.ministerTrainingRoster||{}).filter(([id])=>ministers.some(m=>String(m.id)===String(id)))),
+                    statsHistory:{
+                        maxMinister:peakNonRoyalMinister(ministers),maxChild:{name:'無',score:0},
+                        maxTreasury:Math.max(0,Math.floor(Number(prev.treasury)||0)),
+                        maxConsortCount:0,maxDescendantCount:newChildren.length
+                    }
+                };
+                return normalizeRoyalState(successor);
+            });
+            setCurrentEvent(null); setYearReport(null); setShowVictoryModal(false);
+            setLogs([`${voluntary?'禪讓':'駕崩'}後，${candidate.relationshipLabel} ${candidate.name} 繼位，改元${newEra}。先帝后妃封存於歷史紀錄，先帝子女移入宗人府，原國土與官職保留；百官忠誠下降${loyaltyLoss}。`]);
+            setShowHeirSelection(false); setCurrentView('THRONE');
+        };
+
+        const restartGame = () => {
+            setShowSystemSettings(false);
+            setShowRestartConfirm(true);
+        };
+        const confirmRestartGame = () => {
+            // 重新開始前先提交目前這一局的最新峰值；新局會在登基時建立另一個gameId。
+            if (isGameStarted && gameState.gameId) submitScore(gameState, true);
+            try { localStorage.removeItem(QING_SAVE_KEY); } catch (err) { console.warn(err); }
+            setShowRestartConfirm(false);
+            setShowSystemSettings(false);
+            setShowImportModal(false);
+            setShowPalaceCases(false);
+            setShowReleaseNotes(false);
+            setShowGameManual(false);
+            setShowMinisterArchive(false);
+            setShowVictoryModal(false);
+            setShowHeirSelection(false);
+            setShowAchievements(false);
+            setShowLeaderboard(false);
+            setShowRestartConfirm(false);
+            setSelectedCorruptionCaseId(null);
+            setAutoSaveStatus('待開始遊戲');
+            setGameState(INITIAL_STATE);
+            setLogs([]);
+            setCurrentEvent(null);
+            setYearReport(null);
+            setNotifications([]);
+            setCurrentView('THRONE');
+            setActiveTutorial('INTRO');
+            setViewedTutorials([]);
+            clearCloudBinding();setCloudGuard(null);cloudSyncBlockedRef.current=false;
+            setCloudSlot(null);setCloudRevision(0);setCloudName('');setCloudSavedAt('');cloudDirtyRef.current=false;
+            setPendingCloudNewGameSlot(null);
+            setCloudStatus(cloudUser?`已登入：${cloudUser.name||cloudUser.email||'Google 玩家'}`:'遊客模式');
+            setIsGameStarted(false);
+        };
+        const continueGame = () => { setGameState(p => ({ ...p, gameWon: true })); setShowVictoryModal(false); addLog("朕已一統天下，願再創盛世。"); };
+
+        // HTML select 會將所有 option.value 視為字串；官員 ID 可能是舊版數字或微服私訪的字串。
+        // 以官員名冊查出原始 ID 型別，避免 Number('minister_...') 變成 NaN 而無法任命。
+        const resolveMinisterSelectId = (rawValue) => {
+            if (rawValue === '' || rawValue === null || rawValue === undefined) return null;
+            const minister = (gameState.ministers || []).find(m => String(m.id) === String(rawValue));
+            return minister ? minister.id : null;
+        };
+        const getOfficialStats = (id) => gameState.ministers.find(m => String(m.id) === String(id)) || { civil: 0, military: 0, name: '無', id: null };
+        const isMinisterAvailable = (ministerId, isForWar = false) => {
+            if (!ministerId) return true;
+            const key=String(ministerId);
+            for (let p of gameState.provinces) if ((p.officials||[]).some(id=>String(id)===key)) return false;
+            if (Object.values(gameState.centralOfficials||{}).some(id=>String(id)===key)) return isForWar;
+            return true;
+        };
+
+        const getCostMultiplier = () => (gameState.unlockedTechs || []).includes('grand_council') ? 0.8 : 1.0;
+        const val = (v) => Math.floor(v * getCostMultiplier());
+
+        const getAppointmentCost = () => {
+            const pm = getOfficialStats(gameState.centralOfficials.primeMinister);
+            const baseCost = 5; 
+            const reduction = Math.floor((pm.civil || 0) / 200 * 4); 
+            return Math.floor(Math.max(1, baseCost - reduction) * getCostMultiplier());
+        };
+        const getPrimeMinisterBonus = () => {
+            const pm=getOfficialStats(gameState.centralOfficials.primeMinister);
+            const specialBonus=pm.specialId==='zhuge_liang'?10:0;
+            return Math.min(60,Math.floor((Number(pm.civil)||0)/2)+specialBonus);
+        };
+        const getConstructionCost = () => {
+            const baseCost = 10;
+            const reductionPercent = getPrimeMinisterBonus();
+            return Math.floor(Math.max(2, Math.floor(baseCost * (1 - reductionPercent / 100))) * getCostMultiplier());
+        };
+
+        const calculateTechBonuses = (state) => {
+            const techs = state.unlockedTechs || [];
+            return {
+                taxBonus: techs.includes('tax_reform') ? 0.2 : 0,
+                energyCostReduction: techs.includes('grand_council') ? 0.8 : 1.0, 
+                armyBonus: techs.includes('western_movement') ? 0.5 : 0,
+                stabilityPenalty: techs.includes('western_movement') ? 2 : 0,
+                recruitBonus: techs.includes('new_army') ? 0.5 : 0,
+                devBonus: techs.includes('railway') ? 2 : 1, 
+                constructionBonus: techs.includes('waterworks') ? 1.25 : 1,
+                localIncomeBonus: techs.includes('grain_transport') ? 0.2 : 0,
+                armyMaintenanceMultiplier: techs.includes('military_farms') ? 0.8 : 1,
+                diplomacyGiftMultiplier: techs.includes('translation_school') ? 1.25 : 1,
+                diplomacyDecayReduction: techs.includes('translation_school') ? 1 : 0,
+            };
+        };
+        const getConstructionDevelopmentGain = (state,province) => {
+            const bonuses=calculateTechBonuses(state);
+            const governor=(state.ministers||[]).find(m=>String(m.id)===String(province?.officials?.[0]));
+            return Math.round(5*bonuses.devBonus*bonuses.constructionBonus)+(governor?.specialId==='fan_zhongyan'?1:0);
+        };
+
+        const calculateYearlyIncome = (currentState) => {
+            const state = currentState || gameState;
+            const bonuses = calculateTechBonuses(state);
+            const taxRate = normalizeAnnualTaxRate(state.annualTaxRate);
+            const taxPolicy = getAnnualTaxPolicy(taxRate);
+            let totalCivilBonus = 0;
+            state.provinces.forEach(p => {
+              const gov = state.ministers.find(m => m.id === p.officials[0]) || { civil: 0 };
+              totalCivilBonus += p.development * (1 + gov.civil / 200);
+            });
+            const revMinister = state.ministers.find(m => m.id === state.centralOfficials.revenueMinister) || { civil: 0 };
+            const revBonusRate = (revMinister.civil / 500);
+            const baseIncome = 600; 
+            const taxableStability = Math.min(100, Math.max(0, Number(state.stability) || 0));
+            const basePopulationTax = Math.floor(state.population * 0.08 * (taxableStability / 100));
+            const popTax = Math.floor(basePopulationTax * taxPolicy.incomeRate);
+            const baseProvIncome = Math.floor(basePopulationTax * (totalCivilBonus / 100) * 0.8);
+            const provIncome = Math.floor(baseProvIncome * (1 + bonuses.localIncomeBonus)); 
+            const unchangedIncomeBase = baseIncome + basePopulationTax + provIncome;
+            const ministryIncome = Math.floor(unchangedIncomeBase * revBonusRate);
+            const techIncome = Math.floor(unchangedIncomeBase * bonuses.taxBonus);
+            const subtotal = baseIncome + popTax + provIncome + ministryIncome + techIncome;
+            const xiaoHeBonus = revMinister.specialId==='xiao_he'
+                ? Math.floor((unchangedIncomeBase + ministryIncome + techIncome)*0.05) : 0;
+            const total = subtotal + xiaoHeBonus;
+            return { base: baseIncome, pop: popTax, basePopulationTax, prov: provIncome, ministry: ministryIncome,
+                tech: techIncome, special: xiaoHeBonus, taxRate, total };
+        };
+        const calculateTaxAmount = () => improvePositive(Math.floor(calculateYearlyIncome({...gameState,annualTaxRate:3}).total / 3),gameState,'civil');
+        const calculateRecruitment = state => {
+            const population=Math.max(0,Number(state.population)||0);
+            const base=Math.floor(population/500+(state.provinces||[]).length*2);
+            const warMinister=(state.ministers||[]).find(m=>String(m.id)===String(state.centralOfficials?.warMinister)) || {military:0};
+            const ministerBonus=Math.floor((Number(warMinister.military)||0)/10);
+            const techMultiplier=1+calculateTechBonuses(state).recruitBonus;
+            const requested=improvePositive(Math.round((base+ministerBonus)*techMultiplier),state,'military');
+            const actual=Math.max(0,Math.min(requested,Math.floor(population*10)));
+            return {base,ministerBonus,requested,actual,populationCost:roundPopulation(actual/10)};
+        };
+
+        const checkAchievements = (state) => {
+            let newUnlocked = [...(state.unlockedAchievements || [])];
+            let newTitle = state.activeTitle;
+            let achievedSomething = false;
+            ACHIEVEMENTS.forEach(ach => {
+                if (!newUnlocked.includes(ach.id) && ach.condition(state)) {
+                    newUnlocked.push(ach.id);
+                    addLog(`【成就解鎖】${ach.name}：${ach.desc}`);
+                    showMessage(`解鎖成就：${ach.name}`, "success");
+                    newTitle = ach.title; 
+                    achievedSomething = true;
+                }
+            });
+            return achievedSomething ? { unlockedAchievements: newUnlocked, activeTitle: newTitle } : null;
+        };
+
+        // 不再讀取 Google Drive 圖片；只使用內建 emoji 人物頭像。
+        const getGenericAvatar = (isMinister, isCivil = true) => {
+            const options = isMinister
+                ? (isCivil ? ['🦊','🦚','🐢','🦉','🦋'] : ['🦁','🐯','🐹','🦈','🐲','🐍'])
+                : ['🌸','🌺','🌷','🌹','🌻'];
+            return options[Math.floor(Math.random() * options.length)];
+        };
+
+        const renderAvatar = (name, avatarData) => (
+            <span role="img" aria-label={name} className="text-2xl inline-block align-middle">
+                {typeof avatarData === 'string' && !avatarData.startsWith('data:') ? avatarData : '👤'}
+            </span>
+        );
+
+        const nextYear = () => {
+          if((gameState.pendingBattleLines||[]).length){showMessage('請先完成兵部多線防守部署與結算');setCurrentView('DEFEND');return;}
+          if(gameState.pendingRetirementPlan){showMessage('請先完成老臣告老總覽裁決');return;}
+          if (gameState.pendingPalaceEvent || gameState.pendingBirthSettlement || gameState.pendingAnnualDraft ||
+              (gameState.pendingBabyNames||[]).length || (gameState.pendingHaremNews||[]).length ||
+              (gameState.pendingConsortCrises||[]).length || (gameState.pendingConsortIllnesses||[]).length) {
+              showMessage('請先處理後宮事件、選秀及新生皇子女賜名');return;
+          }
+          const targetDynastyYear=Number(gameState.dynastyYear||gameState.year)+1;
+          const alreadyPrepared=Number(gameState.retirementPreparedYear)===targetDynastyYear;
+          // 尚未裁決的舊版70歲奏請一併併入同一個總覽，不再逐人跳窗。
+          if(!alreadyPrepared){
+              const rolls=Object.fromEntries(ensureMinisterAges(gameState).ministers.map(m=>[String(m.id),Math.random()<.5?1:0]));
+              const pendingOld=new Set((gameState.pendingRetirements||[]).map(String));
+              const due=ensureMinisterAges(gameState).ministers.filter(m=>!m.retirementRetained &&
+                  (Number(m.age)+1>=70 || pendingOld.has(String(m.id))) &&
+                  Number(m.loyalty)>Number(rolls[String(m.id)]));
+              if(due.length){
+                  setGameState(p=>({...p,pendingRetirementPlan:{targetDynastyYear,rolls,ids:due.map(m=>String(m.id)),decisions:{}}}));
+                  return;
+              }
+          }
+          if (gameState.pendingPalaceEvent || gameState.pendingBirthSettlement || gameState.pendingAnnualDraft ||
+              (gameState.pendingBabyNames||[]).length || (gameState.pendingHaremNews||[]).length || (gameState.pendingConsortCrises||[]).length || (gameState.pendingConsortIllnesses||[]).length) {
+              showMessage('請先處理後宮事件、選秀及新生皇子女賜名');return;
+          }
+          if (processingTurnRef.current) return; 
+          processingTurnRef.current = true; 
+          setIsTransitioning(true);
+
+          setTimeout(() => {
+              let newLogsAdd = [];
+              const bonuses = calculateTechBonuses(gameState);
+              
+              const ageingMinisters = ensureMinisterAges(gameState).ministers.map(m => {
+                  const decay = alreadyPrepared ? (Number(gameState.retirementPreparedRolls?.[String(m.id)])||0) : (Math.random()<.5?1:0);
+                  return {...m, age: m.age + 1, loyalty: Math.max(0, Math.round(Number(m.loyalty) || 0) - decay)};
+              });
+              // 70歲只上疏請旨，不立即撤職；忠誠歸零或慰留至73歲才自動退出。
+              const retiring = ageingMinisters.filter(m => m.loyalty <= 0 ||
+                  (m.retirementRetained && m.age >= MINISTER_RETIRE_FINAL_AGE) ||
+                  (!m.retirementRetained && m.age > MINISTER_RETIRE_AGE));
+              const newlyPetitioned = ageingMinisters.filter(m => m.loyalty > 0 &&
+                  m.age >= MINISTER_RETIRE_AGE && !m.retirementRetained &&
+                  !retiring.some(r=>String(r.id)===String(m.id)));
+              const retiredIds = new Set(retiring.map(m => String(m.id)));
+              const retiredRoyalChildIds = new Set(retiring.filter(m => isRoyalChildMinister(m) && m.royalChildId != null)
+                  .map(m => String(m.royalChildId)));
+              const remainingMinisters = ageingMinisters.filter(m => !retiredIds.has(String(m.id)));
+              const careerState=syncMinisterCareers(gameState);
+              const retiredRecords = retiring.map(m => createMinisterArchiveRecord(
+                  careerState,{...(careerState.ministers.find(x=>String(x.id)===String(m.id))||m),...m},
+                  m.loyalty<=0?'loyalty':'age',m.age,gameState.year+1));
+              const ministerTraining = settleMinisterTrainingYear(gameState,remainingMinisters,targetDynastyYear);
+              let newMinisters = ministerTraining.ministers;
+              if (ministerTraining.summary.trained.length) {
+                  newLogsAdd.push(`【皇家書院・百官訓練】本年度訓練${ministerTraining.summary.trained.length}名官員，文治合計+${ministerTraining.summary.totalCivil}、武力合計+${ministerTraining.summary.totalMilitary}。`);
+              }
+              if (retiredRecords.length) {
+                  newLogsAdd.push(...retiredRecords.map(m =>
+                      m.reason === 'age' ? `【吏部奏報】${m.name} 年滿${m.age}歲，告老還鄉，所任官職已卸下。` :
+                          `【吏部奏報】${m.name} 忠誠耗盡，辭官歸鄉，所任官職已卸下。`));
+                  setRetireEvent(retiredRecords);
+              }
+              if (newlyPetitioned.length) {
+                  newLogsAdd.push(...newlyPetitioned.map(m=>
+                      `【吏部奏報】${m.name} 年滿${m.age}歲，請旨告老；可重金慰留一次（銀${MINISTER_RETENTION_COST}、續任${MINISTER_RETENTION_YEARS}年）。`));
+              }
+              // 即時解除已確定退休官員的中央、地方與軍職；待慰留裁決者保持原職。
+              const activeAppointments = sanitizeAppointments({...gameState, ministers:newMinisters});
+
+              // 年度好感耗盡先呈奏，不再毫無預警自動死亡；皇帝親自選擇處置。
+              const newCrises=[];
+              const consortAnnual = ageConsortsForNewYear(gameState.consorts);
+              let newConsorts = consortAnnual.consorts.map(c=>{
+                  const decay=c.inColdPalace?5:(Math.random()<.5?1:0);
+                  const affection=(Number(c.affection)||0)-decay;
+                  if(affection<=0 && !(gameState.pendingConsortCrises||[]).some(id=>String(id)===String(c.id))){
+                      newCrises.push(String(c.id));
+                  }
+                  return {...c,affection:Math.max(1,affection)};
+              });
+
+              const tempStateForIncome = {...activeAppointments, consorts: newConsorts};
+              const incomeData = calculateYearlyIncome(tempStateForIncome);
+              
+              let totalMilitaryBonus = 0;
+              activeAppointments.provinces.forEach(p => {
+                   const insp = newMinisters.find(m => m.id === p.officials[1]) || { military: 0 };
+                   totalMilitaryBonus += insp.military / 2;
+              });
+
+              const baseArmyCost = gameState.army * 4;
+              const newArmyExtra = (gameState.unlockedTechs || []).includes('new_army') ? Math.floor(baseArmyCost * 0.3) : 0;
+              const armyCost = Math.floor((baseArmyCost + newArmyExtra) * bonuses.armyMaintenanceMultiplier);
+              const rawPalaceCost = 150 + (newConsorts.filter(c => !c.inColdPalace).length * 30) +
+                  (gameState.childrenList.length * 20) + (activeSpecialConsort(gameState,'yang_yuhuan')?50:0);
+              const palaceCost = Math.floor(rawPalaceCost*(activeSpecialConsort(gameState,'wei_zifu') ? .9 : 1));
+              const salaryCost = newMinisters.length * 20; 
+              // 貪腐是本年度稅收漏損，不隨歷年積蓄放大；零貪腐率必須確實不扣款。
+              const corruptionRate = normalizeCorruptionRate(gameState.corruptionRate);
+              const nextCorruptionRate=(gameState.unlockedTechs||[]).includes('official_assessment')
+                  ? normalizeCorruptionRate(corruptionRate-0.005) : corruptionRate;
+              if(nextCorruptionRate<corruptionRate)newLogsAdd.push(`【考成法】年度百官考核完成，貪腐率由${formatCorruptionPercentage(corruptionRate)}降至${formatCorruptionPercentage(nextCorruptionRate)}。`);
+              const corruptionCost = calculateAnnualCorruptionCost(incomeData.total, corruptionRate);
+              // 個別官員贓款只是同一筆年度貪腐漏損的案件分帳，不另行扣除國庫。
+              const corruptionAnnual = processAnnualCorruption(activeAppointments, incomeData.total, corruptionRate,
+                  Number(gameState.dynastyYear||gameState.year)+1);
+              newLogsAdd.push(...corruptionAnnual.logs);
+              const totalExpenses = armyCost + palaceCost + salaryCost + corruptionCost;
+
+              let newTreasury = gameState.treasury + incomeData.total - totalExpenses;
+              let debtPenalty = newTreasury < 0 ? (5 + Math.floor(Math.abs(newTreasury) / 500)) : 0;
+              const annualTaxRate=normalizeAnnualTaxRate(gameState.annualTaxRate);
+              const taxPolicy=getAnnualTaxPolicy(annualTaxRate);
+              let newStability = gameState.stability + Math.floor(totalMilitaryBonus / 50) - debtPenalty - bonuses.stabilityPenalty +
+                  (activeSpecialConsort(gameState,'yang_yuhuan')?2:0) + taxPolicy.stability;
+              const populationStart=roundPopulation(gameState.population);
+              const populationBaseGrowthRate=Math.min(3,1+(gameState.provinces||[]).length*.5);
+              const populationTotalGrowthRate=populationBaseGrowthRate+taxPolicy.populationGrowth;
+              const populationEnd=roundPopulation(populationStart*(1+populationTotalGrowthRate/100));
+              
+              let newHealth = gameState.health;
+              let healthDecay = gameState.age > 50 ? 3 : 1;
+              if (gameState.energy < 10) { healthDecay += 5; addLog("去年操勞過度，龍體受損。"); }
+              newHealth = Math.max(0, newHealth - healthDecay);
+
+              const agedChildren = gameState.childrenList.map(child => child.alive===false ? child : ({
+                  ...child, age: child.age + 1, isAdult: (child.age + 1) >= 16,
+                  isAppointed: retiredRoyalChildIds.has(String(child.id)) ? false : child.isAppointed
+              }));
+              const academy=settleAcademyYear(gameState,agedChildren,
+                  Number(gameState.dynastyYear||gameState.year)+1,gameState.age+1);
+              // 宗室自 70 歲起逐年增加自然亡故機率（70歲 2%，每歲+2%，最高80%）。
+              // 子女與宗人府使用同一永久 ID，同年只擲一次並同步存檔。
+              const royalDeathChance=age=>age<70?0:Math.min(.8,.02+(age-70)*.02);
+              const deceasedRoyalIds=new Set();
+              const pendingNaturalDeaths=[];
+              const canOfferRevival=(Number(gameState.inventory?.revival_pill)||0)>0;
+              const oldRoyalMembers=(gameState.royalFamily||[]);
+              const childrenAgeMap=new Map(academy.children.map(c=>[String(c.royalId||royalIdOf(c,gameState)),c]));
+              oldRoyalMembers.forEach(r=>{
+                  if(r.alive===false||String(r.id)===String(gameState.currentEmperorId))return;
+                  const child=childrenAgeMap.get(String(r.id));
+                  const nextAge=child?Number(child.age):r.age==null?null:Number(r.age)+1;
+                  if(nextAge!=null&&Math.random()<royalDeathChance(nextAge)){
+                      if(canOfferRevival&&child)pendingNaturalDeaths.push({id:royalNewId('death'),kind:'royal',personId:child.id,name:r.name,cause:`年高壽終（${nextAge}歲）`});
+                      else deceasedRoyalIds.add(String(r.id));
+                  }
+              });
+              let newChildren=academy.children.map(c=>deceasedRoyalIds.has(String(c.royalId||royalIdOf(c,gameState)))?
+                  {...c,alive:false,isAppointed:false}:c);
+              deceasedRoyalIds.forEach(id=>{
+                  const r=oldRoyalMembers.find(x=>String(x.id)===id);
+                  if(r)newLogsAdd.push(`【宗室哀報】${r.name}年高壽終，享年${(childrenAgeMap.get(id)?.age??Number(r.age)+1)}歲。`);
+              });
+              const foreignMarriedRoyalIds=new Set((gameState.royalMarriages||[])
+                  .filter(m=>m.kind==='foreign').map(m=>String(m.princessId)));
+              const royalMinisterState={...gameState,ministers:newMinisters,childrenList:newChildren};
+              const autoAppointedChildren=newChildren.filter(child=>child.alive!==false && !child.expelled && Number(child.age)>=16 && Number(child.age)<MINISTER_RETIRE_AGE &&
+                  !foreignMarriedRoyalIds.has(String(child.royalId||royalIdOf(child,gameState))) &&
+                  !retiredRoyalChildIds.has(String(child.id)) && !findAppointedRoyalChild(royalMinisterState,child) &&
+                  !ministerPreviouslyDeparted(gameState,child));
+              const autoAppointedChildIds=new Set(autoAppointedChildren.map(child=>String(child.id)));
+              const autoAppointedRoyalIds=new Set(autoAppointedChildren.map(child=>String(child.royalId||royalIdOf(child,gameState))));
+              if(autoAppointedChildren.length){
+                  newMinisters=[...newMinisters,...autoAppointedChildren.map(child=>createRoyalChildMinister({...gameState,dynastyYear:targetDynastyYear},child))];
+                  newChildren=newChildren.map(child=>autoAppointedChildIds.has(String(child.id))?{...child,isAppointed:true}:child);
+                  newLogsAdd.push(`【皇嗣成年入仕】${autoAppointedChildren.map(child=>`${child.gender==='male'?'皇子':'公主'}${child.name}`).join('、')}奉旨自動入朝為官。`);
+              }
+
+              // 已退休官員沿用宗室自然死亡曲線；新退休者從下一年起才開始判定。
+              const newlyDeadSpecialIds=[];
+              const agedRetiredMinisters=(gameState.retiredMinisters||[]).map(m=>{
+                  const naturalRetiree=m.reason==='age'||['榮退致仕','特恩致仕'].includes(m.departureLabel);
+                  if(m.alive===false || !naturalRetiree) return m;
+                  const nextAge=Math.max(0,Number(m.age)||0)+1;
+                  if(Math.random()>=retiredMinisterDeathChance(nextAge)) return {...m,age:nextAge,alive:true};
+                  if(canOfferRevival){
+                      pendingNaturalDeaths.push({id:royalNewId('death'),kind:'retired',personId:m.id,name:m.name,specialId:m.specialId||null,cause:`壽終正寢，享年${nextAge}歲`});
+                      return {...m,age:nextAge,alive:true};
+                  }
+                  if(m.specialId) newlyDeadSpecialIds.push(m.specialId);
+                  newLogsAdd.push(`【名人堂哀報】退休官員${m.name}壽終正寢，享年${nextAge}歲。${m.specialId?'其名望重歸招賢名錄，可於科舉再次延攬。':''}`);
+                  return {...m,age:nextAge,alive:false,diedAtYear:gameState.year+1,
+                      diedAtDynastyYear:Number(gameState.dynastyYear||gameState.year)+1,
+                      diedEraName:gameState.eraName,deathReason:'退休後壽終正寢'};
+              });
+
+              setYearReport({
+                  income: incomeData,
+                  expense: { army: armyCost, palace: palaceCost, salary: salaryCost, corruption: corruptionCost, corruptionRate, tech: 0, total: totalExpenses }, 
+                  net: incomeData.total - totalExpenses, academy:academy.summary,
+                  ministerTraining:ministerTraining.summary,
+                  taxPolicy:{rate:annualTaxRate,stability:taxPolicy.stability,populationGrowth:taxPolicy.populationGrowth},
+                  population:{start:populationStart,end:populationEnd,change:Math.round((populationEnd-populationStart)*10)/10,
+                      baseGrowthRate:populationBaseGrowthRate,taxGrowthAdjustment:taxPolicy.populationGrowth,
+                      totalGrowthRate:populationTotalGrowthRate,provinceCount:(gameState.provinces||[]).length}
+              });
+
+              // 選秀與戰爭、宮鬥共用年度佇列。選秀資料可存入 localStorage，重新整理不會消失。
+              const draftCandidate=(gameState.year+1)%3===0?drawConsortCandidate(gameState,'selection'):null;
+              const draftOffer=draftCandidate?{id:royalNewId('draft'),...draftCandidate,year:gameState.year+1}:null;
+
+              newLogsAdd.forEach(l => addLog(l));
+
+              // 退休前已經達成的「國士無雙」紀錄仍保留。
+              const currentMaxMinister = peakNonRoyalMinister([...gameState.ministers, ...newMinisters]);
+
+              const currentMaxChild = newChildren.reduce((acc, curr) => {
+                  const score = curr.civil + curr.military;
+                  return score > acc.score ? { name: curr.name, score: score } : acc;
+              }, { name: '無', score: 0 });
+
+              const prevMaxMinister = historicalNonRoyalMinister(gameState.statsHistory, { name: '無', score: 0 });
+              const prevMaxChild = gameState.statsHistory?.maxChild || { score: 0 };
+
+              const newStatsHistory = {
+                  ...(gameState.statsHistory || {}),
+                  maxMinister: currentMaxMinister.score > prevMaxMinister.score ? currentMaxMinister : prevMaxMinister,
+                  maxChild: currentMaxChild.score > prevMaxChild.score ? currentMaxChild : prevMaxChild,
+                  maxTreasury: Math.max(Number(gameState.statsHistory?.maxTreasury) || 0,
+                      Number(gameState.treasury) || 0, Number(newTreasury) || 0),
+                  maxConsortCount: Math.max(Number(gameState.statsHistory?.maxConsortCount) || 0,
+                      newConsorts.length),
+                  maxDescendantCount: Math.max(Number(gameState.statsHistory?.maxDescendantCount) || 0,
+                      newChildren.length)
+              };
+
+              const oldFamily = normalizeRoyalState(gameState).royalFamily;
+              const finalMinisters = newMinisters.filter(m=>!deceasedRoyalIds.has(String(m.royalId||'')) &&
+                  !deceasedRoyalIds.has(String((newChildren||[]).find(c=>String(c.id)===String(m.royalChildId))?.royalId||'')));
+              const finalMinisterIds = new Set(finalMinisters.map(m=>String(m.id)));
+              const finalMinisterTrainingRoster = Object.fromEntries(Object.entries(ministerTraining.roster||{})
+                  .filter(([id])=>finalMinisterIds.has(String(id))));
+              let nextState = {
+                ...activeAppointments,
+                royalFamily: oldFamily.map(r => ({...r,
+                    age: r.alive === false || r.age == null ? r.age : r.id === gameState.currentEmperorId
+                        ? gameState.age + 1 : (Number.isFinite(Number(r.age)) ? Number(r.age)+1 : null),
+                    civil:academy.relatives?.[String(r.id)]?.civil??r.civil,
+                    military:academy.relatives?.[String(r.id)]?.military??r.military,
+                    alive: deceasedRoyalIds.has(String(r.id)) ? false : r.alive,
+                    appointed: deceasedRoyalIds.has(String(r.id)) || retiredRoyalChildIds.has(String(r.childId)) || retiredRoyalChildIds.has(String(r.id))
+                        ? false : autoAppointedRoyalIds.has(String(r.id)) ? true : r.appointed })),
+                ministers: finalMinisters,
+                retirementPreparedYear:null,retirementPreparedRolls:null,
+                corruptionRecords:corruptionAnnual.records,corruptionCases:corruptionAnnual.cases,
+                corruptionGroups:corruptionAnnual.groups,
+                corruptionHistory:[...(gameState.corruptionHistory||[]),{dynastyYear:Number(gameState.dynastyYear||gameState.year)+1,
+                    rate:corruptionRate,annualLoss:corruptionCost,offenderCount:corruptionAnnual.offenderCount}],
+                corruptionReductionYear:Number(gameState.dynastyYear||gameState.year)+1,corruptionReductionThisYear:0,
+                corruptionRate:nextCorruptionRate,
+                retiredMinisters: [...agedRetiredMinisters, ...retiredRecords],
+                recruitableSpecialIds:[...new Set([...(gameState.recruitableSpecialIds||[]),...newlyDeadSpecialIds])],
+                pendingRetirements: newlyPetitioned.map(m=>m.id),
+                consorts: newConsorts,
+                pendingConsortIllnesses:[...(gameState.pendingConsortIllnesses||[]),...consortAnnual.illnesses],
+                pendingConsortCrises:[...(gameState.pendingConsortCrises||[]),...newCrises],
+                year: gameState.year + 1,
+                age: gameState.age + 1,
+                energy: getMaxEnergy(newHealth),
+                health: newHealth,
+                treasury: newTreasury,
+                stability: newStability,
+                population: populationEnd,
+                annualTaxRate,
+                childrenList: newChildren,
+                 crownPrinceId:newChildren.some(child=>String(child.id)===String(gameState.crownPrinceId)&&
+                     child.gender==='male'&&child.alive!==false&&!child.expelled&&Number(child.age)>=16)
+                     ?gameState.crownPrinceId:null,
+                civil:academy.emperorCivil,military:academy.emperorMilitary,
+                academyRecords:academy.academyRecords,academyAnnualReport:academy.summary,
+                ministerTrainingRoster:finalMinisterTrainingRoster,
+                ministerTrainingLastSettledYear:ministerTraining.lastSettledYear,
+                ministerTrainingAnnualReport:ministerTraining.summary,
+                imperialStudyCount:0,imperialStudyYear:(gameState.dynastyYear||gameState.year)+1,
+                dynastyYear:(gameState.dynastyYear||gameState.year)+1,
+                deceasedConsorts:[...(gameState.deceasedConsorts||[])],
+                incomingInvasion: null,
+                pendingAnnualDraft: draftOffer || gameState.pendingAnnualDraft || null,
+                pendingDeathCandidates:[...(gameState.pendingDeathCandidates||[]),...pendingNaturalDeaths],
+                beautyPity:draftCandidate?draftCandidate.nextBeautyPity:gameState.beautyPity,
+                statsHistory: newStatsHistory,
+              };
+
+              // 同步解除已亡宗室官職，避免中央與地方繼續引用已故官員。
+              if(deceasedRoyalIds.size)nextState=sanitizeAppointments(nextState);
+              const annualWar=prepareAnnualInvasions(nextState,nextState.dynastyYear);
+              nextState={...nextState,...annualWar};
+              annualWar.pendingBattleLines.forEach(line=>addLog(`【邊疆告急】${line.attackers.map(a=>a.name).join('、')}進犯${line.provinceName}，聯軍戰力${line.coalitionStrength}。`));
+              const achievementUpdate = checkAchievements(nextState);
+              if (achievementUpdate) nextState = { ...nextState, ...achievementUpdate };
+
+              // 年度抽取與生產分離：危機需先讓玩家決策，再確認本年度出生。
+              nextState = normalizeRoyalState(nextState);
+              const incident=makePalaceIncident(nextState);
+              nextState=addPalaceEvent({...nextState,pendingBirthSettlement:true},incident);
+              nextState=finishPalaceYear(nextState);
+              nextState=applyLongTermPalaceConsequences(nextState);
+              const crisisIds=new Set((nextState.pendingConsortCrises||[]).map(String));
+              const newConsequenceCrises=(nextState.consorts||[]).filter(c=>Number(c.affection)<=1 &&
+                  !crisisIds.has(String(c.id))).map(c=>String(c.id));
+              if(newConsequenceCrises.length)nextState={...nextState,
+                  pendingConsortCrises:[...(nextState.pendingConsortCrises||[]),...newConsequenceCrises]};
+              // 每年針對所有未破舊案合計抽一次10%，不是每件案子各抽10%。
+              const oldCases=(nextState.palaceCases||[]).filter(c=>c.status==='unresolved' &&
+                  Number(c.dynastyYear)<Number(nextState.dynastyYear));
+              if (oldCases.length && Math.random()<.10) {
+                  const oldCase=oldCases[Math.floor(Math.random()*oldCases.length)];
+                  nextState={...nextState,palaceCases:nextState.palaceCases.map(c=>String(c.id)===String(oldCase.id)?{...c,clueAvailable:true}:c)};
+                  nextState=palaceNote(nextState,`【宮女密報】${oldCase.eraName}${oldCase.year}年的「${oldCase.title}」出現可靠的新線索，下次調查成功率+20個百分點。可於內廷案件簿重新調查。`);
+              }
+              // 只有上一年受傷的人會在這一年康復；當年新重傷不得立刻康復。
+              setGameState(nextState);
+              const sixYearOldNames=(academy.summary.newEligible||[]).filter(name=>(nextState.childrenList||[]).some(child=>child.alive!==false&&Number(child.age)===6&&child.name===name));
+              if(sixYearOldNames.length) setNotifications(queue=>[...queue,{
+                  title:'🏫 皇嗣年滿6歲・可以入學',
+                  text:`${sixYearOldNames.join('、')}本年已滿6歲，可以進入皇家書院。書院會依天生傾向自動安排課程，請前往上書房辦理入學。`,
+                  actionView:'SCHOOL',actionLabel:'前往上書房'
+              }]);
+              if (!(nextState.pendingBabyNames||[]).length) submitScore(nextState, true);
+              addLog(`== ${gameState.eraName}${gameState.year + 1}年 ==`);
+              setIsTransitioning(false);
+              setTimeout(() => { processingTurnRef.current = false; }, 100);
+
+              if (annualWar.pendingBattleLines.length) {
+                  const invasionSummary=annualWar.pendingBattleLines.map(line=>`${line.provinceName}：${line.attackers.map(a=>a.name).join('、')}（聯軍${line.coalitionStrength}）`).join('\n');
+                  setCurrentEvent({
+                      id: 888, title: "多線邊疆告急！",
+                      description: `${annualWar.pendingBattleLines.length}條戰線同時來犯：\n${invasionSummary}\n請前往兵部分配兵力與將領。`,
+                      options: [{ text: "前往兵部部署所有戰線", effect: s => s }]
+                  });
+                  setCurrentView('MEMORIAL'); 
+              } else if (!draftOffer) {
+                  // 國家事件在沒有選秀／入侵時才抽取，不覆蓋排隊的選秀。
+                  // 根據設計，在國家事件發生率下調，提升日常事件機率
+                  const nationalEvent = Math.random() < 0.3 && typeof generateDynamicEvent === 'function'
+                      ? generateDynamicEvent(nextState) : null;
+                  if (nationalEvent) { setCurrentEvent(nationalEvent); setCurrentView('MEMORIAL'); }
+              }
+          }, 1500);
+        };
+
+        useEffect(()=>{
+            if(!isGameStarted || gameState.pendingRetirementPlan || processingTurnRef.current)return;
+            if(Number(gameState.retirementPreparedYear)===Number(gameState.dynastyYear||gameState.year)+1){
+                nextYear();
+            }
+        },[isGameStarted,gameState.retirementPreparedYear,gameState.pendingRetirementPlan,gameState.dynastyYear]);
+
+        const princessMarriageOf = princessId => (gameState.royalMarriages||[]).find(m=>String(m.princessId)===String(princessId));
+        const eligiblePrincesses = () => (gameState.royalFamily||[]).filter(person=>person.gender==='female'&&person.alive!==false&&!person.expelled&&Number(person.age)>=16&&!princessMarriageOf(person.id));
+        const giveDiplomaticGift = (enemyId,gift) => {
+            const enemy=enemyById(enemyId),current=normalizeEnemyDiplomacy(gameState.enemyDiplomacy)[enemyId];
+            if(!enemy||!gift)return;
+            if((gameState.conqueredEnemies||[]).some(index=>Number(index)===ENEMIES.findIndex(item=>item.id===enemyId))){showMessage(`${enemy.name}已被征服，不再進行邦交`,'error');return;}
+            if(Number(current.lastGiftYear)===Number(gameState.dynastyYear)){showMessage(`本年度已向${enemy.name}贈禮`,'error');return;}
+            if(gameState.treasury<gift.silver){showMessage(`國庫不足，需要${gift.silver}兩`,'error');return;}
+            const relationGain=Math.round(gift.relation*calculateTechBonuses(gameState).diplomacyGiftMultiplier);
+            setGameState(prev=>{const diplomacy=normalizeEnemyDiplomacy(prev.enemyDiplomacy),old=diplomacy[enemyId];return {...prev,treasury:prev.treasury-gift.silver,
+                enemyDiplomacy:{...diplomacy,[enemyId]:{...old,relation:Math.min(100,old.relation+relationGain),lastGiftYear:prev.dynastyYear}}};});
+            addLog(`【禮部】向${enemy.name}贈送${gift.label}，支出${gift.silver}兩，邦交+${relationGain}。`);
+        };
+        const marryPrincessToEnemy = (princessId,enemyId) => {
+            const princess=(gameState.royalFamily||[]).find(p=>String(p.id)===String(princessId)),enemy=enemyById(enemyId);
+            if(enemy&&(gameState.conqueredEnemies||[]).some(index=>Number(index)===ENEMIES.findIndex(item=>item.id===enemyId))){showMessage(`${enemy.name}已被征服，不能再安排和親`,'error');return;}
+            if(!princess||princess.gender!=='female'||princess.alive===false||princess.expelled||Number(princess.age)<16||princessMarriageOf(princess.id)||!enemy){showMessage('公主不符合和親資格','error');return;}
+            setGameState(prev=>{
+                const minister=prev.ministers.find(m=>
+                    (m.royalId!=null&&String(m.royalId)===String(princess.id))||
+                    (princess.childId!=null&&m.royalChildId!=null&&String(m.royalChildId)===String(princess.childId)));
+                const removedIds=new Set(minister?[String(minister.id)]:[]);
+                const archive=minister?{...createMinisterArchiveRecord(syncMinisterCareers(prev),minister,'marriage',Number(minister.age),null),departureLabel:'和親離朝'}:null;
+                return sanitizeAppointments({...prev,
+                    ministers:prev.ministers.filter(m=>!removedIds.has(String(m.id))),
+                    retiredMinisters:archive?[...(prev.retiredMinisters||[]),archive]:(prev.retiredMinisters||[]),
+                    ministerTrainingRoster:Object.fromEntries(Object.entries(prev.ministerTrainingRoster||{}).filter(([id])=>!removedIds.has(String(id)))),
+                    childrenList:(prev.childrenList||[]).map(c=>String(c.royalId||royalIdOf(c,prev))===String(princess.id)?{...c,isAppointed:false,married:true}:c),
+                    royalFamily:(prev.royalFamily||[]).map(p=>String(p.id)===String(princess.id)?{...p,appointed:false,married:true}:p),
+                    royalMarriages:[...(prev.royalMarriages||[]),{id:royalNewId('marriage'),kind:'foreign',princessId:princess.id,princessName:princess.name,enemyId,
+                        spouseName:enemy.name,marriedAtDynastyYear:prev.dynastyYear,status:'active',protectionSuspended:false}]
+                });
+            });
+            addLog(`【和親】成年公主${princess.name}奉旨嫁往${enemy.name}，婚姻有效期間降低其入侵意願。`);setMarriageDialog(null);
+        };
+        const marryPrincessToMinister = (princessId,ministerId) => {
+            const princess=(gameState.royalFamily||[]).find(p=>String(p.id)===String(princessId)),minister=gameState.ministers.find(m=>String(m.id)===String(ministerId));
+            const spouseUsed=(gameState.royalMarriages||[]).some(m=>m.kind==='domestic'&&String(m.spouseMinisterId)===String(ministerId));
+            if(!princess||princess.gender!=='female'||princess.alive===false||princess.expelled||Number(princess.age)<16||princessMarriageOf(princess.id)||!minister||minister.isRoyalChild||minister.royalChildId!=null||spouseUsed){showMessage('公主或官員不符合許配資格','error');return;}
+            setGameState(prev=>({...prev,
+                ministers:prev.ministers.map(m=>String(m.id)===String(ministerId)?{...m,loyalty:Math.min(100,(Number(m.loyalty)||0)+20)}:m),
+                childrenList:(prev.childrenList||[]).map(c=>String(c.royalId||royalIdOf(c,prev))===String(princess.id)?{...c,married:true}:c),
+                royalFamily:(prev.royalFamily||[]).map(p=>String(p.id)===String(princess.id)?{...p,married:true}:p),
+                royalMarriages:[...(prev.royalMarriages||[]),{id:royalNewId('marriage'),kind:'domestic',princessId:princess.id,princessName:princess.name,
+                    spouseMinisterId:minister.id,spouseName:minister.name,marriedAtDynastyYear:prev.dynastyYear,status:'active'}]}));
+            addLog(`【宗人府】公主${princess.name}許配${minister.name}，${minister.name}忠誠+20。`);showMessage(`${minister.name}忠誠 +20`,'success');setMarriageDialog(null);
+        };
+        const renegotiateMarriage = enemyId => {
+            const marriage=(gameState.royalMarriages||[]).find(m=>m.kind==='foreign'&&m.enemyId===enemyId&&m.status==='suspended');
+            if((gameState.conqueredEnemies||[]).some(index=>Number(index)===ENEMIES.findIndex(item=>item.id===enemyId))){showMessage('該國已被征服，不再進行議和','error');return;}
+            const relation=normalizeEnemyDiplomacy(gameState.enemyDiplomacy)[enemyId]?.relation||0;
+            if(!marriage||Number(gameState.dynastyYear)<Number(marriage.breachedAtDynastyYear||0)+2||relation<60||gameState.treasury<500||
+                (gameState.pendingBattleLines||[]).some(line=>(line.attackers||[]).some(a=>a.enemyId===enemyId))){showMessage('尚未符合重新議和條件','error');return;}
+            setGameState(prev=>({...prev,treasury:prev.treasury-500,royalMarriages:(prev.royalMarriages||[]).map(m=>m.id===marriage.id?{...m,status:'active',protectionSuspended:false,reconciledAtDynastyYear:prev.dynastyYear}:m)}));
+            addLog(`【禮部】支付500兩與${enemyById(enemyId)?.name}重新議和，恢復和親保障。`);
+        };
+
+        const confirmLowEnergySpend = async (energyCost, actionName='此操作') => {
+          const cost=Math.max(0,Number(energyCost)||0),remaining=(Number(gameState.energy)||0)-cost;
+          if(cost<=0||remaining>=10)return true;
+          return await requestGameConfirm(`目前體力 ${gameState.energy}，${actionName}將消耗 ${cost} 點，完成後只剩 ${remaining} 點。\n\n體力低於10時結束本年會因操勞使健康額外下降，仍要繼續嗎？`,{title:'體力即將低於10',danger:false,confirmLabel:'仍要繼續'});
+        };
+
+        const handleAction = async (baseEnergyCost, moneyCost, actionName, effectFn) => {
+          const energyCost = Math.floor(baseEnergyCost * getCostMultiplier());
+          if (gameState.energy < energyCost) { showMessage(`體力不足，需要 ${energyCost} 體力`, 'error'); return; }
+          if (moneyCost > 0 && gameState.treasury < moneyCost) { showMessage(`國庫不足，需要 ${moneyCost} 銀兩`, 'error'); return; }
+          if(!await confirmLowEnergySpend(energyCost,actionName))return false;
+          setGameState(prev => {
+            const newState = effectFn(prev);
+            return { ...newState, energy: prev.energy - energyCost };
+          });
+          addLog(`朕${actionName}`);
+          return true;
+        };
+
+        const resolvePendingDeaths = async () => {
+            const candidates=gameState.pendingDeathCandidates||[],selected=new Set(deathRescueSelection.map(String));
+            const pillCount=Number(gameState.inventory?.revival_pill)||0;
+            if(selected.size>pillCount){showMessage(`九轉還魂丹不足，目前只有${pillCount}顆`,'error');return;}
+            if(!await requestGameConfirm(`確定使用${selected.size}顆九轉還魂丹救治所選人物，其餘人物將正式死亡？`,{title:'裁定生死'}))return;
+            setGameState(previous=>{
+                let next={...previous,pendingDeathCandidates:[]},used=0;
+                for(const candidate of candidates){
+                    if(selected.has(String(candidate.id))){
+                        used++;
+                        if(candidate.kind==='emperor')next={...next,health:30};
+                        next=appendStateLog(next,`【九轉還魂】${candidate.name}在${candidate.cause}之際獲救。`);
+                        continue;
+                    }
+                    if(candidate.kind==='emperor')next={...next,health:0};
+                    else if(candidate.kind==='consort')next=palaceKillPerson(next,{victimKind:'consort',victimId:candidate.personId},candidate.cause,true);
+                    else if(candidate.kind==='royal')next=palaceKillPerson(next,{victimKind:'child',victimId:candidate.personId},candidate.cause,true);
+                    else if(candidate.kind==='retired'){
+                        next={...next,retiredMinisters:(next.retiredMinisters||[]).map(person=>String(person.id)===String(candidate.personId)?
+                            {...person,alive:false,diedAtYear:next.year,diedAtDynastyYear:next.dynastyYear,diedEraName:next.eraName,deathReason:candidate.cause}:person),
+                            recruitableSpecialIds:candidate.specialId?[...new Set([...(next.recruitableSpecialIds||[]),candidate.specialId])]:(next.recruitableSpecialIds||[])};
+                        next=appendStateLog(next,`【名人堂哀報】退休官員${candidate.name}${candidate.cause}。${candidate.specialId?'其名望重歸招賢名錄。':''}`);
+                    }
+                }
+                if(used){const bag={...(next.inventory||{})},left=(Number(bag.revival_pill)||0)-used;if(left>0)bag.revival_pill=left;else delete bag.revival_pill;
+                    next={...next,inventory:bag,rescuedThisDynastyYear:[...(next.rescuedThisDynastyYear||[]),...candidates.filter(candidate=>selected.has(String(candidate.id))).map(candidate=>String(candidate.personId))]};}
+                return normalizeRoyalState(next);
+            });
+            setDeathRescueSelection([]);
+        };
+
+        const handleAdventure = async () => {
+          const cost = Math.max(0,val(15)-(activeSpecialConsort(gameState,'xi_shi')?2:0));
+          if (gameState.energy < cost) { showMessage("體力不足以微服出巡", 'error'); return; }
+          if(!await confirmLowEnergySpend(cost,'微服私訪'))return;
+          const specialAdventure=Math.random()<.15;
+          const roll = Math.random();
+          const beautyCandidate=!specialAdventure&&roll<.12?drawConsortCandidate(gameState,'folk'):null;
+          setGameState(prev => ({...prev, energy: prev.energy - cost,
+              beautyPity:beautyCandidate?beautyCandidate.nextBeautyPity:prev.beautyPity}));
+          let result;
+          if(specialAdventure){
+              result=createSpecialAdventureEvent(gameState);
+          } else if (roll < .12) {
+              const candidateName = beautyCandidate.name;
+              const special=beautyCandidate.specialConsortId?SPECIAL_CONSORT_MAP[beautyCandidate.specialConsortId]:null;
+              result = {
+                  title: '偶遇佳人',
+                  desc: `在江南小巷偶遇${special?`${special.rarity==='legendary'?'傳奇':'歷史'}佳人「${candidateName}」；${special.skillName}：${special.skillEffect}`:`才貌雙全的女子「${candidateName}」`}，侍從請旨是否迎入後宮？`,
+                  options: [
+                      { text: `迎入後宮（${special?'特殊佳人':'新增答應1人'}）`, effect: s => {
+                          const newConsort = consortFromCandidate(beautyCandidate,'微服私訪偶遇',50);
+                          return {...s, consorts: [...s.consorts, newConsort], logsAdd: `微服私訪，迎${newConsort.name}入後宮，初封答應。`};
+                      } },
+                      { text: '婉拒，送她平安返家（無數值變化）', effect: s => ({...s, logsAdd: `微服私訪偶遇${candidateName}，婉言謝絕並送其返家。`}) }
+                  ]
+              };
+          } else if (roll < .24) {
+              const loot=400+Math.floor(Math.random()*800);
+              result={title:'查辦貪官',desc:`地方貪官欺壓百姓，查獲贓銀 ${loot} 兩。`,impact:`銀兩+${loot}、民心+5；20%額外珍寶`,effect:s=>maybeGrantInventoryItem({...s,treasury:s.treasury+loot,stability:s.stability+5,logsAdd:`抄沒贓銀 ${loot} 兩，民心+5。`},['imperial_gold','jade_ruyi'],'微服・查辦貪官')};
+          } else if (roll < .36) {
+              result={title:'體察民情',desc:'下田與農夫交談，百姓感念聖恩。',impact:'民心+10',effect:s=>({...s,stability:s.stability+10,logsAdd:'體察民情，民心+10。'})};
+          } else if (roll < .48) {
+              result={title:'市井遊玩',desc:'品嚐民間小食，身心愉悅。',impact:'健康最多+5',effect:s=>({...s,health:Math.min(100,s.health+5),logsAdd:'遊歷市井，健康+5。'})};
+          } else if (roll < .59) {
+              const income=150+Math.floor(Math.random()*450);
+              result={title:'商賈獻策',desc:`商人獻上海貿之策，進獻白銀 ${income} 兩。`,impact:`銀兩+${income}；20%額外珍寶`,effect:s=>maybeGrantInventoryItem({...s,treasury:s.treasury+income,logsAdd:`商賈獻銀 ${income} 兩。`},['imperial_silk','imperial_gold','jade_ruyi'],'微服・商賈獻策')};
+          } else if (roll < .70) {
+              const talent={id:royalNewId('minister'),name:generateName(true,gameState.ministers.map(m=>m.name)),
+                  age:rollMinisterAge(20,40),civil:65+Math.floor(Math.random()*31),military:35+Math.floor(Math.random()*46),
+                   loyalty:75+Math.floor(Math.random()*21),aptitude:35+Math.floor(Math.random()*46),recruitType:'文武人才',rarityLabel:'普通',avatar:getGenericAvatar(true,true)};
+              result={title:'私訪書院・獲得賢才',desc:`在書院遇見士子「${talent.name}」，文治 ${talent.civil}、武力 ${talent.military}、忠誠 ${talent.loyalty}。是否將其收入中央百官名冊？`,
+                  options:[{text:'延攬入朝（新增官員1人、民心+4；20%贈書）',recruits:[talent],recruitTitle:'微服訪賢・新官入朝',effect:s=>maybeGrantInventoryItem({...s,ministers:[...s.ministers,talent],
+                      stability:s.stability+4,logsAdd:`微服私訪延攬${talent.name}入朝（文${talent.civil}／武${talent.military}／忠${talent.loyalty}），可至吏部任命官職。`},['primer','art_of_war'],'微服書院・延攬士子')},
+                      {text:'勉勵士子，暫不任官（民心+2；20%贈書）',effect:s=>maybeGrantInventoryItem({...s,stability:s.stability+2,logsAdd:`賞識士子${talent.name}，但未將其任官。`},['primer'],'微服書院・勉勵士子')},
+                      {text:'接受山長贈書（20%獲得啟蒙書冊）',effect:s=>maybeGrantInventoryItem(appendStateLog(s,'接受山長贈書。'),['primer'],'微服書院・山長贈書')},
+                      {text:'與兵學先生切磋（20%獲得孫子兵法）',effect:s=>maybeGrantInventoryItem(appendStateLog(s,'與兵學先生切磋兵法。'),['art_of_war'],'微服書院・切磋兵法')} ]};
+          } else if (roll < .79) {
+              result={title:'賑濟孤老',desc:'在鄉間遇見飢寒孤老，可開倉賑助或在國庫不足時親自安撫。',options:[
+                  {text:'開倉賑助（銀-120、民心+8）',disabled:gameState.treasury<120,effect:s=>({...s,treasury:s.treasury-120,stability:s.stability+8,logsAdd:'賑助孤老，銀-120，民心+8。'})},
+                  {text:'親自安撫並請鄉里照料（免費、民心+1）',effect:s=>({...s,stability:s.stability+1,logsAdd:'國庫無力賑助，皇上親自安撫孤老並請鄉里照料，民心+1。'})}
+              ]};
+          } else if (roll < .87) {
+              result={title:'訪察河道',desc:'巡視河堤，提出治水辦法，各地百姓稱頌。',impact:'民心+6',effect:s=>({...s,stability:s.stability+6,logsAdd:'訪察河道，民心+6。'})};
+          } else if (roll < .94) {
+              result={title:'良醫獻方',desc:'鄉間名醫獻上養生良方。',impact:'健康最多+8；20%獲得人參',effect:s=>maybeGrantInventoryItem({...s,health:Math.min(100,s.health+8),logsAdd:'獲良醫獻方，健康+8。'},['ginseng','century_ginseng'],'微服・良醫獻方')};
+          } else if (roll < .97) {
+              result={title:'民間節慶',desc:'巧遇燈會，與民同樂，百姓歡欣。',impact:'民心+5；20%獲得節慶贈禮',effect:s=>maybeGrantInventoryItem({...s,stability:s.stability+5,logsAdd:'與民同樂，民心+5。'},['gold_hairpin','imperial_silk'],'微服・民間節慶')};
+          } else {
+              result={title:'遭遇刺客',desc:'刺客趁夜襲擊，幸有護衛力保聖駕。',impact:'健康-10',effect:s=>({...s,health:Math.max(0,s.health-10),logsAdd:'出訪遇刺，健康-10。'})};
+          }
+          const impactText=result.impact?`\n事件影響：${result.impact}`:'';
+          setCurrentEvent({id:Date.now(),title:result.title,description:`${result.desc}\n\n出訪成本：體力-${cost}${impactText}`,
+              options:result.options || [{text:`回宮（${result.impact||'無額外數值變化'}）`,effect:result.effect}]});
+          setCurrentView('MEMORIAL');
+        };
+
+        const handleCourt = async () => {
+            const cost = val(10);
+            if (gameState.energy < cost) { showMessage("體力不足以早朝", 'error'); return; }
+            if(!await confirmLowEnergySpend(cost,'上朝聽政'))return;
+            setGameState(prev => ({...prev, energy: prev.energy - cost}));
+
+            const statName = stat => stat === 'civil' ? '文治' : '武力';
+            const chanceFor = (stat, base) => Math.min(95, Math.max(5, base + emperorPolicyBonus(gameState, stat)+
+                (activeSpecialConsort(gameState,'zhangsun',{empressOnly:true})?5:0)));
+            const checkedOption = (label, stat, base, onSuccess, onFailure, disabled = false) => ({
+                text: `${label}（${statName(stat)}判定 ${chanceFor(stat, base)}%）`,
+                disabled,
+                effect: s => {
+                    const chance = Math.min(95, Math.max(5, base + emperorPolicyBonus(s, stat)+
+                        (activeSpecialConsort(s,'zhangsun',{empressOnly:true})?5:0)));
+                    const success = Math.random() * 100 < chance;
+                    const result = (success ? onSuccess : onFailure)(s, chance);
+                    return {
+                        ...result,
+                        logsAdd: result.logsAdd || `${label}：${success ? '處理成功' : '處理未盡如意'}（${statName(stat)}成功率${chance}%）。`,
+                        _courtOutcome: { kind: 'check', success, chance, statName: statName(stat), label }
+                    };
+                }
+            });
+            const directOption = (text, effect, disabled = false) => ({
+                text, disabled,
+                effect: s => ({...effect(s), _courtOutcome: {kind:'direct', success:true, label:text.split('（')[0]}})
+            });
+            const addStability = (s, amount) => Math.max(0,(Number(s.stability)||0)+amount);
+            const addArmy = (s, amount) => Math.max(0, (Number(s.army) || 0) + amount);
+            const randomMinister = (s, style = 'balanced') => {
+                const civil = style === 'civil' ? 65 + Math.floor(Math.random() * 31) : 30 + Math.floor(Math.random() * 61);
+                const military = style === 'military' ? 65 + Math.floor(Math.random() * 31) : 30 + Math.floor(Math.random() * 61);
+                return {id:royalNewId('minister'),name:generateName(true,(s.ministers||[]).map(m=>m.name)),age:rollMinisterAge(25,55),
+                    civil,military,loyalty:75+Math.floor(Math.random()*21),aptitude:40+Math.floor(Math.random()*61),
+                    avatar:getGenericAvatar(true,civil>=military)};
+            };
+            const courtEvents = [];
+
+            if(Math.random()<.10){
+                const event=createSpecialCourtEvent(gameState);
+                setCurrentEvent({id:Date.now(),eventType:'COURT',title:event.title,description:event.description,options:event.options,result:null});
+                setCurrentView('MEMORIAL');return;
+            }
+
+            // 1. 吏部舉薦人才：文治越高，識人與考核越準確。
+            courtEvents.push({title:'吏部舉薦賢才',description:'吏部侍郎舉薦一名在野士子，聲稱此人熟讀經史、亦通軍務。皇上可破格延攬，或令其按例應試。',options:[
+                checkedOption('破格提拔（銀-200）','civil',55,
+                    s=>{const m=randomMinister(s,'civil');return {...s,treasury:s.treasury-200,ministers:[...s.ministers,m],stability:addStability(s,2),logsAdd:`文治判斷得宜，延攬賢才${m.name}入朝（文${m.civil}／武${m.military}／忠${m.loyalty}）。`,_newRecruits:[m],_recruitTitle:'吏部舉薦・新官入朝'};},
+                    s=>({...s,treasury:s.treasury-200,stability:addStability(s,-2),logsAdd:'考核未周，所薦士子才學不符，白費延攬費用。'}),gameState.treasury<200),
+                directOption('按例科考，不予破格（民心+1）',s=>({...s,stability:addStability(s,1),logsAdd:'命該士子按例參加科考，吏部依制度甄選。'}))
+            ]});
+
+            // 2. 藩屬進貢：文治影響談判及互市收益。
+            const tributeName = generateConsortName(gameState, 'tribute');
+            courtEvents.push({title:'藩屬使臣入朝',description:`藩屬使臣帶來方物與互市請求，並獻上佳麗「${tributeName}」。皇上可議定互市條款，或婉拒入宮。`,options:[
+                checkedOption('議定互市、收納貢品','civil',60,
+                    s=>maybeGrantInventoryItem({...s,treasury:s.treasury+improvePositive(900,s,'civil'),stability:addStability(s,4),logsAdd:'談判順利，互市條款對朝廷有利，貢品與商稅入庫。'},['imperial_silk','imperial_gold','jade_ruyi'],'上朝・藩屬使臣進貢'),
+                    s=>({...s,treasury:s.treasury+200,stability:addStability(s,-2),logsAdd:'談判未能取得理想條款，只收下少量方物。'})),
+                directOption('婉拒佳麗與厚禮，維持禮制（民心+3）',s=>({...s,stability:addStability(s,3),logsAdd:`婉拒${tributeName}入宮，命使臣依禮回國。`}))
+            ]});
+
+            // 3. 海貿豐收：文治提升財政成果。
+            courtEvents.push({title:'海貿豐收',description:'市舶司上奏，沿海商船往來頻繁，關稅大增。戶部請示如何處置盈餘。',options:[
+                checkedOption('核實帳冊後充入國庫','civil',55,
+                    s=>({...s,treasury:s.treasury+improvePositive(1100,s,'civil'),stability:addStability(s,2),logsAdd:'帳冊核驗無誤，海貿盈餘順利入庫。'}),
+                    s=>({...s,treasury:s.treasury+250,logsAdd:'帳冊出現錯漏，僅核實部分關稅盈餘入庫。'})),
+                directOption('大賞群臣（全體官員忠誠+4）',s=>({...s,ministers:s.ministers.map(m=>({...m,loyalty:Math.min(100,(Number(m.loyalty)||0)+4)})),logsAdd:'海貿盈餘用以犒賞群臣，百官感念皇恩。'}))
+            ]});
+
+            // 4. 御史死諫：保留魏徵技能，並將年度貪腐率降低量納入3個百分點上限。
+            courtEvents.push({title:'御史死諫',description:'御史大夫冒死進諫，痛陳朝中貪腐之風，請求皇上整飭吏治。文治越高，越能辨明奏疏要害。',options:[
+                checkedOption('虛心接受、命有司整飭吏治','civil',55,
+                    s=>{
+                        const weiZhengActive=Object.values(s.centralOfficials||{}).some(id=>(s.ministers||[]).some(m=>String(m.id)===String(id)&&m.specialId==='wei_zheng'));
+                        const extraRate=weiZhengActive?0.005:0;
+                        const extraStability=weiZhengActive?2:0;
+                        const year=Number(s.dynastyYear||s.year)||1;
+                        const used=Number(s.corruptionReductionYear)===year?(Number(s.corruptionReductionThisYear)||0):0;
+                        const requested=0.02*(1+emperorPolicyBonus(s,'civil')/100)+extraRate;
+                        const currentRate=normalizeCorruptionRate(s.corruptionRate);
+                        const reducible=Math.max(0,currentRate-MIN_CORRUPTION_RATE);
+                        const reduction=Math.min(requested,Math.max(0,0.03-used),reducible);
+                        return {...s,corruptionRate:normalizeCorruptionRate(currentRate-reduction),
+                            corruptionReductionYear:year,corruptionReductionThisYear:used+reduction,
+                            stability:addStability(s,improvePositive(5,s,'civil')+extraStability),
+                            logsAdd:`接納御史死諫，貪腐率降低${(reduction*100).toFixed(2)}個百分點，民心上升。${weiZhengActive?'魏徵犯顏直諫額外發揮效果。':''}`};
+                    },
+                    s=>({...s,stability:addStability(s,1),logsAdd:'御史所陳尚待查證，皇上命軍機處留意，暫不據此定罪。'})),
+                directOption('廷杖御史（全體官員忠誠-10）',s=>({...s,ministers:s.ministers.map(m=>({...m,loyalty:Math.max(0,(Number(m.loyalty)||0)-10)})),logsAdd:'廷杖御史，群臣震驚，朝廷忠誠受損。'}))
+            ]});
+
+            // 5. 河道決堤：文治影響工程處置。
+            courtEvents.push({title:'黃河河段決堤',description:'河工急報，連日暴雨沖毀堤防，沿岸村鎮有受災之虞。朝廷須決定先行修堤或開倉救濟。',options:[
+                checkedOption('撥銀修堤（銀-300）','civil',55,
+                    s=>({...s,treasury:s.treasury-300,stability:addStability(s,10),logsAdd:'河工調度得宜，堤防及時修復，百姓免於水患。'}),
+                    s=>({...s,treasury:s.treasury-300,stability:addStability(s,-6),logsAdd:'修堤工程調度失當，雖已動工仍有部分村鎮受災。'}),gameState.treasury<300),
+                directOption('開倉賑濟（銀-500、民心+6）',s=>({...s,treasury:s.treasury-500,stability:addStability(s,improvePositive(6,s,'civil')),logsAdd:'先行開倉賑濟，安置受災百姓。'}),gameState.treasury<500),
+                directOption('國庫空虛，命地方自行搶險（免費、民心-8）',s=>({...s,stability:addStability(s,-8),logsAdd:'國庫無力撥款，只得命地方自行搶險，災民怨聲四起。'}))
+            ]});
+
+            // 6. 糧價騰貴：文治影響平抑物價。
+            courtEvents.push({title:'京畿糧價騰貴',description:'京畿糧商囤積居奇，米價連日上漲，百姓請求朝廷出面平抑。',options:[
+                checkedOption('命戶部調糧平價（銀-200）','civil',60,
+                    s=>({...s,treasury:s.treasury-200,stability:addStability(s,9),logsAdd:'戶部調度得宜，糧價回穩，民心大幅改善。'}),
+                    s=>({...s,treasury:s.treasury-200,stability:addStability(s,-5),logsAdd:'調糧時機不當，糧價仍高，民怨增加。'}),gameState.treasury<200),
+                directOption('發放米糧補貼（銀-400、民心+5）',s=>({...s,treasury:s.treasury-400,stability:addStability(s,improvePositive(5,s,'civil')),logsAdd:'朝廷發放米糧補貼，暫解百姓燃眉之急。'}),gameState.treasury<400),
+                directOption('無力撥款，嚴令糧商不得哄抬（免費、民心-4）',s=>({...s,stability:addStability(s,-4),logsAdd:'國庫無力平糧，只能嚴令糧商不得哄抬，百姓仍感不安。'}))
+            ]});
+
+            // 7. 地方豪強侵田：文治影響清丈與地方治理。
+            courtEvents.push({title:'地方豪強侵佔民田',description:'地方百姓聯名呈狀，指控豪強兼併田地、逼迫佃戶。地方官請示是否清丈田畝。',options:[
+                checkedOption('派員清丈、核實田契','civil',50,
+                    s=>({...s,treasury:s.treasury+improvePositive(350,s,'civil'),stability:addStability(s,8),logsAdd:'清丈查明侵佔田畝，歸還民田並補徵欠稅。'}),
+                    s=>({...s,stability:addStability(s,-5),ministers:s.ministers.map(m=>({...m,loyalty:Math.max(0,(Number(m.loyalty)||0)-1)})),logsAdd:'地方勢力阻撓清丈，民怨上升，地方官威信受損。'})),
+                directOption('先行安撫、命地方官續查（銀-150）',s=>({...s,treasury:s.treasury-150,stability:addStability(s,3),logsAdd:'先行安撫百姓，命地方官限期查明田界。'}),gameState.treasury<150)
+            ]});
+
+            // 8. 工匠獻策：文治影響研發判斷，成功可推進一項已開放科技。
+            courtEvents.push({title:'工部匠人獻策',description:'工部匠人呈上一份改良器械的圖樣，稱可用於農具、軍械或交通工程，請皇上裁定是否試製。',options:[
+                checkedOption('撥銀試製新器（銀-250）','civil',55,
+                    s=>{
+                        const tech=TECHNOLOGIES.find(t=>Number(s.dynastyYear||s.year||1)>=Number(t.reqYear||1)&&!(s.unlockedTechs||[]).includes(t.id));
+                        if(!tech)return {...s,treasury:s.treasury-250,stability:addStability(s,2),logsAdd:'試製成功，但現有科技均已完成，工部將圖樣封存備用。'};
+                        const old=Number((s.techProgress||{})[tech.id])||0;
+                        const progress=Math.min(100,old+20);
+                        const unlocked=progress>=100?[...new Set([...(s.unlockedTechs||[]),tech.id])]:[...(s.unlockedTechs||[])];
+                        return {...s,treasury:s.treasury-250,techProgress:{...(s.techProgress||{}),[tech.id]:progress},unlockedTechs:unlocked,
+                            stability:addStability(s,2),logsAdd:`新器試製成功，${tech.name}研發進度增加20%。`};
+                    },
+                    s=>({...s,treasury:s.treasury-250,stability:addStability(s,-1),logsAdd:'試製結果不如預期，銀兩已支出但未取得有效成果。'}),gameState.treasury<250),
+                directOption('命工部繼續研究，不立即撥款',s=>({...s,logsAdd:'命工部完善圖樣，待成本與用途明確後再行試製。'}))
+            ]});
+
+            // 9. 邊關急報：武力影響軍情判斷與調度。
+            courtEvents.push({title:'邊關急報',description:'邊將奏報，邊境出現敵軍小股騷擾，請求朝廷決定是否調兵增援。',options:[
+                checkedOption('依軍報調度、整軍迎敵','military',55,
+                    s=>({...s,army:addArmy(s,improvePositive(35,s,'military')),stability:addStability(s,3),logsAdd:'軍情研判準確，增援部署及時，邊境局勢穩定。'}),
+                    s=>({...s,army:addArmy(s,-20),stability:addStability(s,-4),logsAdd:'誤判敵軍動向，調度失當，邊軍折損。'})),
+                directOption('緊急撥銀增援（銀-300、軍力+20）',s=>({...s,treasury:s.treasury-300,army:addArmy(s,20),logsAdd:'不待研判，先行撥銀增援邊軍。'}),gameState.treasury<300)
+            ]});
+
+            // 10. 軍餉短缺：武力影響軍需調度。
+            courtEvents.push({title:'兵部奏報軍餉短缺',description:'兵部稱部分駐軍糧餉延誤，將士怨言漸多。皇上可命兵部查核運送，或直接補發軍餉。',options:[
+                checkedOption('查核軍需、整頓轉運','military',55,
+                    s=>({...s,treasury:s.treasury+improvePositive(350,s,'military'),stability:addStability(s,2),logsAdd:'查明轉運環節有餘糧可調，軍餉缺口獲得補足。'}),
+                    s=>{const paid=Math.min(200,Math.max(0,Number(s.treasury)||0));return {...s,treasury:Math.max(0,(Number(s.treasury)||0)-paid),stability:addStability(s,-3),logsAdd:`軍需核查未能及時解決短缺，動用現有銀兩${paid}兩安撫軍心。`};}),
+                directOption('立即補發軍餉（銀-500、軍力+10）',s=>({...s,treasury:s.treasury-500,army:addArmy(s,10),stability:addStability(s,2),logsAdd:'立即補發軍餉，避免軍中怨氣擴大。'}),gameState.treasury<500)
+            ]});
+
+            // 11. 水師操練：武力影響訓練成效。
+            courtEvents.push({title:'水師請求操練',description:'水師將領請求增派教習與操練船隊，稱可提升沿海巡防能力。',options:[
+                checkedOption('批准操練、整頓水師','military',60,
+                    s=>({...s,army:addArmy(s,improvePositive(30,s,'military')),stability:addStability(s,2),logsAdd:'操練成效良好，水師戰備提升。'}),
+                    s=>({...s,army:addArmy(s,-8),logsAdd:'操練安排不當，船械損耗，水師戰備略有下降。'})),
+                directOption('暫緩操練，維持現狀',s=>({...s,logsAdd:'朝廷暫緩水師操練，維持現有部署。'}))
+            ]});
+
+            // 12. 將領爭功：武力影響對軍中局勢的處置。
+            courtEvents.push({title:'將領爭功不和',description:'兩名將領因戰功歸屬互相指責，軍中已有派系之勢。皇上須判斷誰應負責。',options:[
+                checkedOption('親自裁定功過、整飭軍紀','military',55,
+                    s=>({...s,ministers:s.ministers.map(m=>m.id===s.centralOfficials?.warMinister?{...m,loyalty:Math.min(100,(Number(m.loyalty)||0)+8)}:m),stability:addStability(s,2),logsAdd:'裁決公允，兵部尚書與諸將服從軍令。'}),
+                    s=>({...s,ministers:s.ministers.map(m=>m.id===s.centralOfficials?.warMinister?{...m,loyalty:Math.max(0,(Number(m.loyalty)||0)-8)}:m),stability:addStability(s,-2),logsAdd:'裁決未服眾，兵部與將領之間嫌隙加深。'})),
+                directOption('各打五十大板（中央官員忠誠-2）',s=>({...s,ministers:s.ministers.map(m=>Object.values(s.centralOfficials||{}).some(id=>String(id)===String(m.id))?{...m,loyalty:Math.max(0,(Number(m.loyalty)||0)-2)}:m),logsAdd:'皇上各責雙方，暫時平息爭執。'}))
+            ]});
+
+            // 13. 外邦求和：文治影響外交談判。
+            courtEvents.push({title:'外邦遣使求和',description:'外邦使臣請求重開邊市，並願以貨物換取通商許可。朝廷可談判條件或拒絕往來。',options:[
+                checkedOption('議定互市條件','civil',60,
+                    s=>({...s,treasury:s.treasury+improvePositive(700,s,'civil'),stability:addStability(s,4),logsAdd:'外交談判成功，互市條款有利，商貨與稅銀入境。'}),
+                    s=>({...s,treasury:s.treasury+100,stability:addStability(s,-2),logsAdd:'談判未能取得理想條件，只收取少量通關費。'})),
+                directOption('拒絕通商、維持邊境戒備',s=>({...s,army:addArmy(s,5),logsAdd:'拒絕外邦請求，命邊軍維持戒備。'}))
+            ]});
+
+            // 14. 京營火器事故：武力影響軍械整備。
+            courtEvents.push({title:'京營火器試放失慎',description:'京營試放火器時發生事故，器械受損且數名兵士受傷。兵部請旨調查並整修。',options:[
+                checkedOption('命兵部查明原因、重整操典','military',55,
+                    s=>({...s,army:addArmy(s,15),stability:addStability(s,2),logsAdd:'兵部查明操作疏失，重整操典後火器恢復使用。'}),
+                    s=>({...s,army:addArmy(s,-20),stability:addStability(s,-3),logsAdd:'事故原因未明，火器暫停使用，京營戰備下降。'})),
+                directOption('撥銀撫恤傷兵（銀-250、民心+3）',s=>({...s,treasury:s.treasury-250,stability:addStability(s,3),logsAdd:'撥銀撫恤傷兵，命工部與兵部共同檢修。'}),gameState.treasury<250)
+            ]});
+
+            const event = courtEvents[Math.floor(Math.random() * courtEvents.length)];
+            const statSummary = `\n\n御前能力：文治 ${gameState.civil}（政務判定加成 +${emperorPolicyBonus(gameState,'civil')}%）；武力 ${gameState.military}（軍務判定加成 +${emperorPolicyBonus(gameState,'military')}%）。判定成功率會依相應能力提高，最高95%。`;
+            setCurrentEvent({id:Date.now(),eventType:'COURT',title:event.title,description:event.description+statSummary,options:event.options,result:null});
+            setCurrentView('MEMORIAL');
+        };
+
+        // 高齡病危由玩家御前裁決。重症並非必死，但救活者生育力永久下降。
+        const decideConsortIllness = async (choice) => {
+            const id=gameState.pendingConsortIllnesses?.[0];
+            if(id==null)return;
+            const patient=(gameState.consorts||[]).find(c=>String(c.id)===String(id));
+            if(!patient){setGameState(prev=>({...prev,pendingConsortIllnesses:(prev.pendingConsortIllnesses||[]).slice(1)}));return;}
+            const cost=choice==='imperial'?{silver:500,energy:10}:choice==='ordinary'?{silver:150,energy:5}:{silver:0,energy:0};
+            if(gameState.treasury<cost.silver||gameState.energy<cost.energy){showMessage('太醫救治所需銀兩或體力不足');return;}
+            if(!await confirmLowEnergySpend(cost.energy,'救治病危妃嬪'))return;
+            const saved=choice!=='none' && Math.random()<(choice==='imperial'?.90:.60);
+            let next={...gameState,treasury:gameState.treasury-cost.silver,energy:gameState.energy-cost.energy,
+                pendingConsortIllnesses:(gameState.pendingConsortIllnesses||[]).slice(1)};
+            if(saved){
+                const penalty=choice==='imperial'?12:22;
+                next={...next,consorts:next.consorts.map(c=>String(c.id)===String(id)?
+                    {...c,fertility:Math.max(1,getFertility(c)-penalty),fertilityKnown:false,fertilityCheckExpired:true}:c)};
+                next=palaceNote(next,`【太醫救治】${consortIdentity(patient)}（${patient.age}歲）病危獲救，生育能力永久降低${penalty}點；請重新診脈。`);
+                next={...next,pendingHaremNews:[...(next.pendingHaremNews||[]),{id:royalNewId('illness'),title:'太醫奏捷・轉危為安',text:`${consortIdentity(patient)}已從危症中救回。惟元氣大傷，生育能力降低${penalty}點，須重新請太醫診脈方知現值。`}]};
+            }else{
+                const revivalAvailable=(Number(next.inventory?.revival_pill)||0)>0;
+                next=palaceKillPerson(next,{victimKind:'consort',victimId:patient.id},'年高病重');
+                if(!revivalAvailable)next={...next,pendingHaremNews:[...(next.pendingHaremNews||[]),{id:royalNewId('illness'),title:'後宮哀報・病逝',text:`${consortIdentity(patient)}（${patient.age}歲）${choice==='none'?'未及施救':'雖經太醫搶救'}，終因年高病重離世。已錄入歷代后妃名冊。`}]};
+            }
+            setGameState(normalizeRoyalState(next));
+        };
+
+        const decideConsortCrisis=async option=>{
+            const id=gameState.pendingConsortCrises?.[0];
+            if(id==null)return;
+            const person=gameState.consorts.find(c=>String(c.id)===String(id));
+            if(!person){setGameState(prev=>({...prev,pendingConsortCrises:(prev.pendingConsortCrises||[]).slice(1)}));return;}
+            const cost=option==='visit'?{silver:0,energy:10}:option==='care'?{silver:200,energy:0}:{silver:0,energy:0};
+            if(gameState.treasury<cost.silver||gameState.energy<cost.energy){showMessage('安撫資源不足');return;}
+            if(!await confirmLowEnergySpend(cost.energy,'安撫后妃'))return;
+            let next={...gameState,treasury:gameState.treasury-cost.silver,energy:gameState.energy-cost.energy,
+                pendingConsortCrises:(gameState.pendingConsortCrises||[]).slice(1)};
+            if(option==='ignore' && Math.random()<.30){
+                next=palaceKillPerson(next,{victimKind:'consort',victimId:person.id},'長期心灰意冷');
+                if(!(Number(next.inventory?.revival_pill)||0))setDeathEvent([person.name]);
+            }else{
+                next={...next,consorts:next.consorts.map(c=>String(c.id)===String(id)?{...c,
+                    affection:Math.min(100,Math.max(1,Number(c.affection)||1)+(option==='visit'?20:option==='care'?15:0))}:c)};
+                next=palaceNote(next,`【後宮關懷】${person.name}：${option==='visit'?'皇上親臨慰問':option==='care'?'賞銀並命宮人照顧':'皇上暫不處置'}。`);
+            }
+            setGameState(normalizeRoyalState(next));
+        };
+        const decidePalaceEvent = async action => {
+            const event=gameState.pendingPalaceEvent;
+            if (!event) return;
+            if (action==='execute' && !await requestGameConfirm(`罪證確鑿。確定下旨賜死「${event.culpritName}」？此決定不可撤銷。`,{title:'賜死裁決'})) return;
+            const next=applyPalaceDecision(gameState,action);
+            if (next===gameState){showMessage('國庫、體力不足，或尚不符合此項裁決條件');return;}
+            const energyCost=Math.max(0,(Number(gameState.energy)||0)-(Number(next.energy)||0));
+            if(!await confirmLowEnergySpend(energyCost,'處理宮廷事件'))return;
+            setGameState(next);
+        };
+        const decideAnnualDraft=async accept=>{
+            const offer=gameState.pendingAnnualDraft;
+            if(!offer)return;
+            const cost=val(10);
+            if(accept && (gameState.treasury<500||gameState.energy<cost)) {
+                showMessage(`選秀入宮需要500兩及${cost}體力，資源不足可選擇遣散`);return;
+            }
+            if(accept&&!await confirmLowEnergySpend(cost,'納選秀佳人入宮'))return;
+            setGameState(prev=>{
+                if(!prev.pendingAnnualDraft)return prev;
+                const pending=prev.pendingAnnualDraft;
+                let next={...prev,pendingAnnualDraft:null};
+                if(accept){
+                    const candidate=pending.specialConsortId?pending:{...pending,
+                        name:collectConsortNames(next).has(pending.name)?generateConsortName(next,'selection'):pending.name};
+                    const newConsort=consortFromCandidate(candidate,'選秀入宮',30);
+                    next={...next,treasury:next.treasury-500,energy:Math.max(0,next.energy-cost),
+                        consorts:[...(next.consorts||[]),newConsort]};
+                    return palaceNote(next,`【三年選秀】奉旨納${newConsort.name}入宮，初封答應。`);
+                }
+                return palaceNote({...next,stability:next.stability+5},
+                    `【三年選秀】婉拒${pending.name}入宮，遣散歸家，民心增加5。`);
+            });
+        };
+        const recheckPalaceCase=async (caseId,mode)=>{
+            if (gameState.pendingPalaceEvent){showMessage('請先處理現有宮廷事件');return;}
+            const target=(gameState.palaceCases||[]).find(c=>String(c.id)===String(caseId));
+            if(!target||target.status!=='unresolved'){showMessage('案件目前不需要重查');return;}
+            if(target.lastInvestigatedYear===gameState.dynastyYear){showMessage('本案今年已經調查過了');return;}
+            if(mode==='full'&&(gameState.treasury<200||gameState.energy<10)){showMessage('徹查需要200兩及10體力');return;}
+            if(mode==='full'&&!await confirmLowEnergySpend(10,'徹查內廷案件'))return;
+            setGameState(prev=>investigatePalaceCase(prev,caseId,mode));
+            setShowPalaceCases(false);
+        };
+
+        // --- UI Sub-Components ---
+        
