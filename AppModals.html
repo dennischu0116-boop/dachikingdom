@@ -118,7 +118,6 @@
             const [sequenceActive,setSequenceActive]=useState(false);
             const revealTimersRef=useRef([]);
             const personId=(person,index)=>String(person.id??`${person.name}-${index}`);
-            const reveal=(person,index)=>setRevealedIds(current=>current.includes(personId(person,index))?current:[...current,personId(person,index)]);
             const allRevealed=results.every((person,index)=>revealedIds.includes(personId(person,index)));
             const clearRevealTimers=()=>{
                 revealTimersRef.current.forEach(timer=>clearTimeout(timer));
@@ -128,10 +127,8 @@
                 if(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches){setRevealedIds(results.map(personId));return clearRevealTimers;}
                 setSequenceActive(true);
                 const startDelay=450;
-                results.forEach((person,index)=>{
-                    revealTimersRef.current.push(setTimeout(()=>reveal(person,index),startDelay+index*120));
-                });
-                revealTimersRef.current.push(setTimeout(()=>setSequenceActive(false),startDelay+(results.length-1)*120+700));
+                revealTimersRef.current.push(setTimeout(()=>setRevealedIds(results.map(personId)),startDelay));
+                revealTimersRef.current.push(setTimeout(()=>setSequenceActive(false),startDelay+700));
                 return clearRevealTimers;
             },[]);
             const finish=()=>{
@@ -149,7 +146,7 @@
                     <div className="shrink-0 text-center px-4 pt-4 pb-3 border-b border-amber-500/40">
                         <p className="text-xs tracking-[.35em] text-amber-300">禮部呈榜</p>
                         <h2 className="font-serif text-2xl sm:text-3xl font-bold text-amber-50 mt-1">{recruitReveal.title||'金榜揭曉'}</h2>
-                        <p className="text-sm text-amber-100/75 mt-1">{results.length>1?'十張殿試名帖將依序自動揭曉':'殿試名帖將自動揭曉本次錄取人才'}</p>
+                        <p className="text-sm text-amber-100/75 mt-1">{results.length>1?'十張殿試名帖將同時自動揭曉':'殿試名帖將自動揭曉本次錄取人才'}</p>
                     </div>
                     <div className={`min-h-0 flex-1 overflow-y-auto p-3 sm:p-5 grid gap-3 ${results.length>1?'grid-cols-2 sm:grid-cols-5':'grid-cols-1 place-items-center'}`}>
                         {results.map((person,index)=>{
