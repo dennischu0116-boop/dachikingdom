@@ -137,7 +137,7 @@ https://dennischu0116-boop.github.io/dachikingdom/assets/characters/manifest.jso
 ## 6. 實際操作：設定 GitHub Pages
 
 1. 進入 GitHub 儲存庫 → **Settings → Pages**。
-2. 確認有權使用 Pages，並選擇 **GitHub Actions** 作為發布來源；不要誤把整個 GAS 程式碼目錄當成公開網站發布。
+2. 工作流程的 `actions/configure-pages` 會先嘗試自動啟用 Pages；若權限不允許，請確認有管理權後手動選擇 **GitHub Actions** 作為發布來源。不要誤把整個 GAS 程式碼目錄當成公開網站發布。
 3. 檢查 `performance-image-beta` 上的 `.github/workflows/deploy-image-beta-pages.yml`。此流程會先確認 100 個 WebP 是否齊全，再只上傳 `assets/characters/` 所需靜態資源。
 4. 從 **Actions** 找到 `Publish beta character assets to GitHub Pages (manual)`，選擇測試分支手動執行（**若工作流程只存在於非預設分支，GitHub 可能不提供手動執行入口；不要因此擅自複製到 `main`，先依 GitHub 當下的工作流程可見性設定設計安全替代方案**）。
 5. 等工作流程回報成功後，檢查前述三個 URL 能否開啟；如不存在，先確認 Pages 網址、分支、部署產物的目錄層級與是否需重新整理快取。

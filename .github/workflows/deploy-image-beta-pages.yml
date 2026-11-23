@@ -43,6 +43,8 @@ jobs:
           mkdir -p _site/assets/characters
           cp -R assets/characters/portraits assets/characters/thumbs assets/characters/manifest.json _site/assets/characters/
       - uses: actions/configure-pages@v5
+        with:
+          enablement: true
       - uses: actions/upload-pages-artifact@v4
         with:
           path: ./_site

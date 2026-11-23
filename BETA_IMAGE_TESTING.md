@@ -50,7 +50,7 @@ http://127.0.0.1:4173/.beta-preview/index.html
 
 ## 尚待外部設定
 
-1. 在儲存庫 Settings → Pages 選用 GitHub Actions，確認圖片 Pages URL 可讀。
+1. Pages 工作流程會嘗試自動啟用 GitHub Actions 發布；若儲存庫權限不允許，再由管理者到 Settings → Pages 選用 GitHub Actions，並確認圖片 URL 可讀。
 2. 建立完全獨立的 Google Apps Script 測試專案與 Web App 部署；正式專案不可使用。
 3. 在實際目標桌機上完成多輪冷／暖快取性能驗收並保留 JSON／CSV 結果。
 4. 目前素材是角色概念表裁切圖；正式上線前仍需逐張美術精修。
