@@ -33,8 +33,12 @@ jobs:
           if missing: raise SystemExit('Cannot publish: '+str(len(missing))+' missing images. First missing: '+', '.join(missing[:3]))
           print('Verified',len(required),'images')
           PY
+      - name: Stage only public character assets at expected path
+        run: |
+          mkdir -p _site/assets/characters
+          cp -R assets/characters/portraits assets/characters/thumbs assets/characters/manifest.json _site/assets/characters/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4
         with:
-          path: ./assets/characters
+          path: ./_site
       - uses: actions/deploy-pages@v4
