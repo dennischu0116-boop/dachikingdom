@@ -56,6 +56,21 @@
               next[key]=chosen.id;
               used.set(chosen.id,score(chosen)+1);
           }
+          // 歷史名冊只保留對應，不計入目前在世人物的撞臉占用名額。
+          const archives=[...(state.retiredMinisters||[]).map(person=>({person,type:'minister'})),
+              ...(state.deceasedConsorts||[]).map(person=>({person,type:'consort'})),
+              ...(state.historicalConsorts||[]).flatMap(record=>(record.consorts||[]).map(person=>({person,type:'consort'})))];
+          for(const {person,type} of archives){
+              if(person?.id===null||person?.id===undefined)continue;
+              const key=betaPortraitKey(type,person.id);
+              if(next[key])continue;
+              const special=type==='consort'&&person.specialConsortId?'special_'+person.specialConsortId:null;
+              if(special&&BETA_IMAGE_META[special]){next[key]=special;continue;}
+              const kind=type==='consort'?'consort':Number(person.military||0)>Number(person.civil||0)?'military':'civil';
+              const age=type==='consort'?getConsortAge(person):Number(person.age)||30;
+              const choices=Object.values(BETA_IMAGE_META).filter(meta=>meta.kind===kind&&meta.age===betaPortraitAge(age));
+              if(choices.length)next[key]=choices[betaHash(String(state.gameId||'game')+':'+key)%choices.length].id;
+          }
           return next;
       };
       const BetaPortrait = React.memo(({portraitId,detail=false,label='',onClick=null,className=''})=>{
