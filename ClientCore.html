@@ -1,8 +1,9 @@
       const { useState, useEffect, useLayoutEffect, useRef } = React;
 
       // 遊戲對外顯示版本，未來更新只需要修改這一處。
-      const APP_VERSION = "v1.3.4";
-      const QING_CLOUD_BINDING_KEY = 'qing_cloud_active_binding_v1';
+      const APP_VERSION = "v1.3.5-beta";
+      const QING_IMAGE_BETA=true;
+      const QING_CLOUD_BINDING_KEY = 'qing_image_beta_cloud_binding_disabled';
       const readCloudBinding = () => {
           try {
               const value=JSON.parse(localStorage.getItem(QING_CLOUD_BINDING_KEY)||'null');
