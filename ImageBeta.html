@@ -1,0 +1,113 @@
+      // v1.3.5-beta：本檔只在隔離測試分支載入。圖片 URL 不寫入遊戲數值。
+      const BETA_IMAGE_BASE='https://dennischu0116-boop.github.io/dachikingdom/assets/characters/';
+      const BETA_IMAGE_GROUPS={
+          civil:{count:12,ages:[4,5,3]},
+          military:{count:10,ages:[4,4,2]},
+          consort:{count:18,ages:[8,7,3]}
+      };
+      const BETA_SPECIAL_IDS=['diao_chan','wang_zhaojun','xi_shi','yang_yuhuan','zhen_mi','yu_ji','zhao_feiyan','zhangsun','xiaozhuang','wei_zifu'];
+      const BETA_IMAGE_META=(()=>{
+          const entries={};
+          for(const [kind,meta] of Object.entries(BETA_IMAGE_GROUPS)){
+              let offset=0;
+              ['young','middle','senior'].forEach((age,index)=>{
+                  for(let n=0;n<meta.ages[index];n++){
+                      const id=kind+'_'+age+'_'+String(n+1).padStart(3,'0');
+                      entries[id]={id,kind,age,thumbnail:'thumbs/'+id+'.webp',portrait:'portraits/'+id+'.webp'};
+                  }
+                  offset+=meta.ages[index];
+              });
+          }
+          BETA_SPECIAL_IDS.forEach(id=>{const key='special_'+id;entries[key]={id:key,kind:'special',age:'fixed',thumbnail:'thumbs/'+key+'.webp',portrait:'portraits/'+key+'.webp'};});
+          return entries;
+      })();
+      const betaHash = text => {
+          let value=2166136261;
+          for(let i=0;i<text.length;i++){value^=text.charCodeAt(i);value=Math.imul(value,16777619);}
+          return value>>>0;
+      };
+      const betaPortraitAge = age => Number(age)<35?'young':Number(age)<55?'middle':'senior';
+      const betaPortraitKey=(kind,id)=>kind+':'+String(id);
+      const BETA_SILHOUETTE='data:image/svg+xml;charset=utf-8,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="128" height="192" viewBox="0 0 128 192"><rect width="128" height="192" fill="#efe5d1"/><circle cx="64" cy="63" r="30" fill="#8c755f"/><path d="M5 192Q10 115 64 115Q118 115 123 192" fill="#6a4a36"/><path d="M25 40h78v12H25z" fill="#44362b"/><path d="M47 14h34v32H47z" fill="#44362b"/></svg>');
+      const BetaPortrait = React.memo(({portraitId,detail=false,label='',onClick=null,className=''})=>{
+          const node=useRef(null);
+          const [visible,setVisible]=useState(detail);
+          const [failed,setFailed]=useState(false);
+          const meta=BETA_IMAGE_META[portraitId];
+          useEffect(()=>{setFailed(false);setVisible(detail);},[portraitId,detail]);
+          useEffect(()=>{
+              if(detail||visible)return;
+              const current=node.current;
+              if(!current)return;
+              if(!('IntersectionObserver' in window)){setVisible(true);return;}
+              const observer=new IntersectionObserver(entries=>{if(entries.some(e=>e.isIntersecting)){setVisible(true);observer.disconnect();}},{rootMargin:'0px',threshold:0.01});
+              observer.observe(current);
+              return ()=>observer.disconnect();
+          },[detail,visible,portraitId]);
+          const src=meta&&visible&&!failed?BETA_IMAGE_BASE+(detail?meta.portrait:meta.thumbnail):BETA_SILHOUETTE;
+          return <img ref={node} src={src} alt={label||'人物立繪'} loading={detail?'eager':'lazy'} decoding="async" onError={()=>setFailed(true)}
+              onClick={onClick||undefined}
+              className={className+' beta-character-image '+(onClick?'cursor-pointer':'')}
+              style={{objectFit:'contain',background:'#f7f0e5'}}
+              title={failed?'人物圖片暫時無法載入，已使用預設剪影':label}/>;
+      });
+      const BetaImageLab=({onClose})=>{
+          const [population,setPopulation]=useState(100);
+          const [mode,setMode]=useState('visible');
+          const [run,setRun]=useState(0);
+          const [stats,setStats]=useState({loaded:0,failed:0,fps:0,bytes:null,longTasks:0,started:0});
+          const metrics=useRef({loaded:0,failed:0,frames:0,longTasks:0});
+          const labels=Object.keys(BETA_IMAGE_META);
+          useEffect(()=>{
+              metrics.current={loaded:0,failed:0,frames:0,longTasks:0};
+              const started=performance.now();let frame=null,last=started,alive=true;
+              setStats({loaded:0,failed:0,fps:0,bytes:null,longTasks:0,started});
+              const observer=typeof PerformanceObserver!=='undefined'&&PerformanceObserver.supportedEntryTypes?.includes('longtask')
+                ?new PerformanceObserver(list=>{metrics.current.longTasks+=list.getEntries().length;}):null;
+              try{observer?.observe({entryTypes:['longtask']});}catch(error){}
+              const step=now=>{
+                  metrics.current.frames++;
+                  if(now-last>=800){
+                      const fps=Math.round(metrics.current.frames*1000/(now-last));
+                      metrics.current.frames=0;last=now;
+                      const entries=performance.getEntriesByType('resource').filter(e=>e.name.includes('/assets/characters/')&&e.startTime>=started);
+                      const transferable=entries.every(e=>Number(e.transferSize)>0||Number(e.decodedBodySize)>0);
+                      const bytes=transferable?entries.reduce((sum,e)=>sum+(e.transferSize||0),0):null;
+                      if(alive)setStats({loaded:metrics.current.loaded,failed:metrics.current.failed,fps,bytes,longTasks:metrics.current.longTasks,started});
+                  }
+                  frame=requestAnimationFrame(step);
+              };
+              frame=requestAnimationFrame(step);
+              return ()=>{alive=false;cancelAnimationFrame(frame);observer?.disconnect();};
+          },[population,mode,run]);
+          const record=(ok)=>{if(ok)metrics.current.loaded++;else metrics.current.failed++;};
+          const json=()=>JSON.stringify({version:APP_VERSION,time:new Date().toISOString(),population,mode,stats},null,2);
+          const download=()=>{const blob=new Blob([json()],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='qing-image-beta-metrics.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
+          return <div className="fixed inset-0 z-[240] bg-black/80 p-3 flex items-center justify-center" role="dialog" aria-modal="true" aria-label="圖片效能實驗室">
+              <section className="bg-amber-50 w-full max-w-5xl max-h-[95vh] flex flex-col rounded-xl overflow-hidden">
+                  <header className="p-4 bg-stone-900 text-white flex gap-3 flex-wrap items-center">
+                      <strong>🧪 圖片效能實驗室（與正式存檔隔離）</strong>
+                      <button onClick={onClose} className="ml-auto bg-stone-600 rounded px-3 py-1">關閉</button>
+                  </header>
+                  <div className="p-3 flex flex-wrap items-center gap-3 text-sm">
+                      <label>模擬人物 <select value={population} onChange={e=>setPopulation(Number(e.target.value))}>{[50,100,300,500].map(n=><option key={n} value={n}>{n} 人</option>)}</select></label>
+                      <label>模式 <select value={mode} onChange={e=>setMode(e.target.value)}><option value="none">A 無圖</option><option value="all">B 全部預載</option><option value="visible">C 可見縮圖</option><option value="detail">D 縮圖及首張高清圖</option></select></label>
+                      <button className="bg-amber-700 text-white rounded px-3 py-1" onClick={()=>setRun(v=>v+1)}>重新測量</button>
+                      <button className="bg-slate-700 text-white rounded px-3 py-1" onClick={download}>匯出 JSON</button>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 p-3 text-xs bg-white">
+                      <span>FPS：<b>{stats.fps||'測量中'}</b></span><span>已完成：<b>{stats.loaded}</b></span><span>失敗：<b>{stats.failed}</b></span><span>長任務：<b>{stats.longTasks}</b></span><span>傳輸量：<b>{stats.bytes===null?'無法測量':(stats.bytes/1024).toFixed(1)+' KB'}</b></span>
+                  </div>
+                  <p className="text-xs px-3 text-stone-700">顯示圖片只使用50種共用素材；捲動下方名單測試按需載入。計時限制與圖片主機的跨來源政策會影響下載量讀數。</p>
+                  <div className="overflow-y-auto p-3 grid grid-cols-2 sm:grid-cols-5 gap-2" key={mode+'_'+population+'_'+run}>
+                      {Array.from({length:population},(_,i)=>{
+                          const id=labels[i%labels.length],meta=BETA_IMAGE_META[id];
+                          return <div key={i} className="bg-white border rounded p-2 text-xs">
+                              {mode!=='none'&&<img src={BETA_IMAGE_BASE+((mode==='detail'&&i===0)?meta.portrait:meta.thumbnail)} loading={mode==='all'?'eager':'lazy'} decoding="async" onLoad={()=>record(true)} onError={e=>{record(false);e.currentTarget.onerror=null;e.currentTarget.src=BETA_SILHOUETTE;}} className="w-20 h-20 mx-auto object-contain"/>}
+                              <div>測試人物 {i+1}</div><small>{id}</small>
+                          </div>;
+                      })}
+                  </div>
+              </section>
+          </div>;
+      };
