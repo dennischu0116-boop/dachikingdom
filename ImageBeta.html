@@ -37,13 +37,13 @@
               ...(state.consorts||[]).map(person=>({person,kind:'consort',age:Number(person.age)||getConsortAge(person)}))];
           const used=new Map();
           for(const {person} of live){
-              const key=betaPortraitKey(person.specialConsortId?'consort':(Number(person.military||0)>Number(person.civil||0)?'military':'civil'),person.id);
+              const key=betaPortraitKey(person.specialConsortId||Object.prototype.hasOwnProperty.call(person,'rank')?'consort':'minister',person.id);
               const assigned=next[key];
               if(assigned)used.set(assigned,(used.get(assigned)||0)+1);
           }
           for(const {person,kind,age} of live){
               if(person.id===undefined||person.id===null)continue;
-              const key=betaPortraitKey(kind,person.id);
+              const key=betaPortraitKey(kind==='consort'?'consort':'minister',person.id);
               if(next[key])continue;
               const special=kind==='consort'&&person.specialConsortId?'special_'+person.specialConsortId:null;
               if(special&&BETA_IMAGE_META[special]){next[key]=special;used.set(special,(used.get(special)||0)+1);continue;}
