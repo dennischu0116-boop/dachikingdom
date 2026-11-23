@@ -4,6 +4,14 @@
         const [initialCloudBinding] = useState(()=>null);
         const [isGameStarted, setIsGameStarted] = useState(!!initialSave);
         const [gameState, setGameState] = useState(initialSave ? initialSave.gameState : INITIAL_STATE);
+        const [betaPortraitAssignments,setBetaPortraitAssignments]=useState(initialSave?.betaPortraitAssignments||{});
+        useEffect(()=>{
+            if(!QING_IMAGE_BETA||!gameState.gameId)return;
+            setBetaPortraitAssignments(previous=>{
+                const next=betaAllocatePortraits(gameState,previous);
+                return Object.keys(next).length===Object.keys(previous).length?previous:next;
+            });
+        },[gameState.gameId,gameState.ministers,gameState.consorts]);
         const [currentView, setCurrentView] = useState('THRONE'); 
         const [treasuryTab,setTreasuryTab]=useState('BAG');
         const [inventoryFilter,setInventoryFilter]=useState('全部');
@@ -311,6 +319,7 @@
 
         const handleStartGame = async (eraName, playerName) => {
             const fresh=createFreshGame(eraName,playerName);
+            if(QING_IMAGE_BETA)setBetaPortraitAssignments({});
             const targetSlot=Number(pendingCloudNewGameSlot)||null;
             cloudPauseRef.current=true;
             if(targetSlot){
@@ -396,7 +405,8 @@
                     version: 2,
                     savedAt: Date.now(),
                     gameState: cleanGameStateForSave(normalizeRoyalState(gameState)),
-                    logs
+                    logs,
+                    betaPortraitAssignments
                 };
                 localStorage.setItem(QING_SAVE_KEY, JSON.stringify(payload));
                 setAutoSaveStatus('已自動存檔');
@@ -404,13 +414,13 @@
                 console.error('即時存檔失敗：', error);
                 setAutoSaveStatus('自動存檔失敗');
             }
-        }, [isGameStarted, gameState, logs]);
+        }, [isGameStarted, gameState, logs, betaPortraitAssignments]);
 
         const handleSave = () => {
             try {
                 localStorage.setItem(QING_SAVE_KEY, JSON.stringify({
                     version: 2, savedAt: Date.now(),
-                    gameState: cleanGameStateForSave(normalizeRoyalState(gameState)), logs
+                    gameState: cleanGameStateForSave(normalizeRoyalState(gameState)), logs, betaPortraitAssignments
                 }));
                 setAutoSaveStatus('已自動存檔');
                 showMessage('目前進度已儲存！', 'success');
@@ -424,6 +434,7 @@
             const linked=!!binding&&String(binding.gameId)===String(saved.gameState.gameId);
             cloudPauseRef.current=true;
             setGameState(saved.gameState);
+            setBetaPortraitAssignments(saved.betaPortraitAssignments||{});
             setLogs(saved.logs);
             setCurrentView('THRONE');
             setCurrentEvent(null);
@@ -453,7 +464,8 @@
             version: 2,
             savedAt: Date.now(),
             gameState: cleanGameStateForSave(normalizeRoyalState(gameState)),
-            logs
+            logs,
+            betaPortraitAssignments
         });
 
         const refreshCloudSlots = async (token = cloudToken) => {
@@ -713,6 +725,7 @@
                 // 原本的存檔在成功驗證前絕不覆蓋；React 更新後才由即時存檔保存新資料。
                 cloudPauseRef.current=true;
                 setGameState(imported.gameState);
+                setBetaPortraitAssignments(imported.betaPortraitAssignments||{});
                 setLogs(imported.logs);
                 setCurrentView('THRONE');
                 setCurrentEvent(null);
@@ -831,6 +844,7 @@
         // 僅在雲端確認完成匯入後標記，失敗時下次進入遊戲會重試。
         const legacyImportRunningRef = useRef(false);
         useEffect(() => {
+            if(QING_IMAGE_BETA)return;
             if (legacyImportRunningRef.current) return;
             if (typeof google === 'undefined' || !google.script?.run) return;
             legacyImportRunningRef.current = true;
@@ -1338,6 +1352,7 @@
             // 重新開始前先提交目前這一局的最新峰值；新局會在登基時建立另一個gameId。
             if (isGameStarted && gameState.gameId) submitScore(gameState, true);
             try { localStorage.removeItem(QING_SAVE_KEY); } catch (err) { console.warn(err); }
+            if(QING_IMAGE_BETA)setBetaPortraitAssignments({});
             setShowRestartConfirm(false);
             setShowSystemSettings(false);
             setShowImportModal(false);
