@@ -1,4 +1,5 @@
       const qingCloudGas = (method, ...args) => new Promise((resolve, reject) => {
+          if(QING_IMAGE_BETA){reject(new Error('圖片測試版已停用 Google 登入與雲端存檔。'));return;}
           if (typeof google === 'undefined' || !google.script?.run) {
               reject(new Error('雲端功能只能在正式的 Google Apps Script 網頁中使用。'));
               return;
@@ -43,7 +44,7 @@
                           <button onClick={onUpdates} className="bg-amber-600/60 text-white text-sm px-3 py-2 rounded">📜 更新說明</button>
                           <button onClick={onHelp} className="bg-amber-600/60 text-white text-sm px-3 py-2 rounded">❓ 玩法說明</button>
                           <button onClick={onSettings} className="bg-stone-700 text-white text-sm px-3 py-2 rounded">⚙ 系統設定／存檔</button>
-                          <button onClick={onCloud} className="bg-blue-700 text-white text-sm px-3 py-2 rounded">☁️ {cloudStatus || 'Google 登入／雲端存檔'}</button>
+                          <span className="bg-emerald-800 text-white text-xs px-3 py-2 rounded">🧪 獨立本機存檔・雲端已停用</span>
                       </div>
                       {pendingCloudSlot&&<div className="mb-4 rounded border border-sky-400 bg-sky-950/60 p-3 text-sm text-sky-100">☁️ 這局新遊戲將建立於雲端槽位 {pendingCloudSlot}；請設定年號與皇帝姓名後開始。</div>}
                       <div className="space-y-4 mb-6 text-left">
@@ -196,7 +197,7 @@
       };
 
       // 自動存檔：同步寫入同一瀏覽器的 localStorage，不依賴 Google Drive。
-      const QING_SAVE_KEY = 'qing_saveData';
+      const QING_SAVE_KEY = 'qing_image_beta_saveData_v1';
       const cleanGameStateForSave = (state) => {
           const { logsAdd: _unused, ...rest } = normalizeTerritoryState(state);
           // 相容舊版圖片存檔：避免把龐大的 base64 圖片再度存入。
