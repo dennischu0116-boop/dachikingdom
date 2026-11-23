@@ -972,7 +972,8 @@
                   statsHistory: saved.statsHistory || INITIAL_STATE.statsHistory,
                   corruptionRate: normalizeCorruptionRate(saved.corruptionRate)
               }),
-              logs: Array.isArray(raw.logs) ? raw.logs : []
+              logs: Array.isArray(raw.logs) ? raw.logs : [],
+              betaPortraitAssignments: QING_IMAGE_BETA && raw.betaPortraitAssignments && typeof raw.betaPortraitAssignments==='object' ? raw.betaPortraitAssignments : {}
           };
       };
       const readAutoSave = () => {
