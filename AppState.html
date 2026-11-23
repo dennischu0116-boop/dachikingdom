@@ -11,7 +11,7 @@
                 const next=betaAllocatePortraits(gameState,previous);
                 return Object.keys(next).length===Object.keys(previous).length?previous:next;
             });
-        },[gameState.gameId,gameState.ministers,gameState.consorts]);
+        },[gameState.gameId,gameState.ministers,gameState.consorts,gameState.retiredMinisters,gameState.deceasedConsorts,gameState.historicalConsorts]);
         const [currentView, setCurrentView] = useState('THRONE'); 
         const [treasuryTab,setTreasuryTab]=useState('BAG');
         const [inventoryFilter,setInventoryFilter]=useState('全部');
