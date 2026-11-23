@@ -126,6 +126,7 @@
         // Google OAuth2 授權碼登入與五槽雲端存檔；Session Token 僅保存在目前分頁。
         const [showCloudPanel, setShowCloudPanel] = useState(false);
         const [showImageLab,setShowImageLab]=useState(false);
+        const [betaConsortDetailId,setBetaConsortDetailId]=useState(null);
         const [cloudConfig, setCloudConfig] = useState({enabled:false, oauthReady:false, maxSlots:5, loading:true});
         const [cloudToken, setCloudToken] = useState('');
         const [cloudUser, setCloudUser] = useState(null);
