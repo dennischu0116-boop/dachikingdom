@@ -15,6 +15,7 @@ concurrency:
 
 jobs:
   deploy:
+    if: github.ref == 'refs/heads/main'
     name: Push source to GAS
     runs-on: ubuntu-latest
     timeout-minutes: 10
