@@ -84,25 +84,31 @@
           const [population,setPopulation]=useState(100);
           const [mode,setMode]=useState('visible');
           const [run,setRun]=useState(0);
-          const [stats,setStats]=useState({loaded:0,failed:0,fps:0,bytes:null,longTasks:0,started:0});
-          const metrics=useRef({loaded:0,failed:0,frames:0,longTasks:0});
+          const [stats,setStats]=useState({loaded:0,failed:0,fps:0,p95Frame:null,heap:null,dom:0,resources:0,bytes:null,longTasks:0,started:0});
+          const metrics=useRef({loaded:0,failed:0,frames:0,longTasks:0,intervals:[],prevFrame:null});
           const labels=Object.keys(BETA_IMAGE_META);
           useEffect(()=>{
-              metrics.current={loaded:0,failed:0,frames:0,longTasks:0};
+              metrics.current={loaded:0,failed:0,frames:0,longTasks:0,intervals:[],prevFrame:null};
               const started=performance.now();let frame=null,last=started,alive=true;
-              setStats({loaded:0,failed:0,fps:0,bytes:null,longTasks:0,started});
+              setStats({loaded:0,failed:0,fps:0,p95Frame:null,heap:null,dom:0,resources:0,bytes:null,longTasks:0,started});
               const observer=typeof PerformanceObserver!=='undefined'&&PerformanceObserver.supportedEntryTypes?.includes('longtask')
                 ?new PerformanceObserver(list=>{metrics.current.longTasks+=list.getEntries().length;}):null;
               try{observer?.observe({entryTypes:['longtask']});}catch(error){}
               const step=now=>{
                   metrics.current.frames++;
+                  if(metrics.current.prevFrame!==null&&now-metrics.current.prevFrame<1000){metrics.current.intervals.push(now-metrics.current.prevFrame);if(metrics.current.intervals.length>1500)metrics.current.intervals.shift();}
+                  metrics.current.prevFrame=now;
                   if(now-last>=800){
                       const fps=Math.round(metrics.current.frames*1000/(now-last));
                       metrics.current.frames=0;last=now;
                       const entries=performance.getEntriesByType('resource').filter(e=>e.name.includes('/assets/characters/')&&e.startTime>=started);
                       const transferable=entries.every(e=>Number(e.transferSize)>0||Number(e.decodedBodySize)>0);
                       const bytes=transferable?entries.reduce((sum,e)=>sum+(e.transferSize||0),0):null;
-                      if(alive)setStats({loaded:metrics.current.loaded,failed:metrics.current.failed,fps,bytes,longTasks:metrics.current.longTasks,started});
+                      const ordered=[...metrics.current.intervals].sort((a,b)=>a-b);
+                      const p95Frame=ordered.length?ordered[Math.min(ordered.length-1,Math.ceil(ordered.length*.95)-1)]:null;
+                      const heap=Number(performance.memory?.usedJSHeapSize)||null;
+                      const dom=document.querySelectorAll('*').length;
+                      if(alive)setStats({loaded:metrics.current.loaded,failed:metrics.current.failed,fps,p95Frame,heap,dom,resources:entries.length,bytes,longTasks:metrics.current.longTasks,started});
                   }
                   frame=requestAnimationFrame(step);
               };
@@ -111,6 +117,7 @@
           },[population,mode,run]);
           const record=(ok)=>{if(ok)metrics.current.loaded++;else metrics.current.failed++;};
           const json=()=>JSON.stringify({version:APP_VERSION,time:new Date().toISOString(),population,mode,stats},null,2);
+          const downloadCsv=()=>{const cells=[['version','population','mode','fps','p95_frame_ms','loaded_elements','failed_elements','resource_count','transfer_bytes','js_heap_bytes','dom_nodes','long_tasks'],[APP_VERSION,population,mode,stats.fps,stats.p95Frame??'',stats.loaded,stats.failed,stats.resources,stats.bytes??'',stats.heap??'',stats.dom,stats.longTasks]];const csv=cells.map(row=>row.join(',')).join('\\n'),blob=new Blob([csv],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='qing-image-beta-metrics.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
           const download=()=>{const blob=new Blob([json()],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='qing-image-beta-metrics.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
           return <div className="fixed inset-0 z-[240] bg-black/80 p-3 flex items-center justify-center" role="dialog" aria-modal="true" aria-label="圖片效能實驗室">
               <section className="bg-amber-50 w-full max-w-5xl max-h-[95vh] flex flex-col rounded-xl overflow-hidden">
@@ -123,16 +130,20 @@
                       <label>模式 <select value={mode} onChange={e=>setMode(e.target.value)}><option value="none">A 無圖</option><option value="all">B 全部預載</option><option value="visible">C 可見縮圖</option><option value="detail">D 縮圖及首張高清圖</option></select></label>
                       <button className="bg-amber-700 text-white rounded px-3 py-1" onClick={()=>setRun(v=>v+1)}>重新測量</button>
                       <button className="bg-slate-700 text-white rounded px-3 py-1" onClick={download}>匯出 JSON</button>
+                      <button className="bg-slate-700 text-white rounded px-3 py-1" onClick={downloadCsv}>匯出 CSV</button>
                   </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 p-3 text-xs bg-white">
-                      <span>FPS：<b>{stats.fps||'測量中'}</b></span><span>已完成：<b>{stats.loaded}</b></span><span>失敗：<b>{stats.failed}</b></span><span>長任務：<b>{stats.longTasks}</b></span><span>傳輸量：<b>{stats.bytes===null?'無法測量':(stats.bytes/1024).toFixed(1)+' KB'}</b></span>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-3 text-xs bg-white">
+                      <span>FPS：<b>{stats.fps||'測量中'}</b></span><span>圖片元素完成：<b>{stats.loaded}</b></span><span>失敗：<b>{stats.failed}</b></span><span>長任務：<b>{stats.longTasks}</b></span><span>傳輸量：<b>{stats.bytes===null?'無法測量':(stats.bytes/1024).toFixed(1)+' KB'}</b></span>
+                      <span>畫格 P95：<b>{stats.p95Frame===null?'測量中':stats.p95Frame.toFixed(1)+' ms'}</b></span>
+                      <span>JS 記憶體：<b>{stats.heap===null?'無法取得':(stats.heap/1048576).toFixed(1)+' MB'}</b></span>
+                      <span>DOM 數：<b>{stats.dom}</b></span><span>資源記錄：<b>{stats.resources}</b></span>
                   </div>
                   <p className="text-xs px-3 text-stone-700">顯示圖片只使用50種共用素材；捲動下方名單測試按需載入。計時限制與圖片主機的跨來源政策會影響下載量讀數。</p>
                   <div className="overflow-y-auto p-3 grid grid-cols-2 sm:grid-cols-5 gap-2" key={mode+'_'+population+'_'+run}>
                       {Array.from({length:population},(_,i)=>{
                           const id=labels[i%labels.length],meta=BETA_IMAGE_META[id];
                           return <div key={i} className="bg-white border rounded p-2 text-xs">
-                              {mode!=='none'&&<img src={BETA_IMAGE_BASE+((mode==='detail'&&i===0)?meta.portrait:meta.thumbnail)} loading={mode==='all'?'eager':'lazy'} decoding="async" onLoad={()=>record(true)} onError={e=>{record(false);e.currentTarget.onerror=null;e.currentTarget.src=BETA_SILHOUETTE;}} className="w-20 h-20 mx-auto object-contain"/>}
+                              {mode!=='none'&&<img src={BETA_IMAGE_BASE+((mode==='detail'&&i===0)?meta.portrait:meta.thumbnail)} loading={mode==='all'?'eager':'lazy'} decoding="async" onLoad={e=>{if(!e.currentTarget.src.startsWith('data:'))record(true);}} onError={e=>{record(false);e.currentTarget.onerror=null;e.currentTarget.src=BETA_SILHOUETTE;}} className="w-20 h-20 mx-auto object-contain"/>}
                               <div>測試人物 {i+1}</div><small>{id}</small>
                           </div>;
                       })}
