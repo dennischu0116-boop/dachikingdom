@@ -24,3 +24,6 @@ qing-clasp-verify-*/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Beta-only GAS target must never be committed.
+.clasp.json
