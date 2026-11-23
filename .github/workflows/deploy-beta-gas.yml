@@ -28,7 +28,11 @@ jobs:
           printf '%s' "$CLASPRC_BETA_JSON" > "$HOME/.clasprc.json"
           chmod 600 "$HOME/.clasprc.json"
           mkdir -p gas_beta_deploy
-          cp ./*.gs ./*.html ./appsscript.json gas_beta_deploy/
+          cp ./BetaServer.js ./*.html ./appsscript.json gas_beta_deploy/
+          test ! -e gas_beta_deploy/程式碼.js
+          test ! -e gas_beta_deploy/CodeSave.js
+          test "$(find gas_beta_deploy -maxdepth 1 -type f -name '*.js' -printf '%f\n')" = 'BetaServer.js'
+          ! grep -E 'SpreadsheetApp|DriveApp|submitLeaderboardScore|getLeaderboard' gas_beta_deploy/BetaServer.js
           printf '{"scriptId":"%s","rootDir":"gas_beta_deploy","scriptExtensions":[".gs",".js"],"htmlExtensions":[".html"],"jsonExtensions":[".json"]}\n' "$BETA_GAS_SCRIPT_ID" > .clasp.json
       - name: Push only to dedicated GAS project
         run: npx --yes @google/clasp@3.4.1 push --force

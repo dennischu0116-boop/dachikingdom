@@ -1,5 +1,10 @@
-name: Publish beta character assets to GitHub Pages (manual)
+name: Publish beta character assets to GitHub Pages
 on:
+  push:
+    branches: [performance-image-beta]
+    paths:
+      - 'assets/characters/**'
+      - '.github/workflows/deploy-image-beta-pages.yml'
   workflow_dispatch:
 
 permissions:

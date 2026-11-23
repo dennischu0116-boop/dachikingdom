@@ -1,7 +1,7 @@
 {
   "version": "v1.3.5-beta",
-  "status": "ARTWORK_NOT_YET_PUBLISHED",
-  "artworkNote": "The 50 generated concept illustrations are packaged separately and must be uploaded to Pages; URL paths in this manifest are reserved.",
+  "status": "ARTWORK_INCLUDED_PENDING_PAGES",
+  "artworkNote": "The 50 concept portraits and 50 thumbnails are included in this beta branch; remote use still requires the Pages workflow to publish them.",
   "counts": {
     "civil": 12,
     "military": 10,

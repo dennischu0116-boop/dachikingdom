@@ -1,5 +1,6 @@
       // v1.3.5-beta：本檔只在隔離測試分支載入。圖片 URL 不寫入遊戲數值。
-      const BETA_IMAGE_BASE='https://dennischu0116-boop.github.io/dachikingdom/assets/characters/';
+      const BETA_IMAGE_BASE=String(globalThis.QING_IMAGE_BETA_ASSET_BASE||
+          'https://dennischu0116-boop.github.io/dachikingdom/assets/characters/').replace(/\/?$/,'/');
       const BETA_IMAGE_GROUPS={
           civil:{count:12,ages:[4,5,3]},
           military:{count:10,ages:[4,4,2]},
