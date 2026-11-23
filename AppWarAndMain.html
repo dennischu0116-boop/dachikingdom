@@ -813,7 +813,8 @@
       {showSystemSettings && <SystemSettingsModal onClose={()=>setShowSystemSettings(false)} onSave={handleSave} onLoad={handleLoad}
           onExport={handleExportSave} onDownload={handleDownloadBackup} onImport={()=>{setShowSystemSettings(false);setShowImportModal(true);}}
           onRestart={restartGame} autoSaveStatus={autoSaveStatus} isGameStarted={isGameStarted} />}
-      {showCloudPanel && CloudSavePanel()}
+      {showImageLab&&<BetaImageLab onClose={()=>setShowImageLab(false)}/>}
+      {showCloudPanel && !QING_IMAGE_BETA && CloudSavePanel()}
       {showRestartConfirm && <RestartConfirmModal onCancel={()=>setShowRestartConfirm(false)} onConfirm={confirmRestartGame} />}
       <CloudGuardModal />
       <GameDialogModal />
@@ -827,7 +828,7 @@
                <button onClick={()=>setShowReleaseNotes(true)} className="text-[11px] text-amber-200 underline whitespace-nowrap" title="查看更新說明">{APP_VERSION} 更新</button>
                <button onClick={()=>{setManualTab('PALACE');setShowGameManual(true);}} className="text-[11px] bg-amber-800 rounded px-2 py-1 whitespace-nowrap">❓ 玩法</button>
                <button onClick={()=>setShowSystemSettings(true)} className="text-[11px] bg-stone-700 rounded px-2 py-1 whitespace-nowrap">⚙ 系統設定</button>
-               <button onClick={()=>setShowCloudPanel(true)} className="text-[11px] bg-sky-700 rounded px-2 py-1 whitespace-nowrap">☁ {cloudUser?(cloudSlot?`槽位 ${cloudSlot}`:'雲端已登入'):'Google 登入'}</button>
+               <button onClick={()=>setShowImageLab(true)} className="text-[11px] bg-emerald-800 rounded px-2 py-1 whitespace-nowrap">🧪 圖片效能實驗室</button>
                {(gameState.pendingPalaceEvent||gameState.pendingAnnualDraft||getPendingRetirementMinisters(gameState).length>0) && !['THRONE','MEMORIAL','DEFEND'].includes(currentView) && <button onClick={()=>setCurrentView('THRONE')} className="bg-red-700 text-xs font-bold px-2 py-1 rounded">⚠️ 待決宮廷事件</button>}
                {gameState.activeTitle && <span className="bg-yellow-500 text-stone-900 text-xs px-2 py-0.5 rounded-full font-bold flex items-center gap-1 animate-pulse"><Award/> {gameState.activeTitle}</span>}
             </div>
