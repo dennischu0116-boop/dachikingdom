@@ -372,6 +372,7 @@
                         {c.pregnancy && <span className="bg-rose-100 text-rose-800 text-xs px-2 rounded">🤰 有孕・次年生產</span>}
                         {Number(c.injuredUntil||0)>gameState.dynastyYear && <span className="bg-red-100 text-red-800 text-xs px-2 rounded">重傷休養</span>}
                         {c.specialConsortId&&<span className={`text-xs px-2 py-1 rounded font-bold ${c.specialRarity==='legendary'?'bg-purple-700 text-white':'bg-amber-200 text-amber-950'}`}>{c.specialRarity==='legendary'?'傳奇佳人':'歷史佳人'}</span>}
+                        <BetaPortrait portraitId={betaPortraitAssignments[betaPortraitKey('consort',c.id)]} label={c.name} onClick={()=>setBetaConsortDetailId(c.id)} className="w-12 h-16 rounded border border-pink-200" />
                         {renderAvatar(c.title + c.rank, c.avatar)}
                         <span className="font-bold text-lg text-pink-950">{c.title}{c.rank}</span>
                         <span className="font-bold text-gray-600 text-sm">({c.name})</span>
@@ -814,6 +815,7 @@
           onExport={handleExportSave} onDownload={handleDownloadBackup} onImport={()=>{setShowSystemSettings(false);setShowImportModal(true);}}
           onRestart={restartGame} autoSaveStatus={autoSaveStatus} isGameStarted={isGameStarted} />}
       {showImageLab&&<BetaImageLab onClose={()=>setShowImageLab(false)}/>}
+      {betaConsortDetailId!=null&&(()=>{const person=(gameState.consorts||[]).find(c=>String(c.id)===String(betaConsortDetailId));return person?<div className="fixed inset-0 z-[150] bg-black/75 p-4 flex items-center justify-center" role="dialog" aria-modal="true" aria-label="妃嬪立繪" onClick={()=>setBetaConsortDetailId(null)}><div onClick={e=>e.stopPropagation()} className="bg-pink-50 rounded-xl border-4 border-pink-700 max-w-sm w-full p-4 text-center"><h3 className="font-serif text-lg font-bold mb-3">{person.title}{person.rank} {person.name}</h3><BetaPortrait detail portraitId={betaPortraitAssignments[betaPortraitKey('consort',person.id)]} label={person.name} className="w-56 h-80 mx-auto rounded-lg"/><button className="mt-3 w-full bg-pink-800 text-white rounded p-2" onClick={()=>setBetaConsortDetailId(null)}>關閉</button></div></div>:null;})()}
       {showCloudPanel && !QING_IMAGE_BETA && CloudSavePanel()}
       {showRestartConfirm && <RestartConfirmModal onCancel={()=>setShowRestartConfirm(false)} onConfirm={confirmRestartGame} />}
       <CloudGuardModal />
