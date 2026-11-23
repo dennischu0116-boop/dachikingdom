@@ -1,0 +1,44 @@
+name: Validate v1.3.5-beta source (no deployment)
+on:
+  push:
+    branches: [performance-image-beta]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  static-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Babel parser
+        run: npm install --no-save --no-package-lock @babel/core@7 @babel/preset-react@7
+      - name: Parse combined GAS HTML JSX
+        run: |
+          node - <<'NODE'
+          const fs=require('fs'),babel=require('@babel/core');
+          const files=['ClientCore','ClientContent','ClientShell','ClientRules','ImageBeta','AppState','AppModals','AppGovernment','AppRoyal','AppWarAndMain'];
+          const code=files.map(name=>fs.readFileSync(name+'.html','utf8')).join('\n');
+          babel.transformSync(code,{babelrc:false,configFile:false,sourceType:'script',presets:[require('@babel/preset-react')]});
+          console.log('Parsed',files.length,'fragments');
+          NODE
+      - name: Check portrait manifest integrity
+        run: |
+          python3 - <<'PY'
+          import json
+          payload=json.load(open('assets/characters/manifest.json',encoding='utf8'))
+          chars=payload['portraits']
+          assert len(chars)==50
+          assert len({x['thumb'] for x in chars.values()})==50
+          assert len({x['full'] for x in chars.values()})==50
+          print('Manifest IDs: 50')
+          PY
+      - name: Check no production clasp target
+        run: |
+          test ! -e .clasp.json
+          ! grep -q 'const APP_VERSION = "v1.3.4"' ClientCore.html
