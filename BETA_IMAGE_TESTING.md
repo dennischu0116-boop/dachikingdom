@@ -7,14 +7,14 @@
 - 吏部／御花園清單按需讀取角色縮圖；官員詳情與妃嬪肖像視窗只在需要時讀取大圖
 - 固定的人物圖片對照表，文官12、武官10、一般妃嬪18、特殊佳人10
 - 角色專屬外貌對照隨測試專用存檔匯出及讀入；不修改正常玩法數值
-- 測試版儲存鍵 `qing_image_beta_saveData_v1`，不讀取原版 `qing_saveData`
+- 測試版儲存鍵 `qing_image_beta_saveData_v1`，不讀取原版 `qing_saveData`；手動匯入時會先預覽內容並備份前一份測試存檔
 - 在測試版停用 Google 登入、雲端存檔與排行榜讀寫
-- 有 50/100/300/500 人的圖片效能實驗室與 JSON 結果匯出
+- 有 50/100/300/500 人的圖片效能實驗室，支援 JSON 與 CSV 結果匯出、FPS、畫格 P95、JS 記憶體、DOM 數與長任務等監控
 - 遠端圖片不存在或下載失敗時顯示古代人物剪影
 
 ## 尚待完成的外部工作
 
-1. 將 100 個 WebP 圖片上傳到 `assets/characters/portraits/` 與 `assets/characters/thumbs/`。圖片素材 ZIP 由本次對話另行提供。
+1. 將 100 個 WebP 圖片上傳到 `assets/characters/portraits/` 與 `assets/characters/thumbs/`。圖片素材 ZIP 由本次對話另行提供，檔名為 `dachikingdom-v1.3.5-beta-character-assets.zip`，解壓後保留 `portraits/` 與 `thumbs/` 目錄；這批圖尚未由工具直接上傳 GitHub。
 2. 設定 GitHub Pages，令圖片 base URL `https://dennischu0116-boop.github.io/dachikingdom/assets/characters/` 真正可存取。**未設定前，所有角色只顯示剪影。**
 3. 在 Google Apps Script 建立**獨立測試專案**，填入測試專用 Script ID；不得使用正式版 ID。
 4. 測試版部署需使用測試專用憑證，不得沿用正式版的 `CLASPRC_JSON`。
