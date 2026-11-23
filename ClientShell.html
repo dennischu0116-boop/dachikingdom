@@ -115,9 +115,20 @@
           const [inputVal, setInputVal] = useState('');
           const [error, setError] = useState('');
           const [reading, setReading] = useState(false);
+          const [preview,setPreview] = useState(null);
           const fileRef = useRef(null);
           const submitImport = () => {
               setError('');
+              if(QING_IMAGE_BETA&&!preview){
+                  try{
+                      if(inputVal.length>6*1024*1024)throw new Error('存檔超過6MB，為安全起見已停止匯入。');
+                      const decoded=decodeSaveText(inputVal);
+                      if(!decoded?.gameState||!Array.isArray(decoded.gameState.ministers)||!Array.isArray(decoded.gameState.provinces))throw new Error('缺少官員或省份資料，不是有效完整存檔。');
+                      const st=decoded.gameState;
+                      setPreview({era:st.eraName||'未知',year:st.year??'未知',ministers:st.ministers.length,consorts:Array.isArray(st.consorts)?st.consorts.length:0,gameId:String(st.gameId||'舊版未提供'),version:decoded.version||'未知'});
+                      return;
+                  }catch(error){setError(error.message||'無法預覽存檔');return;}
+              }
               const result = onImport(inputVal);
               if (result && !result.ok) setError(result.error || '讀檔失敗');
           };
@@ -129,6 +140,7 @@
               const reader = new FileReader();
               reader.onload = () => {
                   setInputVal(String(reader.result || ''));
+                  setPreview(null);
                   setReading(false);
               };
               reader.onerror = () => {
@@ -143,13 +155,15 @@
                   <div className="bg-stone-100 p-6 rounded-lg max-w-lg w-full border-4 border-yellow-600 shadow-2xl">
                       <h3 className="text-2xl font-bold mb-4 text-yellow-900 font-serif text-center">導入存檔</h3>
                       <p className="text-sm text-gray-600 mb-2">貼上完整的存檔代碼，或選擇先前下載的備份檔（支援舊版 Base64、新版代碼與 JSON）。</p>
-                      <textarea className="w-full h-36 p-2 border rounded bg-white text-xs font-mono mb-2 focus:border-yellow-500 focus:outline-none" value={inputVal} onChange={(e) => { setInputVal(e.target.value); setError(''); }} placeholder="貼上完整的存檔代碼..." />
+                      <textarea className="w-full h-36 p-2 border rounded bg-white text-xs font-mono mb-2 focus:border-yellow-500 focus:outline-none" value={inputVal} onChange={(e) => { setInputVal(e.target.value); setError(''); setPreview(null); }} placeholder="貼上完整的存檔代碼..." />
                       <input ref={fileRef} type="file" accept=".txt,.json,text/plain,application/json" onChange={loadFile} className="hidden" />
                       <button type="button" onClick={() => fileRef.current?.click()} className="w-full mb-3 bg-indigo-100 text-indigo-900 border border-indigo-300 py-2 rounded font-bold hover:bg-indigo-200">📁 選擇備份檔（TXT / JSON）</button>
+                      {QING_IMAGE_BETA&&<p className="text-xs mb-2 text-emerald-900 font-bold">🧪 僅匯入測試版獨立本機存檔，正式進度不會被覆寫。請自行保留正式版備份。</p>}
+                      {QING_IMAGE_BETA&&preview&&<div className="mb-3 rounded border border-emerald-400 bg-emerald-50 p-3 text-sm text-emerald-950"><b>請核對存檔副本</b><p>年號：{preview.era}・{preview.year}年</p><p>官員 {preview.ministers} 人、妃嬪 {preview.consorts} 人</p><p className="break-all text-xs">遊戲 ID：{preview.gameId}，格式：{preview.version}</p><p className="mt-2 text-xs text-amber-900">確認後將取代測試版本機目前進度，並保留一份匯入前備份。</p></div>}
                       {error && <div role="alert" className="mb-3 p-2 text-sm rounded bg-red-50 border border-red-300 text-red-800 break-words">{error}</div>}
                       <div className="flex gap-3">
                           <button onClick={onClose} className="flex-1 bg-gray-300 text-gray-700 py-2 rounded font-bold hover:bg-gray-400">取消</button>
-                          <button disabled={reading || !inputVal.trim()} onClick={submitImport} className="flex-1 bg-yellow-600 disabled:opacity-50 text-white py-2 rounded font-bold hover:bg-yellow-500">{reading ? '讀取檔案中...' : '確認導入'}</button>
+                          <button disabled={reading || !inputVal.trim()} onClick={submitImport} className="flex-1 bg-yellow-600 disabled:opacity-50 text-white py-2 rounded font-bold hover:bg-yellow-500">{reading ? '讀取檔案中...' : QING_IMAGE_BETA&&!preview?'預覽存檔副本':'確認匯入測試版'}</button>
                       </div>
                   </div>
               </div>
