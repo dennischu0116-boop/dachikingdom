@@ -18,7 +18,7 @@
       </style>
   </head>
   <body>
-    <div id="root"><div id="initial-loading-screen" role="status" aria-live="polite"><div class="loading-spinner"></div><div style="font:700 24px serif">大清帝國載入中</div><div style="font-size:13px">正在讀取遊戲與雲端狀態，請稍候……</div></div></div>
+    <div id="root"><div id="initial-loading-screen" role="status" aria-live="polite"><div class="loading-spinner"></div><div style="font:700 24px serif">大清帝國載入中</div><div style="font-size:13px">正在讀取獨立圖片測試版，請稍候……</div></div></div>
 
     <!-- 先呈現載入畫面，再依序載入 React、Babel 與 Tailwind。 -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -30,6 +30,7 @@
 <?!= include('ClientContent'); ?>
 <?!= include('ClientShell'); ?>
 <?!= include('ClientRules'); ?>
+<?!= include('ImageBeta'); ?>
 <?!= include('AppState'); ?>
 <?!= include('AppModals'); ?>
 <?!= include('AppGovernment'); ?>
