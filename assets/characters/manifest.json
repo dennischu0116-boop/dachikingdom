@@ -1,0 +1,213 @@
+{
+  "version": "v1.3.5-beta",
+  "status": "ARTWORK_NOT_YET_PUBLISHED",
+  "artworkNote": "The 50 generated concept illustrations are packaged separately and must be uploaded to Pages; URL paths in this manifest are reserved.",
+  "counts": {
+    "civil": 12,
+    "military": 10,
+    "consort": 18,
+    "special": 10
+  },
+  "portraits": {
+    "civil_young_001": {
+      "thumb": "thumbs/civil_young_001.webp",
+      "full": "portraits/civil_young_001.webp"
+    },
+    "civil_young_002": {
+      "thumb": "thumbs/civil_young_002.webp",
+      "full": "portraits/civil_young_002.webp"
+    },
+    "civil_young_003": {
+      "thumb": "thumbs/civil_young_003.webp",
+      "full": "portraits/civil_young_003.webp"
+    },
+    "civil_young_004": {
+      "thumb": "thumbs/civil_young_004.webp",
+      "full": "portraits/civil_young_004.webp"
+    },
+    "civil_middle_001": {
+      "thumb": "thumbs/civil_middle_001.webp",
+      "full": "portraits/civil_middle_001.webp"
+    },
+    "civil_middle_002": {
+      "thumb": "thumbs/civil_middle_002.webp",
+      "full": "portraits/civil_middle_002.webp"
+    },
+    "civil_middle_003": {
+      "thumb": "thumbs/civil_middle_003.webp",
+      "full": "portraits/civil_middle_003.webp"
+    },
+    "civil_middle_004": {
+      "thumb": "thumbs/civil_middle_004.webp",
+      "full": "portraits/civil_middle_004.webp"
+    },
+    "civil_middle_005": {
+      "thumb": "thumbs/civil_middle_005.webp",
+      "full": "portraits/civil_middle_005.webp"
+    },
+    "civil_senior_001": {
+      "thumb": "thumbs/civil_senior_001.webp",
+      "full": "portraits/civil_senior_001.webp"
+    },
+    "civil_senior_002": {
+      "thumb": "thumbs/civil_senior_002.webp",
+      "full": "portraits/civil_senior_002.webp"
+    },
+    "civil_senior_003": {
+      "thumb": "thumbs/civil_senior_003.webp",
+      "full": "portraits/civil_senior_003.webp"
+    },
+    "military_young_001": {
+      "thumb": "thumbs/military_young_001.webp",
+      "full": "portraits/military_young_001.webp"
+    },
+    "military_young_002": {
+      "thumb": "thumbs/military_young_002.webp",
+      "full": "portraits/military_young_002.webp"
+    },
+    "military_young_003": {
+      "thumb": "thumbs/military_young_003.webp",
+      "full": "portraits/military_young_003.webp"
+    },
+    "military_young_004": {
+      "thumb": "thumbs/military_young_004.webp",
+      "full": "portraits/military_young_004.webp"
+    },
+    "military_middle_001": {
+      "thumb": "thumbs/military_middle_001.webp",
+      "full": "portraits/military_middle_001.webp"
+    },
+    "military_middle_002": {
+      "thumb": "thumbs/military_middle_002.webp",
+      "full": "portraits/military_middle_002.webp"
+    },
+    "military_middle_003": {
+      "thumb": "thumbs/military_middle_003.webp",
+      "full": "portraits/military_middle_003.webp"
+    },
+    "military_middle_004": {
+      "thumb": "thumbs/military_middle_004.webp",
+      "full": "portraits/military_middle_004.webp"
+    },
+    "military_senior_001": {
+      "thumb": "thumbs/military_senior_001.webp",
+      "full": "portraits/military_senior_001.webp"
+    },
+    "military_senior_002": {
+      "thumb": "thumbs/military_senior_002.webp",
+      "full": "portraits/military_senior_002.webp"
+    },
+    "consort_young_001": {
+      "thumb": "thumbs/consort_young_001.webp",
+      "full": "portraits/consort_young_001.webp"
+    },
+    "consort_young_002": {
+      "thumb": "thumbs/consort_young_002.webp",
+      "full": "portraits/consort_young_002.webp"
+    },
+    "consort_young_003": {
+      "thumb": "thumbs/consort_young_003.webp",
+      "full": "portraits/consort_young_003.webp"
+    },
+    "consort_young_004": {
+      "thumb": "thumbs/consort_young_004.webp",
+      "full": "portraits/consort_young_004.webp"
+    },
+    "consort_young_005": {
+      "thumb": "thumbs/consort_young_005.webp",
+      "full": "portraits/consort_young_005.webp"
+    },
+    "consort_young_006": {
+      "thumb": "thumbs/consort_young_006.webp",
+      "full": "portraits/consort_young_006.webp"
+    },
+    "consort_young_007": {
+      "thumb": "thumbs/consort_young_007.webp",
+      "full": "portraits/consort_young_007.webp"
+    },
+    "consort_young_008": {
+      "thumb": "thumbs/consort_young_008.webp",
+      "full": "portraits/consort_young_008.webp"
+    },
+    "consort_middle_001": {
+      "thumb": "thumbs/consort_middle_001.webp",
+      "full": "portraits/consort_middle_001.webp"
+    },
+    "consort_middle_002": {
+      "thumb": "thumbs/consort_middle_002.webp",
+      "full": "portraits/consort_middle_002.webp"
+    },
+    "consort_middle_003": {
+      "thumb": "thumbs/consort_middle_003.webp",
+      "full": "portraits/consort_middle_003.webp"
+    },
+    "consort_middle_004": {
+      "thumb": "thumbs/consort_middle_004.webp",
+      "full": "portraits/consort_middle_004.webp"
+    },
+    "consort_middle_005": {
+      "thumb": "thumbs/consort_middle_005.webp",
+      "full": "portraits/consort_middle_005.webp"
+    },
+    "consort_middle_006": {
+      "thumb": "thumbs/consort_middle_006.webp",
+      "full": "portraits/consort_middle_006.webp"
+    },
+    "consort_middle_007": {
+      "thumb": "thumbs/consort_middle_007.webp",
+      "full": "portraits/consort_middle_007.webp"
+    },
+    "consort_senior_001": {
+      "thumb": "thumbs/consort_senior_001.webp",
+      "full": "portraits/consort_senior_001.webp"
+    },
+    "consort_senior_002": {
+      "thumb": "thumbs/consort_senior_002.webp",
+      "full": "portraits/consort_senior_002.webp"
+    },
+    "consort_senior_003": {
+      "thumb": "thumbs/consort_senior_003.webp",
+      "full": "portraits/consort_senior_003.webp"
+    },
+    "special_diao_chan": {
+      "thumb": "thumbs/special_diao_chan.webp",
+      "full": "portraits/special_diao_chan.webp"
+    },
+    "special_wang_zhaojun": {
+      "thumb": "thumbs/special_wang_zhaojun.webp",
+      "full": "portraits/special_wang_zhaojun.webp"
+    },
+    "special_xi_shi": {
+      "thumb": "thumbs/special_xi_shi.webp",
+      "full": "portraits/special_xi_shi.webp"
+    },
+    "special_yang_yuhuan": {
+      "thumb": "thumbs/special_yang_yuhuan.webp",
+      "full": "portraits/special_yang_yuhuan.webp"
+    },
+    "special_zhen_mi": {
+      "thumb": "thumbs/special_zhen_mi.webp",
+      "full": "portraits/special_zhen_mi.webp"
+    },
+    "special_yu_ji": {
+      "thumb": "thumbs/special_yu_ji.webp",
+      "full": "portraits/special_yu_ji.webp"
+    },
+    "special_zhao_feiyan": {
+      "thumb": "thumbs/special_zhao_feiyan.webp",
+      "full": "portraits/special_zhao_feiyan.webp"
+    },
+    "special_zhangsun": {
+      "thumb": "thumbs/special_zhangsun.webp",
+      "full": "portraits/special_zhangsun.webp"
+    },
+    "special_xiaozhuang": {
+      "thumb": "thumbs/special_xiaozhuang.webp",
+      "full": "portraits/special_xiaozhuang.webp"
+    },
+    "special_wei_zifu": {
+      "thumb": "thumbs/special_wei_zifu.webp",
+      "full": "portraits/special_wei_zifu.webp"
+    }
+  }
+}
