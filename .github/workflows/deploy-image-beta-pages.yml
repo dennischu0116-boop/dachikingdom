@@ -1,0 +1,40 @@
+name: Publish beta character assets to GitHub Pages (manual)
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: beta-character-pages
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/performance-image-beta'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: performance-image-beta
+      - name: Check all 100 portrait files exist
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, pathlib
+          root=pathlib.Path('assets/characters')
+          manifest=json.loads((root/'manifest.json').read_text(encoding='utf-8'))
+          required=[root/record[size] for record in manifest['portraits'].values() for size in ('thumb','full')]
+          missing=[str(path) for path in required if not path.is_file()]
+          if missing: raise SystemExit('Cannot publish: '+str(len(missing))+' missing images. First missing: '+', '.join(missing[:3]))
+          print('Verified',len(required),'images')
+          PY
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: ./assets/characters
+      - uses: actions/deploy-pages@v4
