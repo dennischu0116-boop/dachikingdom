@@ -70,8 +70,8 @@ jobs:
 
           for relative in sorted(required):
               path=root/relative
-              expected=(128,128) if relative.startswith('thumbs/') else (256,256) if relative.startswith('headshots/') else (512,768)
-              limit=30*1024 if relative.startswith(('thumbs/','headshots/')) else 150*1024
+              expected=(128,128) if relative.startswith('thumbs/') else (256,256) if relative.startswith('headshots/') else (768,1152)
+              limit=12*1024 if relative.startswith('thumbs/') else 35*1024 if relative.startswith('headshots/') else 250*1024
               assert dimensions(path)==expected,(relative,dimensions(path),expected)
               assert path.stat().st_size<=limit,(relative,path.stat().st_size,limit)
           print('Verified 50 portrait IDs and 150 WebP assets')
