@@ -25,7 +25,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: performance-image-beta
-      - name: Check all 100 portrait files exist
+      - name: Check all 122 character files exist
         shell: bash
         run: |
           python3 - <<'PY'
@@ -33,6 +33,7 @@ jobs:
           root=pathlib.Path('assets/characters')
           manifest=json.loads((root/'manifest.json').read_text(encoding='utf-8'))
           required=[root/record[size] for record in manifest['portraits'].values() for size in ('thumb','full')]
+          required += [root/'headshots'/f'{portrait_id}.webp' for portrait_id in manifest['portraits'] if portrait_id.startswith(('civil_','military_'))]
           missing=[str(path) for path in required if not path.is_file()]
           if missing: raise SystemExit('Cannot publish: '+str(len(missing))+' missing images. First missing: '+', '.join(missing[:3]))
           print('Verified',len(required),'images')
@@ -40,7 +41,7 @@ jobs:
       - name: Stage only public character assets at expected path
         run: |
           mkdir -p _site/assets/characters
-          cp -R assets/characters/portraits assets/characters/thumbs assets/characters/manifest.json _site/assets/characters/
+          cp -R assets/characters/portraits assets/characters/thumbs assets/characters/headshots assets/characters/manifest.json _site/assets/characters/
       - uses: actions/configure-pages@v5
         with:
           enablement: true

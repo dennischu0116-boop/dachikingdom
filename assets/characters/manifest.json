@@ -1,12 +1,13 @@
 {
-  "version": "v1.3.5-beta",
-  "status": "ARTWORK_INCLUDED_PENDING_PAGES",
-  "artworkNote": "The 50 concept portraits and 50 thumbnails are included in this beta branch; remote use still requires the Pages workflow to publish them.",
+  "version": "v1.3.6-beta",
+  "status": "ARTWORK_AND_OFFICIAL_HEADSHOTS_INCLUDED",
+  "artworkNote": "The beta includes 50 full portraits, 50 thumbnails, and 22 dedicated 256px official headshots. Civil and military headshot paths are inferred from their portrait IDs.",
   "counts": {
     "civil": 12,
     "military": 10,
     "consort": 18,
-    "special": 10
+    "special": 10,
+    "officialHeadshots": 22
   },
   "portraits": {
     "civil_young_001": {

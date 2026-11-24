@@ -29,13 +29,13 @@
             linear-gradient(145deg,#21130d,#35130f 55%,#170e0b);
         }
         .recruit-flip-card {
-          width:100%; max-width:180px; aspect-ratio:.72; margin:auto; padding:0;
+          width:100%; max-width:190px; aspect-ratio:.76; margin:auto; padding:0;
           border:0; border-radius:12px; background:transparent; perspective:1100px;
           color:inherit; cursor:default;
         }
         .recruit-flip-card.is-single { max-width:270px; }
         .recruit-flip-inner {
-          position:relative; display:block; width:100%; height:100%; min-height:210px;
+          position:relative; display:block; width:100%; height:100%; min-height:255px;
           transform-style:preserve-3d; transition:transform .68s cubic-bezier(.2,.75,.25,1);
         }
         .recruit-flip-card.is-single .recruit-flip-inner { min-height:360px; }
@@ -57,11 +57,91 @@
         .recruit-flip-back::after { inset:14px; border-style:dotted; }
         .recruit-flip-back b { position:relative; z-index:1; font-family:serif; font-size:1.15rem; letter-spacing:.12em; }
         .recruit-flip-back span,.recruit-flip-back small { position:relative; z-index:1; margin-top:6px; font-size:.7rem; opacity:.82; }
-        .recruit-flip-front { transform:rotateY(180deg); border:3px double #a16207; color:#292524; }
+        .recruit-flip-front { transform:rotateY(180deg); justify-content:flex-start; border:3px double #a16207; color:#292524; }
         .recruit-flip-front.rarity-common { background:linear-gradient(145deg,#fffdf3,#f5e6be); }
         .recruit-flip-front.rarity-historical { background:linear-gradient(145deg,#eff6ff,#dbeafe 55%,#fef3c7); border-color:#2563eb; box-shadow:0 0 24px rgba(59,130,246,.6),0 10px 24px rgba(0,0,0,.42); }
         .recruit-flip-front.rarity-legendary { background:linear-gradient(145deg,#fff7ed,#fde68a 52%,#fecaca); border-color:#dc2626; box-shadow:0 0 32px rgba(250,204,21,.85),0 10px 24px rgba(0,0,0,.42); }
         .recruit-flip-front small { display:-webkit-box; overflow:hidden; -webkit-box-orient:vertical; -webkit-line-clamp:2; font-size:.67rem; line-height:1.25; }
+
+        /* v1.3.6-beta：頭肩近景、卡牌層次與官員英雄詳情。 */
+        .beta-character-image { background-color:#f7f0e5; }
+        .beta-headshot-image {
+          background:
+            radial-gradient(circle at 50% 36%,rgba(255,248,220,.98) 0 34%,rgba(187,156,94,.28) 70%,rgba(35,28,28,.55) 100%),
+            linear-gradient(145deg,#f7ead0,#8b6b3d);
+          object-position:center; padding:2px; border:2px solid #bb8b38;
+          box-shadow:inset 0 0 0 1px rgba(255,247,214,.72),0 3px 9px rgba(15,23,42,.28);
+        }
+        .beta-headshot-civil { border-color:#7d94ad; }
+        .beta-headshot-military { border-color:#b67a36; }
+        .minister-list-headshot { width:88px; height:88px; border-radius:8px; }
+        .recruit-card-headshot {
+          width:112px; height:112px; margin-top:2px; margin-bottom:4px; border-radius:8px;
+          box-shadow:inset 0 0 0 1px rgba(255,255,255,.65),0 5px 13px rgba(30,20,12,.33);
+        }
+        .recruit-flip-front::before {
+          content:""; position:absolute; inset:7px; border:1px solid rgba(120,53,15,.18); border-radius:8px; pointer-events:none;
+        }
+        .recruit-flip-front > * { position:relative; z-index:1; }
+        .recruit-candidate-card {
+          position:relative; overflow:hidden; color:#f8fafc; border-color:#6b7280;
+          background:linear-gradient(145deg,#28313f,#172033 68%,#101725);
+          box-shadow:inset 0 0 0 1px rgba(255,255,255,.05),0 8px 18px rgba(15,23,42,.16);
+        }
+        .recruit-candidate-card::after {
+          content:""; position:absolute; inset:0; pointer-events:none; opacity:.12;
+          background:repeating-linear-gradient(135deg,transparent 0 20px,rgba(251,191,36,.18) 21px 22px);
+        }
+        .recruit-candidate-card > * { position:relative; z-index:1; }
+        .recruit-candidate-card.rarity-historical { border-color:#60a5fa; background:linear-gradient(145deg,#172b4f,#172554 65%,#111827); }
+        .recruit-candidate-card.rarity-legendary { border-color:#fbbf24; background:linear-gradient(145deg,#522418,#3b1113 62%,#1c0b0d); box-shadow:0 0 20px rgba(245,158,11,.25),inset 0 0 0 1px rgba(253,230,138,.18); }
+        .recruit-candidate-card.is-selected { border-color:#fbbf24; box-shadow:0 0 0 3px #991b1b,0 0 22px rgba(245,158,11,.42); }
+        .recruit-candidate-headshot { width:96px; height:96px; border-radius:8px; }
+        .recruit-stat-tile { border:1px solid rgba(255,255,255,.12); background:rgba(255,255,255,.09); border-radius:6px; padding:5px 3px; }
+        .recruit-result-row { background:linear-gradient(105deg,#fff8e8,#efe2c7); border-color:#c79b4b; }
+
+        .minister-detail-shell {
+          width:min(920px,96vw); max-height:92dvh; display:flex; flex-direction:column; overflow:hidden; color:#f8fafc;
+          border:3px double #d6a84e; border-radius:16px;
+          background:
+            radial-gradient(circle at 18% 16%,rgba(180,83,9,.25),transparent 34%),
+            linear-gradient(145deg,#111827,#1e293b 56%,#151923);
+          box-shadow:0 24px 70px rgba(0,0,0,.62),inset 0 0 0 1px rgba(254,243,199,.12);
+        }
+        .minister-detail-header {
+          display:flex; align-items:center; gap:12px; padding:15px 18px; border-bottom:1px solid rgba(245,158,11,.38);
+          background:linear-gradient(90deg,rgba(69,26,3,.78),rgba(15,23,42,.32));
+        }
+        .minister-detail-kicker { color:#fbbf24; font-size:.68rem; font-weight:800; letter-spacing:.28em; }
+        .minister-detail-close { margin-left:auto; padding:7px 13px; border:1px solid rgba(253,230,138,.42); border-radius:8px; background:rgba(15,23,42,.78); color:#fef3c7; }
+        .minister-detail-body { min-height:0; display:grid; grid-template-columns:minmax(280px,.88fr) minmax(390px,1.25fr); overflow-y:auto; }
+        .minister-detail-art { position:relative; min-height:510px; display:flex; flex-direction:column; justify-content:flex-end; padding:22px; overflow:hidden; border-right:1px solid rgba(245,158,11,.3); }
+        .minister-detail-art::before {
+          content:""; position:absolute; inset:0; opacity:.44;
+          background:
+            radial-gradient(circle at 50% 30%,rgba(251,191,36,.32),transparent 29%),
+            linear-gradient(0deg,rgba(15,23,42,.98),transparent 45%),
+            repeating-linear-gradient(90deg,transparent 0 48px,rgba(251,191,36,.1) 49px 50px);
+        }
+        .minister-detail-portrait {
+          position:absolute; inset:16px 20px 58px; width:calc(100% - 40px); height:calc(100% - 74px); object-fit:contain;
+          background:transparent; filter:drop-shadow(0 15px 14px rgba(0,0,0,.48));
+        }
+        .minister-detail-identity { position:relative; z-index:1; padding:12px 14px; border:1px solid rgba(251,191,36,.42); border-radius:10px; background:rgba(12,18,28,.86); backdrop-filter:blur(6px); }
+        .minister-detail-info { min-width:0; padding:22px; display:flex; flex-direction:column; gap:14px; }
+        .minister-stat-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:9px; }
+        .minister-stat {
+          padding:10px 6px; border:1px solid rgba(255,255,255,.1); border-radius:9px; text-align:center;
+          background:linear-gradient(145deg,rgba(255,255,255,.1),rgba(255,255,255,.035));
+        }
+        .minister-stat b { display:block; margin-top:2px; font-size:1.45rem; font-family:Georgia,serif; }
+        .minister-stat.civil b { color:#93c5fd; } .minister-stat.military b { color:#fca5a5; }
+        .minister-stat.loyalty b { color:#fde68a; } .minister-stat.aptitude b { color:#c4b5fd; }
+        .minister-profile-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+        .minister-profile-item { padding:10px 12px; border:1px solid rgba(148,163,184,.2); border-radius:8px; background:rgba(15,23,42,.52); }
+        .minister-profile-item small { display:block; color:#94a3b8; margin-bottom:2px; }
+        .minister-skill-panel { padding:13px; border:1px solid rgba(251,191,36,.42); border-radius:10px; color:#fef3c7; background:linear-gradient(135deg,rgba(120,53,15,.48),rgba(69,26,3,.22)); }
+        .minister-detail-action { margin-top:auto; width:100%; padding:11px 14px; border:1px solid #eab308; border-radius:8px; color:#fff8dc; font-weight:800; background:linear-gradient(180deg,#991b1b,#6f1118); box-shadow:0 6px 15px rgba(0,0,0,.28); }
 
         .consort-transition {
           overflow:hidden; background:
@@ -81,9 +161,24 @@
         @keyframes consortLantern { from{transform:rotate(-4deg)} to{transform:rotate(4deg)} }
         @keyframes consortVisitFade { from{transform:translateY(18px) scale(.96);opacity:0} to{transform:none;opacity:1} }
         @media(max-width:480px) {
-          .recruit-flip-inner { min-height:190px; }
+          .recruit-flip-inner { min-height:245px; }
           .recruit-flip-card.is-single .recruit-flip-inner { min-height:330px; }
+          .recruit-card-headshot { width:96px; height:96px; }
           .consort-lantern { top:4%; font-size:3rem; }
+        }
+        @media(max-width:720px) {
+          .minister-list-headshot { width:80px; height:80px; }
+          .minister-detail-shell { width:96vw; max-height:94dvh; }
+          .minister-detail-header { padding:11px 12px; }
+          .minister-detail-body { display:block; }
+          .minister-detail-art { min-height:360px; border-right:0; border-bottom:1px solid rgba(245,158,11,.3); }
+          .minister-detail-portrait { inset:10px 12px 60px; width:calc(100% - 24px); height:calc(100% - 70px); }
+          .minister-detail-info { padding:14px; }
+          .minister-stat-grid { gap:6px; }
+          .minister-stat { padding:8px 3px; font-size:.75rem; }
+          .minister-stat b { font-size:1.15rem; }
+          .minister-profile-grid { grid-template-columns:1fr; }
+          .recruit-candidate-headshot { width:88px; height:88px; }
         }
         @media(prefers-reduced-motion:reduce) {
           .recruit-flip-inner { transition-duration:.01ms; }

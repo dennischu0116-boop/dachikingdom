@@ -1,4 +1,4 @@
-      // v1.3.5-beta：本檔只在隔離測試分支載入。圖片 URL 不寫入遊戲數值。
+      // v1.3.6-beta：本檔只在隔離測試分支載入。圖片 URL 不寫入遊戲數值。
       const BETA_IMAGE_BASE=String(globalThis.QING_IMAGE_BETA_ASSET_BASE||
           'https://dennischu0116-boop.github.io/dachikingdom/assets/characters/').replace(/\/?$/,'/');
       const BETA_IMAGE_GROUPS={
@@ -14,7 +14,8 @@
               ['young','middle','senior'].forEach((age,index)=>{
                   for(let n=0;n<meta.ages[index];n++){
                       const id=kind+'_'+age+'_'+String(n+1).padStart(3,'0');
-                      entries[id]={id,kind,age,thumbnail:'thumbs/'+id+'.webp',portrait:'portraits/'+id+'.webp'};
+                      entries[id]={id,kind,age,thumbnail:'thumbs/'+id+'.webp',portrait:'portraits/'+id+'.webp',
+                          headshot:kind==='civil'||kind==='military'?'headshots/'+id+'.webp':null};
                   }
                   offset+=meta.ages[index];
               });
@@ -105,7 +106,7 @@
               :{...base,ministers:[...(base.ministers||[]).filter(item=>String(item.id)!==String(id)),{...person,id}]};
           return betaAllocatePortraits(extended,prior)[betaPortraitKey(type,id)]||null;
       };
-      const BetaPortrait = React.memo(({portraitId,detail=false,label='',onClick=null,className=''})=>{
+      const BetaPortrait = React.memo(({portraitId,detail=false,variant='thumbnail',label='',onClick=null,className=''})=>{
           const node=useRef(null);
           const [visible,setVisible]=useState(detail);
           const [failed,setFailed]=useState(false);
@@ -120,11 +121,12 @@
               observer.observe(current);
               return ()=>observer.disconnect();
           },[detail,visible,portraitId]);
-          const src=meta&&visible&&!failed?BETA_IMAGE_BASE+(detail?meta.portrait:meta.thumbnail):BETA_SILHOUETTE;
+          const asset=detail?meta?.portrait:(variant==='headshot'&&meta?.headshot?meta.headshot:meta?.thumbnail);
+          const src=meta&&visible&&!failed?BETA_IMAGE_BASE+asset:BETA_SILHOUETTE;
           return <img ref={node} src={src} alt={label||'人物立繪'} loading={detail?'eager':'lazy'} decoding="async" onError={()=>setFailed(true)}
               onClick={onClick||undefined}
-              className={className+' beta-character-image '+(onClick?'cursor-pointer':'')}
-              style={{objectFit:'contain',background:'#f7f0e5'}}
+              className={className+' beta-character-image '+(variant==='headshot'?'beta-headshot-image '+(meta?.kind?`beta-headshot-${meta.kind}`:''):'')+(onClick?' cursor-pointer':'')}
+              style={{objectFit:'contain'}}
               title={failed?'人物圖片暫時無法載入，已使用預設剪影':label}/>;
       });
       const BetaImageLab=({onClose})=>{

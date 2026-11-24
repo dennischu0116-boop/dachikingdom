@@ -1,4 +1,4 @@
-name: Validate and deploy v1.3.5-beta
+name: Validate and deploy image beta
 on:
   push:
     branches: [performance-image-beta]
@@ -46,6 +46,7 @@ jobs:
           assert len({x['thumb'] for x in chars.values()})==50
           assert len({x['full'] for x in chars.values()})==50
           required={record[size] for record in chars.values() for size in ('thumb','full')}
+          required|={f'headshots/{portrait_id}.webp' for portrait_id in chars if portrait_id.startswith(('civil_','military_'))}
           actual={str(path.relative_to(root)) for path in root.rglob('*.webp')}
           assert actual==required, {'missing':sorted(required-actual),'extra':sorted(actual-required)}
 
@@ -69,11 +70,11 @@ jobs:
 
           for relative in sorted(required):
               path=root/relative
-              expected=(128,128) if relative.startswith('thumbs/') else (512,768)
-              limit=30*1024 if relative.startswith('thumbs/') else 150*1024
+              expected=(128,128) if relative.startswith('thumbs/') else (256,256) if relative.startswith('headshots/') else (512,768)
+              limit=30*1024 if relative.startswith(('thumbs/','headshots/')) else 150*1024
               assert dimensions(path)==expected,(relative,dimensions(path),expected)
               assert path.stat().st_size<=limit,(relative,path.stat().st_size,limit)
-          print('Verified 50 portrait IDs and 100 WebP assets')
+          print('Verified 50 portrait IDs and 122 WebP assets')
           PY
       - name: Check beta server and deployment isolation
         run: |
