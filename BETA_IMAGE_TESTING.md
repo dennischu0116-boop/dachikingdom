@@ -11,6 +11,7 @@
 - Google 登入、雲端存檔及排行榜讀寫在測試版停用。
 - 圖片效能實驗室支援 50／100／300／500 人及 A～D 四種載入模式，可匯出 JSON／CSV。
 - 本機靜態預覽已在 Chromium 通過圖片、存檔隔離、重新載入與失敗備援的自動化 smoke test。
+- GitHub Pages 已發布 100 張圖片；beta GAS 已建立獨立專案。驗證工作成功後可自動將同一個 beta commit 推送到該專案。
 
 ## 本機實際測試
 
@@ -43,17 +44,26 @@ http://127.0.0.1:4173/.beta-preview/index.html
 
 - `main` 與正式 GAS 不得更動。
 - `BetaServer.js` 是測試版唯一允許部署的伺服器程式，只提供頁面範本，不含 Spreadsheet、Drive、雲端存檔或排行榜端點。
-- 測試 GAS 工作流程只會打包 `BetaServer.js`、HTML 與 `appsscript.json`，並在部署前檢查正式後端未混入。
+- 測試 GAS 工作流程只會打包 `BetaServer.js`、HTML 與 `appsscript.json`，並在部署前檢查正式後端未混入；完整驗證成功後才會自動部署。
 - 測試 GAS 必須使用獨立的 `BETA_GAS_SCRIPT_ID` 與 `CLASPRC_BETA_JSON`；不得使用正式 Script ID 或憑證。
 - GitHub Pages 工作流程只發布 `assets/characters/`，不發布 GAS 原始碼。
 - 正式存檔只能先從正式版手動匯出，再將副本匯入測試版；不可讓測試版直接接觸正式雲端存檔。
 
-## 尚待外部設定
+## GitHub 自動部署與回復
 
-1. Pages 工作流程會嘗試自動啟用 GitHub Actions 發布；若儲存庫權限不允許，再由管理者到 Settings → Pages 選用 GitHub Actions，並確認圖片 URL 可讀。
-2. 建立完全獨立的 Google Apps Script 測試專案與 Web App 部署；正式專案不可使用。
-3. 在實際目標桌機上完成多輪冷／暖快取性能驗收並保留 JSON／CSV 結果。
-4. 目前素材是角色概念表裁切圖；正式上線前仍需逐張美術精修。
+在 Repository Settings → Secrets and variables → Actions 建立：
+
+- `BETA_GAS_SCRIPT_ID`：只能是文件指定的獨立 beta Script ID，workflow 會拒絕其他 ID。
+- `CLASPRC_BETA_JSON`：只授權 beta GAS 的 clasp 登入憑證；不得使用正式憑證。
+
+之後每次推送 `performance-image-beta` 都會先執行完整靜態驗證。只有驗證成功，`deploy-beta-gas` job 才會把該次 `github.sha` 的程式部署到 beta GAS。`.github/workflows/deploy-beta-gas.yml` 保留為手動備援入口。
+
+需要回復時，對錯誤提交執行 `git revert <commit>` 並推送回 `performance-image-beta`；revert 會建立新的可追蹤提交，驗證成功後自動將回復內容部署到 beta GAS。不要用 `git reset --hard` 改寫共享分支歷史。GitHub 只能回復已提交的程式碼，不能回復試算表、Script Properties 或未提交的 GAS 編輯器修改。
+
+## 尚待外部工作
+
+1. 在實際目標桌機上完成多輪冷／暖快取性能驗收並保留 JSON／CSV 結果。
+2. 目前素材是角色概念表裁切圖；正式上線前仍需逐張美術精修。
 
 ## 效能驗收目標
 
@@ -66,6 +76,6 @@ http://127.0.0.1:4173/.beta-preview/index.html
 ## 已知限制
 
 - 人物分配以首次記錄的文／武側重與年齡挑選圖片，之後不會自動換臉。
-- GitHub Pages 尚未確認發布成功時，遠端 GAS 版可能只顯示剪影；本機預覽不受影響。
+- 若 GitHub Pages 圖片暫時無法讀取，遠端 GAS 版會顯示剪影；本機預覽不受影響。
 - 圖片效能實驗室的跨來源傳輸統計仍需在真實 Pages＋GAS 部署驗證。
 - 若清除瀏覽器網站資料，測試版進度可能消失，請先匯出備份。

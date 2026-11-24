@@ -1,4 +1,4 @@
-name: Validate v1.3.5-beta source (no deployment)
+name: Validate and deploy v1.3.5-beta
 on:
   push:
     branches: [performance-image-beta]
@@ -93,3 +93,37 @@ jobs:
           test -s .beta-preview/index.html
           test -s .beta-preview/tailwind.css
           ! grep -q '<?!=' .beta-preview/index.html
+
+  deploy-beta-gas:
+    name: Deploy verified commit to dedicated beta GAS
+    needs: static-check
+    if: github.ref == 'refs/heads/performance-image-beta'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Stage only the isolated beta application
+        env:
+          BETA_GAS_SCRIPT_ID: ${{ secrets.BETA_GAS_SCRIPT_ID }}
+          CLASPRC_BETA_JSON: ${{ secrets.CLASPRC_BETA_JSON }}
+        run: |
+          test -n "$BETA_GAS_SCRIPT_ID"
+          test -n "$CLASPRC_BETA_JSON"
+          test "$BETA_GAS_SCRIPT_ID" = "1sYB24vxAL27ObmiIaCAgfsEaedAxuBLlY-QmiUsfvgpWzW4HW62-0V1h"
+          test "$BETA_GAS_SCRIPT_ID" != "1XgG3H6UsAsOkhYWEMnkf8svciGRGrXqcwQYzJtrEhABvrrfCfo0K9C0t"
+          printf '%s' "$CLASPRC_BETA_JSON" > "$HOME/.clasprc.json"
+          chmod 600 "$HOME/.clasprc.json"
+          mkdir -p gas_beta_deploy
+          cp ./BetaServer.js ./*.html ./appsscript.json gas_beta_deploy/
+          test ! -e gas_beta_deploy/程式碼.js
+          test ! -e gas_beta_deploy/CodeSave.js
+          test "$(find gas_beta_deploy -maxdepth 1 -type f -name '*.js' -printf '%f\n')" = 'BetaServer.js'
+          ! grep -E 'SpreadsheetApp|DriveApp|submitLeaderboardScore|getLeaderboard' gas_beta_deploy/BetaServer.js
+          printf '{"scriptId":"%s","rootDir":"gas_beta_deploy","scriptExtensions":[".gs",".js"],"htmlExtensions":[".html"],"jsonExtensions":[".json"]}\n' "$BETA_GAS_SCRIPT_ID" > .clasp.json
+      - name: Push verified source to dedicated beta GAS
+        run: npx --yes @google/clasp@3.4.1 push --force
