@@ -63,7 +63,7 @@
         .recruit-flip-front.rarity-legendary { background:linear-gradient(145deg,#fff7ed,#fde68a 52%,#fecaca); border-color:#dc2626; box-shadow:0 0 32px rgba(250,204,21,.85),0 10px 24px rgba(0,0,0,.42); }
         .recruit-flip-front small { display:-webkit-box; overflow:hidden; -webkit-box-orient:vertical; -webkit-line-clamp:2; font-size:.67rem; line-height:1.25; }
 
-        /* v1.3.7-beta：文武與妃嬪頭肩近景、卡牌層次及英雄詳情。 */
+        /* v1.3.8-beta：白底人才卡、白底人物詳情與穩定頭貼。 */
         .beta-character-image { background-color:#f7f0e5; }
         .beta-headshot-image {
           background:
@@ -92,90 +92,92 @@
         }
         .recruit-flip-front > * { position:relative; z-index:1; }
         .recruit-candidate-card {
-          position:relative; overflow:hidden; color:#f8fafc; border-color:#6b7280;
-          background:linear-gradient(145deg,#28313f,#172033 68%,#101725);
-          box-shadow:inset 0 0 0 1px rgba(255,255,255,.05),0 8px 18px rgba(15,23,42,.16);
+          position:relative; overflow:hidden; color:#292524; border-color:#c8b89e;
+          background:linear-gradient(145deg,#fffefa,#faf4e8);
+          box-shadow:inset 0 0 0 1px rgba(255,255,255,.85),0 7px 16px rgba(87,65,38,.13);
         }
         .recruit-candidate-card::after {
-          content:""; position:absolute; inset:0; pointer-events:none; opacity:.12;
-          background:repeating-linear-gradient(135deg,transparent 0 20px,rgba(251,191,36,.18) 21px 22px);
+          content:""; position:absolute; inset:0; pointer-events:none; opacity:.06;
+          background:repeating-linear-gradient(135deg,transparent 0 20px,rgba(146,64,14,.2) 21px 22px);
         }
         .recruit-candidate-card > * { position:relative; z-index:1; }
-        .recruit-candidate-card.rarity-historical { border-color:#60a5fa; background:linear-gradient(145deg,#172b4f,#172554 65%,#111827); }
-        .recruit-candidate-card.rarity-legendary { border-color:#fbbf24; background:linear-gradient(145deg,#522418,#3b1113 62%,#1c0b0d); box-shadow:0 0 20px rgba(245,158,11,.25),inset 0 0 0 1px rgba(253,230,138,.18); }
-        .recruit-candidate-card.is-selected { border-color:#fbbf24; box-shadow:0 0 0 3px #991b1b,0 0 22px rgba(245,158,11,.42); }
-        .recruit-candidate-headshot { width:96px; height:96px; border-radius:8px; }
-        .recruit-stat-tile { border:1px solid rgba(255,255,255,.12); background:rgba(255,255,255,.09); border-radius:6px; padding:5px 3px; }
+        .recruit-candidate-card.rarity-historical { border-color:#60a5fa; background:linear-gradient(145deg,#ffffff,#eff6ff 68%,#fffdf6); }
+        .recruit-candidate-card.rarity-legendary { border-color:#d6a329; background:linear-gradient(145deg,#fffef8,#fff5d9 62%,#fffaf0); box-shadow:0 0 18px rgba(217,119,6,.18),inset 0 0 0 1px rgba(253,230,138,.55); }
+        .recruit-candidate-card.is-selected { border-color:#b45309; box-shadow:0 0 0 3px #991b1b,0 0 18px rgba(180,83,9,.28); }
+        .recruit-rarity-badge { color:#78350f; border-color:#d6b66f; background:#fff8df; }
+        .rarity-historical .recruit-rarity-badge { color:#1e3a8a; border-color:#93c5fd; background:#eff6ff; }
+        .rarity-legendary .recruit-rarity-badge { color:#7f1d1d; border-color:#eab308; background:#fef3c7; }
+        .recruit-candidate-headshot { width:96px; height:96px; border-radius:8px; transform:translateZ(0); backface-visibility:hidden; }
+        .recruit-stat-tile { border:1px solid #e7dfd2; background:rgba(255,255,255,.78); border-radius:6px; padding:5px 3px; }
         .recruit-result-row { background:linear-gradient(105deg,#fff8e8,#efe2c7); border-color:#c79b4b; }
 
         .minister-detail-shell {
-          width:min(920px,96vw); max-height:92dvh; display:flex; flex-direction:column; overflow:hidden; color:#f8fafc;
+          width:min(920px,96vw); max-height:92dvh; display:flex; flex-direction:column; overflow:hidden; color:#292524;
           border:3px double #d6a84e; border-radius:16px;
-          background:
-            radial-gradient(circle at 18% 16%,rgba(180,83,9,.25),transparent 34%),
-            linear-gradient(145deg,#111827,#1e293b 56%,#151923);
-          box-shadow:0 24px 70px rgba(0,0,0,.62),inset 0 0 0 1px rgba(254,243,199,.12);
+          background:linear-gradient(145deg,#ffffff,#fffdf7 58%,#faf3e7);
+          box-shadow:0 24px 70px rgba(0,0,0,.42),inset 0 0 0 1px rgba(255,255,255,.9);
         }
         .minister-detail-header {
           display:flex; align-items:center; gap:12px; padding:15px 18px; border-bottom:1px solid rgba(245,158,11,.38);
-          background:linear-gradient(90deg,rgba(69,26,3,.78),rgba(15,23,42,.32));
+          background:linear-gradient(90deg,#fff8e8,#ffffff);
         }
-        .minister-detail-kicker { color:#fbbf24; font-size:.68rem; font-weight:800; letter-spacing:.28em; }
-        .minister-detail-close { margin-left:auto; padding:7px 13px; border:1px solid rgba(253,230,138,.42); border-radius:8px; background:rgba(15,23,42,.78); color:#fef3c7; }
+        .minister-detail-kicker { color:#92400e; font-size:.68rem; font-weight:800; letter-spacing:.28em; }
+        .minister-detail-kind { color:#78350f; border:1px solid #d6b66f; background:#fff7dc; }
+        .minister-detail-close { margin-left:auto; padding:7px 13px; border:1px solid #d6b66f; border-radius:8px; background:#ffffff; color:#78350f; }
         .minister-detail-body { min-height:0; display:grid; grid-template-columns:minmax(280px,.88fr) minmax(390px,1.25fr); overflow-y:auto; }
-        .minister-detail-art { position:relative; min-height:510px; display:flex; flex-direction:column; justify-content:flex-end; padding:22px; overflow:hidden; border-right:1px solid rgba(245,158,11,.3); }
+        .minister-detail-art { position:relative; min-height:510px; display:flex; flex-direction:column; justify-content:flex-end; padding:22px; overflow:hidden; border-right:1px solid #ead8bb; background:#fbf6ed; }
         .minister-detail-art::before {
-          content:""; position:absolute; inset:0; opacity:.44;
+          content:""; position:absolute; inset:0; opacity:.42;
           background:
-            radial-gradient(circle at 50% 30%,rgba(251,191,36,.32),transparent 29%),
-            linear-gradient(0deg,rgba(15,23,42,.98),transparent 45%),
-            repeating-linear-gradient(90deg,transparent 0 48px,rgba(251,191,36,.1) 49px 50px);
+            radial-gradient(circle at 50% 30%,rgba(251,191,36,.2),transparent 31%),
+            linear-gradient(0deg,rgba(255,251,235,.96),transparent 44%),
+            repeating-linear-gradient(90deg,transparent 0 48px,rgba(146,64,14,.06) 49px 50px);
         }
         .minister-detail-portrait {
           position:absolute; inset:16px 20px 58px; width:calc(100% - 40px); height:calc(100% - 74px); object-fit:contain;
           background:transparent; filter:drop-shadow(0 15px 14px rgba(0,0,0,.48));
         }
-        .minister-detail-identity { position:relative; z-index:1; padding:12px 14px; border:1px solid rgba(251,191,36,.42); border-radius:10px; background:rgba(12,18,28,.86); backdrop-filter:blur(6px); }
+        .minister-detail-identity { position:relative; z-index:1; padding:12px 14px; border:1px solid #d6b66f; border-radius:10px; background:rgba(255,255,255,.92); backdrop-filter:blur(6px); }
         .minister-detail-info { min-width:0; padding:22px; display:flex; flex-direction:column; gap:14px; }
         .minister-stat-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:9px; }
         .minister-stat {
-          padding:10px 6px; border:1px solid rgba(255,255,255,.1); border-radius:9px; text-align:center;
-          background:linear-gradient(145deg,rgba(255,255,255,.1),rgba(255,255,255,.035));
+          padding:10px 6px; border:1px solid #e7dfd2; border-radius:9px; text-align:center;
+          background:linear-gradient(145deg,#ffffff,#faf7f2);
         }
         .minister-stat b { display:block; margin-top:2px; font-size:1.45rem; font-family:Georgia,serif; }
-        .minister-stat.civil b { color:#93c5fd; } .minister-stat.military b { color:#fca5a5; }
-        .minister-stat.loyalty b { color:#fde68a; } .minister-stat.aptitude b { color:#c4b5fd; }
+        .minister-stat.civil b { color:#1d4ed8; } .minister-stat.military b { color:#b91c1c; }
+        .minister-stat.loyalty b { color:#a16207; } .minister-stat.aptitude b { color:#6d28d9; }
         .minister-profile-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
-        .minister-profile-item { padding:10px 12px; border:1px solid rgba(148,163,184,.2); border-radius:8px; background:rgba(15,23,42,.52); }
-        .minister-profile-item small { display:block; color:#94a3b8; margin-bottom:2px; }
-        .minister-skill-panel { padding:13px; border:1px solid rgba(251,191,36,.42); border-radius:10px; color:#fef3c7; background:linear-gradient(135deg,rgba(120,53,15,.48),rgba(69,26,3,.22)); }
+        .minister-profile-item { padding:10px 12px; border:1px solid #e7dfd2; border-radius:8px; background:#ffffff; }
+        .minister-profile-item small { display:block; color:#78716c; margin-bottom:2px; }
+        .minister-skill-panel { padding:13px; border:1px solid #e5c36d; border-radius:10px; color:#44403c; background:linear-gradient(135deg,#fff9e8,#ffffff); }
         .minister-detail-action { margin-top:auto; width:100%; padding:11px 14px; border:1px solid #eab308; border-radius:8px; color:#fff8dc; font-weight:800; background:linear-gradient(180deg,#991b1b,#6f1118); box-shadow:0 6px 15px rgba(0,0,0,.28); }
 
         .consort-detail-shell {
-          width:min(920px,96vw); max-height:92dvh; display:flex; flex-direction:column; overflow:hidden; color:#fff7ed;
+          width:min(920px,96vw); max-height:92dvh; display:flex; flex-direction:column; overflow:hidden; color:#3f2730;
           border:3px double #d6a84e; border-radius:16px;
-          background:radial-gradient(circle at 16% 12%,rgba(190,24,93,.28),transparent 34%),linear-gradient(145deg,#2a101c,#4a1728 54%,#1c1018);
-          box-shadow:0 24px 70px rgba(0,0,0,.65),inset 0 0 0 1px rgba(254,243,199,.12);
+          background:linear-gradient(145deg,#ffffff,#fffafc 58%,#fff4f7);
+          box-shadow:0 24px 70px rgba(0,0,0,.44),inset 0 0 0 1px rgba(255,255,255,.9);
         }
-        .consort-detail-header { display:flex; align-items:center; gap:12px; padding:15px 18px; border-bottom:1px solid rgba(245,158,11,.4); background:linear-gradient(90deg,rgba(76,5,25,.82),rgba(42,16,28,.36)); }
-        .consort-detail-kicker { color:#fbbf24; font-size:.68rem; font-weight:800; letter-spacing:.25em; }
-        .consort-detail-close { margin-left:auto; padding:7px 13px; border:1px solid rgba(253,230,138,.42); border-radius:8px; background:rgba(28,10,18,.78); color:#fef3c7; }
+        .consort-detail-header { display:flex; align-items:center; gap:12px; padding:15px 18px; border-bottom:1px solid #edc9d6; background:linear-gradient(90deg,#fff1f5,#ffffff); }
+        .consort-detail-kicker { color:#9d174d; font-size:.68rem; font-weight:800; letter-spacing:.25em; }
+        .consort-detail-close { margin-left:auto; padding:7px 13px; border:1px solid #e5a9bf; border-radius:8px; background:#ffffff; color:#831843; }
         .consort-detail-body { min-height:0; display:grid; grid-template-columns:minmax(300px,.92fr) minmax(390px,1.25fr); overflow-y:auto; }
-        .consort-detail-art { position:relative; min-height:530px; display:flex; flex-direction:column; justify-content:flex-end; padding:22px; overflow:hidden; border-right:1px solid rgba(245,158,11,.3); }
-        .consort-detail-art::before { content:""; position:absolute; inset:0; opacity:.5; background:radial-gradient(circle at 50% 28%,rgba(251,191,36,.3),transparent 30%),linear-gradient(0deg,#2a101c 2%,transparent 48%),repeating-linear-gradient(90deg,transparent 0 48px,rgba(251,191,36,.09) 49px 50px); }
+        .consort-detail-art { position:relative; min-height:530px; display:flex; flex-direction:column; justify-content:flex-end; padding:22px; overflow:hidden; border-right:1px solid #edc9d6; background:#fff7f9; }
+        .consort-detail-art::before { content:""; position:absolute; inset:0; opacity:.48; background:radial-gradient(circle at 50% 28%,rgba(251,191,36,.18),transparent 31%),linear-gradient(0deg,#fff7f9 2%,transparent 48%),repeating-linear-gradient(90deg,transparent 0 48px,rgba(157,23,77,.05) 49px 50px); }
         .consort-detail-portrait { position:absolute; inset:14px 18px 72px; width:calc(100% - 36px); height:calc(100% - 86px); object-fit:contain; background:transparent; filter:drop-shadow(0 15px 15px rgba(0,0,0,.52)); }
-        .consort-detail-identity { position:relative; z-index:1; padding:12px 14px; border:1px solid rgba(251,191,36,.44); border-radius:10px; background:rgba(42,10,25,.88); backdrop-filter:blur(6px); }
+        .consort-detail-identity { position:relative; z-index:1; padding:12px 14px; border:1px solid #e5a9bf; border-radius:10px; background:rgba(255,255,255,.94); backdrop-filter:blur(6px); }
         .consort-detail-info { min-width:0; padding:22px; display:flex; flex-direction:column; gap:14px; }
         .consort-stat-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:9px; }
-        .consort-stat { padding:10px 5px; border:1px solid rgba(255,255,255,.11); border-radius:9px; text-align:center; background:linear-gradient(145deg,rgba(255,255,255,.1),rgba(255,255,255,.035)); }
-        .consort-stat small { display:block; color:#fbcfe8; } .consort-stat b { display:block; margin-top:2px; font:700 1.35rem Georgia,serif; color:#fde68a; }
-        .consort-stat.affection b { color:#fda4af; } .consort-stat.fertility b { color:#d8b4fe; }
+        .consort-stat { padding:10px 5px; border:1px solid #eedde3; border-radius:9px; text-align:center; background:linear-gradient(145deg,#ffffff,#fff7f9); }
+        .consort-stat small { display:block; color:#9f6a7d; } .consort-stat b { display:block; margin-top:2px; font:700 1.35rem Georgia,serif; color:#92400e; }
+        .consort-stat.affection b { color:#be123c; } .consort-stat.fertility b { color:#7e22ce; }
         .consort-profile-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
-        .consort-profile-item { padding:10px 12px; border:1px solid rgba(251,207,232,.16); border-radius:8px; background:rgba(39,10,24,.48); overflow-wrap:anywhere; }
-        .consort-profile-item small { display:block; color:#d6a9ba; margin-bottom:3px; }
-        .consort-story-panel,.consort-skill-panel { padding:13px; border:1px solid rgba(251,191,36,.34); border-radius:10px; background:rgba(69,10,32,.38); }
-        .consort-story-panel p,.consort-skill-panel p { margin-top:5px; color:#fce7f3; line-height:1.55; }
-        .consort-skill-panel.is-active { border-color:rgba(110,231,183,.5); background:rgba(6,78,59,.32); } .consort-skill-panel.is-inactive { opacity:.72; }
+        .consort-profile-item { padding:10px 12px; border:1px solid #eedde3; border-radius:8px; background:#ffffff; overflow-wrap:anywhere; }
+        .consort-profile-item small { display:block; color:#9f6a7d; margin-bottom:3px; }
+        .consort-story-panel,.consort-skill-panel { padding:13px; border:1px solid #e7c879; border-radius:10px; background:#fffbef; }
+        .consort-story-panel p,.consort-skill-panel p { margin-top:5px; color:#57534e; line-height:1.55; }
+        .consort-skill-panel.is-active { border-color:#86d7b8; background:#ecfdf5; } .consort-skill-panel.is-inactive { opacity:.72; background:#f5f5f4; }
         .consort-skill-panel small { display:block; margin-top:7px; font-weight:700; }
         .consort-detail-action { margin-top:auto; width:100%; padding:11px 14px; border:1px solid #eab308; border-radius:8px; color:#fff8dc; font-weight:800; background:linear-gradient(180deg,#9d174d,#6b102f); box-shadow:0 6px 15px rgba(0,0,0,.28); }
 

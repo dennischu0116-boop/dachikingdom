@@ -1,10 +1,10 @@
-# 《大清帝國》v1.3.7-beta 人物立繪測試版：進度、待辦與操作手冊
+# 《大清帝國》v1.3.8-beta 人物立繪測試版：進度、待辦與操作手冊
 
-> **v1.3.7-beta 補充：**新增28張妃嬪近景頭貼，並完成御花園清單、妃嬪英雄詳情、三年選秀與微服佳人舞台的美術強化；連同22張官員頭像共150張WebP。原 v1.3.5-beta 素材包檔名保留作為歷史來源。
+> **v1.3.8-beta 補充：**十連候選卡、官員／武將詳情及妃嬪詳情改回暖白底，並修正勾選候選人時頭貼短暫退回剪影；既有150張WebP尺寸、內容與固定人物對應完全不變。原 v1.3.5-beta 素材包檔名保留作為歷史來源。
 
 > 文件建立：2026-11-24（臺灣時間）  
 > 用途：讓專案維護者或後續開發者知道目前已做什麼、尚缺什麼、如何安全地把測試版跑起來，以及如何驗收。  
-> **2026-11-24 實作更新：150 張 WebP 已整合至獨立測試分支，GitHub Pages 與獨立 beta GAS 已建立；v1.3.7-beta 的1200×900桌面與390×844手機妃嬪清單、詳情及選秀舞台已通過Chromium畫面核對。完整50／100／300／500人效能門檻仍待多輪驗收，切勿把此文件視為正式上線證明。**
+> **2026-11-24 實作更新：150張WebP維持原檔整合於獨立測試分支，GitHub Pages與獨立beta GAS已建立；v1.3.8-beta新增白底介面及十連頭貼穩定修正，須完成桌面與手機Chromium核對。完整50／100／300／500人效能門檻仍待多輪驗收，切勿把此文件視為正式上線證明。**
 
 ## 1. 專案與安全界線
 
@@ -13,7 +13,7 @@
 | GitHub 專案 | <https://github.com/dennischu0116-boop/dachikingdom> | 已有 |
 | 正式分支 | `main`，現行版 `v1.3.4` | **保持不變** |
 | 圖片測試分支 | [`performance-image-beta`](https://github.com/dennischu0116-boop/dachikingdom/tree/performance-image-beta) | **已建立並有程式提交** |
-| 測試版版本 | `v1.3.7-beta` | 已寫入測試分支 |
+| 測試版版本 | `v1.3.8-beta` | 已寫入測試分支 |
 | 測試 GAS | 使用**不同於正式版**的 Script ID、部署與憑證 | **已建立並自動部署 beta 分支** |
 | 圖片服務 | GitHub Pages：`https://dennischu0116-boop.github.io/dachikingdom/assets/characters/` | **已發布；每次 beta 素材推送自動更新** |
 | 測試存檔 | `localStorage` 鍵 `qing_image_beta_saveData_v1` | 本機瀏覽器已驗證與正式鍵隔離 |
@@ -26,7 +26,7 @@
 
 這裡的「完成」表示檔案已實作；有標註本機驗證者才代表已在瀏覽器執行，仍不等同遠端部署或完整效能驗收。
 
-- [x] **圖片測試分支**：建立 `performance-image-beta`；目前測試版版本為 `v1.3.7-beta`。
+- [x] **圖片測試分支**：建立 `performance-image-beta`；目前測試版版本為 `v1.3.8-beta`。
 - [x] **圖片管理模組**：新增 `ImageBeta.html`，內含圖片 ID、三類人物圖片池、固定外貌分配、按需顯示圖片、載入失敗剪影。
 - [x] **官員畫面**：`AppGovernment.html` 的官員清單加入縮圖，官員詳細資料加入較大的立繪。
 - [x] **后宮畫面**：`AppWarAndMain.html` 的妃嬪列表加入縮圖與完整立繪檢視視窗。
@@ -227,7 +227,7 @@ https://dennischu0116-boop.github.io/dachikingdom/assets/characters/manifest.jso
 - [x] 確認 GitHub Pages 發布只包含公開人物素材，不影響 GAS 原始碼。
 - [x] 驗證靜態 CI 與 beta 自動部署工作流。
 - [x] 獨立建立測試 GAS Script ID、權限及部署設定；與正式 GAS 隔離。
-- [x] 以本機 Web App 預覽核對 `v1.3.7-beta`、官員及妃嬪頭貼、候選舞台與響應式詳情正常顯示。
+- [ ] 以本機 Web App 預覽核對 `v1.3.8-beta`、白底候選卡、官員與妃嬪詳情及候選頭貼穩定顯示。
 - [ ] 手動匯入正式存檔副本，確認不會修改正式版。
 - [ ] 完成官員、后宮、存檔、錯誤處理的功能測試。
 - [ ] 完成 50 / 100 / 300 / 500 人效能對照，至少五輪，整理報告。
@@ -244,7 +244,7 @@ https://dennischu0116-boop.github.io/dachikingdom/assets/characters/manifest.jso
 | `AppState.html` | 圖片分配狀態、獨立存檔、匯入與測試隔離 |
 | `ClientShell.html` | 本機存檔鍵、匯入介面及雲端介接阻斷 |
 | `ClientRules.html` | 存檔格式正規化與圖片分配對應匯入 |
-| `ClientContent.html` | v1.3.7-beta 版本說明、特殊佳人 ID |
+| `ClientContent.html` | v1.3.8-beta 版本說明、特殊佳人 ID |
 | `assets/characters/manifest.json` | 50 名圖片 ID、50 張完整立繪、50 張縮圖與 50 張近景頭貼 |
 | `.github/workflows/verify-image-beta.yml` | 非部署式靜態檢查 |
 | `.github/workflows/deploy-image-beta-pages.yml` | beta 圖片素材 GitHub Pages 自動發布 |
@@ -256,4 +256,4 @@ https://dennischu0116-boop.github.io/dachikingdom/assets/characters/manifest.jso
 
 ---
 
-**交接結論：**v1.3.7-beta 已具備 150 個人物圖片素材、官員與妃嬪近景頭貼、候選舞台及響應式英雄詳情，並使用 GitHub Pages 與獨立 GAS 自動部署。目前只差多輪 50／100／300／500 人完整效能驗收；未另行確認前仍不得合併或部署至正式版。
+**交接結論：**v1.3.8-beta 維持150個人物圖片素材，具備白底十連候選卡、白底官員與妃嬪詳情及穩定頭貼，並使用GitHub Pages與獨立GAS自動部署。目前只差多輪50／100／300／500人完整效能驗收；未另行確認前仍不得合併或部署至正式版。

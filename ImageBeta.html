@@ -1,4 +1,4 @@
-      // v1.3.7-beta：本檔只在隔離測試分支載入。圖片 URL 不寫入遊戲數值。
+      // v1.3.8-beta：本檔只在隔離測試分支載入。圖片 URL 不寫入遊戲數值。
       const BETA_IMAGE_BASE=String(globalThis.QING_IMAGE_BETA_ASSET_BASE||
           'https://dennischu0116-boop.github.io/dachikingdom/assets/characters/').replace(/\/?$/,'/');
       const BETA_IMAGE_GROUPS={
@@ -108,19 +108,21 @@
       };
       const BetaPortrait = React.memo(({portraitId,detail=false,variant='thumbnail',label='',onClick=null,className=''})=>{
           const node=useRef(null);
-          const [visible,setVisible]=useState(detail);
+          // 頭貼交給瀏覽器原生 lazy-loading，避免父層選取狀態更新時先退回剪影再重新觀察。
+          const directAsset=detail||variant==='headshot';
+          const [visible,setVisible]=useState(directAsset);
           const [failed,setFailed]=useState(false);
           const meta=BETA_IMAGE_META[portraitId];
-          useEffect(()=>{setFailed(false);setVisible(detail);},[portraitId,detail]);
+          useEffect(()=>{setFailed(false);if(directAsset)setVisible(true);},[portraitId,directAsset]);
           useEffect(()=>{
-              if(detail||visible)return;
+              if(directAsset||visible)return;
               const current=node.current;
               if(!current)return;
               if(!('IntersectionObserver' in window)){setVisible(true);return;}
               const observer=new IntersectionObserver(entries=>{if(entries.some(e=>e.isIntersecting)){setVisible(true);observer.disconnect();}},{rootMargin:'0px',threshold:0.01});
               observer.observe(current);
               return ()=>observer.disconnect();
-          },[detail,visible,portraitId]);
+          },[directAsset,visible,portraitId]);
           const asset=detail?meta?.portrait:(variant==='headshot'&&meta?.headshot?meta.headshot:meta?.thumbnail);
           const src=meta&&visible&&!failed?BETA_IMAGE_BASE+asset:BETA_SILHOUETTE;
           return <img ref={node} src={src} alt={label||'人物立繪'} loading={detail?'eager':'lazy'} decoding="async" onError={()=>setFailed(true)}
