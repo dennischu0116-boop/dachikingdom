@@ -18,11 +18,9 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  publish:
+  build:
     if: github.ref == 'refs/heads/performance-image-beta'
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
     steps:
       - uses: actions/checkout@v4
         with:
@@ -50,6 +48,17 @@ jobs:
         with:
           name: github-pages-${{ github.run_attempt }}
           path: ./_site
-      - uses: actions/deploy-pages@v4
+
+  deploy:
+    if: github.ref == 'refs/heads/performance-image-beta'
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy public character assets
+        id: deployment
+        uses: actions/deploy-pages@v4
         with:
           artifact_name: github-pages-${{ github.run_attempt }}
