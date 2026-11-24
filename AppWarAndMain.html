@@ -364,25 +364,28 @@
         <div className="text-center bg-white border border-pink-200 rounded-lg p-3 mb-5 text-sm font-bold text-pink-900">妃嬪總數 {gameState.consorts.length} 人　／　冷宮 {gameState.consorts.filter(c => c.inColdPalace).length} 人　／　在世皇子女 {aliveRoyalChildren(gameState).length} 人</div>
         <div className="grid grid-cols-1 gap-4">
             {sortConsortsByRank(gameState.consorts).map(c => (
-            <div key={c.id} className={`bg-white p-4 rounded-lg shadow-sm border ${c.inColdPalace ? 'border-gray-300 opacity-70 bg-gray-50' : 'border-pink-100'}`}>
-                <div className="flex justify-between items-start mb-3">
-                <div>
-                    <div className="flex items-center gap-2 flex-wrap">
+            <div key={c.id} className={`consort-list-card p-4 rounded-lg border ${c.inColdPalace ? 'is-cold-palace opacity-75' : ''}`}>
+                <div className="mb-3">
+                <div className="consort-list-profile">
+                    <BetaPortrait portraitId={betaPortraitAssignments[betaPortraitKey('consort',c.id)]} variant="headshot" label={c.name} onClick={()=>setBetaConsortDetailId(c.id)} className="consort-list-headshot shrink-0" />
+                    <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap mb-1">
                         {c.inColdPalace && <span className="bg-gray-200 text-gray-600 text-xs px-2 rounded">冷宮</span>}
                         {c.pregnancy && <span className="bg-rose-100 text-rose-800 text-xs px-2 rounded">🤰 有孕・次年生產</span>}
                         {Number(c.injuredUntil||0)>gameState.dynastyYear && <span className="bg-red-100 text-red-800 text-xs px-2 rounded">重傷休養</span>}
                         {c.specialConsortId&&<span className={`text-xs px-2 py-1 rounded font-bold ${c.specialRarity==='legendary'?'bg-purple-700 text-white':'bg-amber-200 text-amber-950'}`}>{c.specialRarity==='legendary'?'傳奇佳人':'歷史佳人'}</span>}
-                        <BetaPortrait portraitId={betaPortraitAssignments[betaPortraitKey('consort',c.id)]} label={c.name} onClick={()=>setBetaConsortDetailId(c.id)} className="w-20 h-20 shrink-0 rounded border border-pink-200" />
-                        {renderAvatar(c.title + c.rank, c.avatar)}
-                        <span className="font-bold text-lg text-pink-950">{c.title}{c.rank}</span>
-                        <span className="font-bold text-gray-600 text-sm">({c.name})</span>
                         {c.affection < 20 && !c.inColdPalace && <span className="text-red-500 text-xs animate-pulse flex items-center gap-1"><AlertTriangle/> 危</span>}
                     </div>
+                    <button type="button" onClick={()=>setBetaConsortDetailId(c.id)} className="text-left group">
+                        <span className="block font-serif font-bold text-xl text-pink-950 group-hover:text-pink-700">{c.title}{c.rank}</span>
+                        <span className="block font-bold text-gray-600 text-sm">{c.name}</span>
+                    </button>
                     <div className={`text-xs mt-1 ${c.affection < 20 ? 'text-red-600 font-bold' : 'text-gray-500'}`}>好感: {c.affection} | {c.bio}</div>
                     <div className="text-xs text-gray-600 mt-1">年齡：{getConsortAge(c)} 歲</div>
                     <div className="text-xs text-fuchsia-800 mt-1">生育能力：{c.fertilityKnown ? `${getFertility(c)} / 100` : c.fertilityCheckExpired ? '舊診脈結果已過期，請太醫重新診脈' : '尚未診脈（隱藏）'}</div>
                     <div className="text-xs text-purple-800 mt-1">性格：{c.personalityKnown ? c.personality : '尚未揭露（隱藏）'}</div>
                     {c.specialConsortId&&<div className={`text-xs mt-2 rounded p-2 ${activeSpecialConsort(gameState,c.specialConsortId,{empressOnly:c.specialConsortId==='zhangsun'})?'bg-emerald-50 text-emerald-900':'bg-stone-100 text-stone-500'}`}><b>{SPECIAL_CONSORT_MAP[c.specialConsortId].skillName}</b>：{SPECIAL_CONSORT_MAP[c.specialConsortId].skillEffect}<br/>狀態：{activeSpecialConsort(gameState,c.specialConsortId,{empressOnly:c.specialConsortId==='zhangsun'})?'生效中':'未生效（需在世、非冷宮、好感60以上'+(c.specialConsortId==='zhangsun'?'且冊立皇后':'')+'）'}</div>}
+                    </div>
                 </div>
                 </div>
                 <button type="button" onClick={() => openConsortRankEditor(c)}
@@ -767,15 +770,22 @@
           </div>
       </div>}
       {!!gameState.pendingAnnualDraft && !gameState.pendingPalaceEvent && !showPalaceCases && !showGameManual && !showReleaseNotes && !isTransitioning && currentView==='THRONE' && !gameState.gameOver && !showVictoryModal && !showHeirSelection &&
-        <div className="fixed inset-0 z-[120] bg-black/75 flex items-center justify-center p-3" role="dialog" aria-modal="true" aria-label="三年一度選秀">
-            <div className="bg-amber-50 border-4 border-amber-700 shadow-2xl rounded-xl max-w-md w-full p-5">
-                <h3 className="font-serif text-center text-2xl font-bold text-red-950 mb-3">🌸 三年一度選秀</h3>
-                <div className="flex justify-center mb-3"><BetaPortrait detail portraitId={betaPortraitIdForCandidate(gameState,betaPortraitAssignments,'consort',gameState.pendingAnnualDraft)} label={gameState.pendingAnnualDraft.name} className="w-40 h-56 rounded-lg border border-pink-300" /></div>
-                <p className="text-sm text-stone-800 mb-2">禮部呈上{gameState.pendingAnnualDraft.specialConsortId?(gameState.pendingAnnualDraft.rarity==='legendary'?'傳奇佳人':'歷史佳人'):'秀女'}「{gameState.pendingAnnualDraft.name}」，請皇上決定是否納入後宮。此次選秀已記入年度待辦，與邊疆入侵、宮鬥不會互相覆蓋。</p>
-                {gameState.pendingAnnualDraft.specialConsortId&&<div className="rounded border border-purple-300 bg-purple-50 p-3 mb-3 text-sm"><b>{SPECIAL_CONSORT_MAP[gameState.pendingAnnualDraft.specialConsortId].skillName}</b>：{SPECIAL_CONSORT_MAP[gameState.pendingAnnualDraft.specialConsortId].skillEffect}</div>}
-                <div className="grid gap-3">
-                    <button disabled={gameState.treasury<500||gameState.energy<val(10)} onClick={()=>decideAnnualDraft(true)} className="bg-red-900 text-amber-50 py-3 rounded font-bold disabled:opacity-40">納入後宮（銀-500、體-{val(10)}）</button>
-                    <button onClick={()=>decideAnnualDraft(false)} className="bg-amber-200 text-amber-950 py-3 rounded font-bold">遣散回家（民心+5）</button>
+        <div className="consort-candidate-overlay fixed inset-0 z-[120] flex items-center justify-center p-3" role="dialog" aria-modal="true" aria-label="三年一度選秀">
+            <div className={`consort-candidate-shell ${gameState.pendingAnnualDraft.specialConsortId?'is-special':''}`}>
+                <div className="consort-candidate-kicker">禮部選秀・御前候旨</div>
+                <h3 className="font-serif text-center text-2xl font-bold text-amber-50">三年一度選秀</h3>
+                <div className="consort-candidate-stage">
+                    <BetaPortrait detail portraitId={betaPortraitIdForCandidate(gameState,betaPortraitAssignments,'consort',gameState.pendingAnnualDraft)} label={gameState.pendingAnnualDraft.name} className="consort-candidate-portrait" />
+                    <div className="consort-candidate-nameplate">
+                        <b>{gameState.pendingAnnualDraft.name}</b>
+                        <span>{gameState.pendingAnnualDraft.specialConsortId?(gameState.pendingAnnualDraft.rarity==='legendary'?'傳奇佳人':'歷史佳人'):'待選秀女'}</span>
+                    </div>
+                </div>
+                <p className="text-sm text-amber-50/90 leading-relaxed">禮部呈上{gameState.pendingAnnualDraft.specialConsortId?(gameState.pendingAnnualDraft.rarity==='legendary'?'傳奇佳人':'歷史佳人'):'秀女'}「{gameState.pendingAnnualDraft.name}」，請皇上決定是否納入後宮。此次選秀已記入年度待辦，與邊疆入侵、宮鬥不會互相覆蓋。</p>
+                {gameState.pendingAnnualDraft.specialConsortId&&<div className="consort-candidate-skill"><b>{SPECIAL_CONSORT_MAP[gameState.pendingAnnualDraft.specialConsortId].skillName}</b>：{SPECIAL_CONSORT_MAP[gameState.pendingAnnualDraft.specialConsortId].skillEffect}</div>}
+                <div className="grid grid-cols-2 gap-3">
+                    <button disabled={gameState.treasury<500||gameState.energy<val(10)} onClick={()=>decideAnnualDraft(true)} className="consort-candidate-accept disabled:opacity-40">納入後宮<br/><small>銀-500、體-{val(10)}</small></button>
+                    <button onClick={()=>decideAnnualDraft(false)} className="consort-candidate-dismiss">遣散回家<br/><small>民心+5</small></button>
                 </div>
             </div>
         </div>}
@@ -822,30 +832,48 @@
           const special=person.specialConsortId?SPECIAL_CONSORT_MAP[person.specialConsortId]:null;
           const specialActive=!!special&&activeSpecialConsort(gameState,person.specialConsortId,{empressOnly:person.specialConsortId==='zhangsun'});
           const injured=Number(person.injuredUntil||0)>Number(gameState.dynastyYear||gameState.year);
+          const royalMotherId=royalConsortIdOf(person,rulerIdOf(gameState));
+          const motherLabel=palacePersonLabel(person);
+          const childbirths=(gameState.childrenList||[]).filter(child=>String(child.motherId||'')===String(royalMotherId)||(!child.motherId&&[motherLabel,person.name].includes(child.motherName)));
+          const currentStatus=person.inColdPalace?'幽居冷宮':injured?'重傷休養':person.pregnancy?'有孕・次年生產':'安居宮中';
           return <div className="fixed inset-0 z-[150] bg-black/75 p-3 flex items-center justify-center" role="dialog" aria-modal="true" aria-label="妃嬪詳細資料" onClick={()=>setBetaConsortDetailId(null)}>
-              <div onClick={e=>e.stopPropagation()} className="bg-pink-50 rounded-xl border-4 border-pink-700 max-w-md w-full max-h-[90dvh] flex flex-col overflow-hidden text-left">
-                  <div className="shrink-0 flex items-center justify-between gap-3 border-b border-pink-200 bg-white/70 p-4">
-                      <h3 className="font-serif text-lg font-bold text-pink-950">{person.title}{person.rank} {person.name}</h3>
-                      <button className="shrink-0 bg-stone-200 rounded px-3 py-1 text-sm" onClick={()=>setBetaConsortDetailId(null)}>關閉</button>
+              <div onClick={e=>e.stopPropagation()} className="consort-detail-shell text-left">
+                  <div className="consort-detail-header">
+                      <div><div className="consort-detail-kicker">內廷名冊・妃嬪詳情</div><h3 className="font-serif text-xl font-bold text-amber-50">{person.title}{person.rank}・{person.name}</h3></div>
+                      <button className="consort-detail-close" onClick={()=>setBetaConsortDetailId(null)}>關閉</button>
                   </div>
-                  <div className="min-h-0 flex-1 overflow-y-auto p-4 text-sm space-y-3">
-                      <div className="flex justify-center"><BetaPortrait detail portraitId={betaPortraitAssignments[betaPortraitKey('consort',person.id)]} label={person.name} className="w-56 h-80 rounded-lg border border-pink-200"/></div>
-                      <div className="flex flex-wrap justify-center gap-2">
+                  <div className="consort-detail-body">
+                    <section className="consort-detail-art">
+                      <BetaPortrait detail portraitId={betaPortraitAssignments[betaPortraitKey('consort',person.id)]} label={person.name} className="consort-detail-portrait"/>
+                      <div className="consort-detail-identity">
+                        <div className="font-serif text-2xl font-bold text-amber-50">{person.title}{person.rank}</div>
+                        <div className="text-rose-100">{person.name}</div>
+                        <div className="mt-2 flex flex-wrap gap-2">
                           {person.inColdPalace&&<span className="rounded bg-stone-300 px-2 py-1 text-xs font-bold text-stone-700">冷宮</span>}
                           {person.pregnancy&&<span className="rounded bg-rose-200 px-2 py-1 text-xs font-bold text-rose-900">🤰 有孕・次年生產</span>}
                           {injured&&<span className="rounded bg-red-200 px-2 py-1 text-xs font-bold text-red-900">重傷休養</span>}
                           {special&&<span className={`rounded px-2 py-1 text-xs font-bold ${person.specialRarity==='legendary'?'bg-purple-700 text-white':'bg-amber-200 text-amber-950'}`}>{person.specialRarity==='legendary'?'傳奇佳人':'歷史佳人'}</span>}
+                        </div>
                       </div>
-                      <div className="grid grid-cols-2 gap-2 text-center">
-                          <div className="rounded bg-rose-100 p-2">年齡<b className="block text-lg text-pink-950">{getConsortAge(person)}歲</b></div>
-                          <div className="rounded bg-pink-100 p-2">好感<b className="block text-lg text-pink-950">{Math.round(Number(person.affection)||0)}</b></div>
+                    </section>
+                    <section className="consort-detail-info text-sm">
+                      <div className="consort-stat-grid">
+                          <div className="consort-stat"><small>年齡</small><b>{getConsortAge(person)}歲</b></div>
+                          <div className="consort-stat affection"><small>好感</small><b>{Math.round(Number(person.affection)||0)}</b></div>
+                          <div className="consort-stat fertility"><small>生育</small><b>{person.fertilityKnown?getFertility(person):'—'}</b></div>
+                          <div className="consort-stat"><small>子女</small><b>{childbirths.length}</b></div>
                       </div>
-                      <div className="rounded border border-pink-200 bg-white p-3"><b>人物背景</b><p className="mt-1 text-stone-700">{person.bio||'宮中生平尚待記錄。'}</p></div>
-                      <div className="rounded border border-fuchsia-200 bg-fuchsia-50 p-3"><b>生育能力</b><p className="mt-1 text-fuchsia-900">{person.fertilityKnown?`${getFertility(person)} / 100`:person.fertilityCheckExpired?'舊診脈結果已過期，請太醫重新診脈':'尚未診脈（隱藏）'}</p></div>
-                      <div className="rounded border border-purple-200 bg-purple-50 p-3"><b>性格</b><p className="mt-1 text-purple-900">{person.personalityKnown?person.personality:'尚未揭露（隱藏）'}</p></div>
-                      {special&&<div className={`rounded border p-3 ${specialActive?'border-emerald-300 bg-emerald-50 text-emerald-950':'border-stone-300 bg-stone-100 text-stone-600'}`}><b>{special.skillName}</b><p className="mt-1">{special.skillEffect}</p><p className="mt-2 text-xs font-bold">狀態：{specialActive?'生效中':'未生效（需在世、非冷宮、好感60以上'+(person.specialConsortId==='zhangsun'?'且冊立皇后':'')+'）'}</p></div>}
+                      <div className="consort-profile-grid">
+                        <div className="consort-profile-item"><small>宮中狀態</small><b>{currentStatus}</b></div>
+                        <div className="consort-profile-item"><small>生育能力</small><b>{person.fertilityKnown?`${getFertility(person)} / 100`:person.fertilityCheckExpired?'診脈結果已過期':'尚未診脈（隱藏）'}</b></div>
+                        <div className="consort-profile-item"><small>性格</small><b>{person.personalityKnown?person.personality:'尚未揭露（隱藏）'}</b></div>
+                        <div className="consort-profile-item"><small>生育紀錄</small><b>{childbirths.length?childbirths.slice(0,4).map(child=>child.name||'皇嗣').join('、'):'尚無皇嗣紀錄'}</b></div>
+                      </div>
+                      <div className="consort-story-panel"><b>人物背景</b><p>{person.bio||'宮中生平尚待記錄。'}</p></div>
+                      {special&&<div className={`consort-skill-panel ${specialActive?'is-active':'is-inactive'}`}><b>{special.skillName}</b><p>{special.skillEffect}</p><small>狀態：{specialActive?'生效中':'未生效（需在世、非冷宮、好感60以上'+(person.specialConsortId==='zhangsun'?'且冊立皇后':'')+'）'}</small></div>}
+                      <button className="consort-detail-action" onClick={()=>setBetaConsortDetailId(null)}>返回御花園</button>
+                    </section>
                   </div>
-                  <div className="shrink-0 border-t border-pink-200 bg-white p-3"><button className="w-full bg-pink-800 text-white rounded p-2 font-bold" onClick={()=>setBetaConsortDetailId(null)}>關閉</button></div>
               </div>
           </div>;
       })()}
@@ -973,9 +1001,12 @@
 
            {currentView === 'MEMORIAL' && (
                 <div className="flex items-center justify-center h-full p-4 overflow-y-auto">
-                    <div className="bg-white p-6 rounded-lg shadow-2xl border-t-4 border-red-800 max-w-md w-full max-h-full overflow-y-auto">
+                    <div className={`bg-white p-6 rounded-lg shadow-2xl border-t-4 border-red-800 w-full max-h-full overflow-y-auto ${currentEvent?.consortCandidate?'max-w-2xl':'max-w-md'}`}>
                         <h2 className="text-2xl font-bold text-red-900 mb-4 border-b pb-2 text-center">{currentEvent?.title}</h2>
-                        {currentEvent?.consortCandidate&&<div className="flex justify-center mb-4"><BetaPortrait detail portraitId={betaPortraitIdForCandidate(gameState,betaPortraitAssignments,'consort',currentEvent.consortCandidate)} label={currentEvent.consortCandidate.name} className="w-40 h-56 rounded-lg border border-pink-300" /></div>}
+                        {currentEvent?.consortCandidate&&<div className="event-consort-stage">
+                            <BetaPortrait detail portraitId={betaPortraitIdForCandidate(gameState,betaPortraitAssignments,'consort',currentEvent.consortCandidate)} label={currentEvent.consortCandidate.name} className="event-consort-portrait" />
+                            <div className="event-consort-nameplate"><small>微服偶遇・佳人待詔</small><b>{currentEvent.consortCandidate.name}</b><span>{currentEvent.consortCandidate.specialConsortId?(currentEvent.consortCandidate.rarity==='legendary'?'傳奇佳人':'歷史佳人'):'民間佳人'}</span></div>
+                        </div>}
                         <p className="mb-6 text-lg font-serif leading-relaxed whitespace-pre-line">{currentEvent?.description}</p>
                         {currentEvent?.eventType === 'COURT' && currentEvent?.result ? (
                             <div className="space-y-4">

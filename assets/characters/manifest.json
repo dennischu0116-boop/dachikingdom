@@ -1,13 +1,15 @@
 {
-  "version": "v1.3.6-beta",
-  "status": "ARTWORK_AND_OFFICIAL_HEADSHOTS_INCLUDED",
-  "artworkNote": "The beta includes 50 full portraits, 50 thumbnails, and 22 dedicated 256px official headshots. Civil and military headshot paths are inferred from their portrait IDs.",
+  "version": "v1.3.7-beta",
+  "status": "ARTWORK_AND_ALL_HEADSHOTS_INCLUDED",
+  "artworkNote": "The beta includes 50 full portraits, 50 thumbnails, and 50 dedicated 256px headshots for officials, consorts, and special beauties.",
   "counts": {
     "civil": 12,
     "military": 10,
     "consort": 18,
     "special": 10,
-    "officialHeadshots": 22
+    "officialHeadshots": 22,
+    "consortHeadshots": 28,
+    "totalHeadshots": 50
   },
   "portraits": {
     "civil_young_001": {

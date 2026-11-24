@@ -1,4 +1,4 @@
-      // v1.3.6-beta：本檔只在隔離測試分支載入。圖片 URL 不寫入遊戲數值。
+      // v1.3.7-beta：本檔只在隔離測試分支載入。圖片 URL 不寫入遊戲數值。
       const BETA_IMAGE_BASE=String(globalThis.QING_IMAGE_BETA_ASSET_BASE||
           'https://dennischu0116-boop.github.io/dachikingdom/assets/characters/').replace(/\/?$/,'/');
       const BETA_IMAGE_GROUPS={
@@ -15,12 +15,12 @@
                   for(let n=0;n<meta.ages[index];n++){
                       const id=kind+'_'+age+'_'+String(n+1).padStart(3,'0');
                       entries[id]={id,kind,age,thumbnail:'thumbs/'+id+'.webp',portrait:'portraits/'+id+'.webp',
-                          headshot:kind==='civil'||kind==='military'?'headshots/'+id+'.webp':null};
+                          headshot:'headshots/'+id+'.webp'};
                   }
                   offset+=meta.ages[index];
               });
           }
-          BETA_SPECIAL_IDS.forEach(id=>{const key='special_'+id;entries[key]={id:key,kind:'special',age:'fixed',thumbnail:'thumbs/'+key+'.webp',portrait:'portraits/'+key+'.webp'};});
+          BETA_SPECIAL_IDS.forEach(id=>{const key='special_'+id;entries[key]={id:key,kind:'special',age:'fixed',thumbnail:'thumbs/'+key+'.webp',portrait:'portraits/'+key+'.webp',headshot:'headshots/'+key+'.webp'};});
           return entries;
       })();
       const betaHash = text => {
