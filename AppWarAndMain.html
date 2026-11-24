@@ -770,6 +770,7 @@
         <div className="fixed inset-0 z-[120] bg-black/75 flex items-center justify-center p-3" role="dialog" aria-modal="true" aria-label="三年一度選秀">
             <div className="bg-amber-50 border-4 border-amber-700 shadow-2xl rounded-xl max-w-md w-full p-5">
                 <h3 className="font-serif text-center text-2xl font-bold text-red-950 mb-3">🌸 三年一度選秀</h3>
+                <div className="flex justify-center mb-3"><BetaPortrait detail portraitId={betaPortraitIdForCandidate(gameState,betaPortraitAssignments,'consort',gameState.pendingAnnualDraft)} label={gameState.pendingAnnualDraft.name} className="w-40 h-56 rounded-lg border border-pink-300" /></div>
                 <p className="text-sm text-stone-800 mb-2">禮部呈上{gameState.pendingAnnualDraft.specialConsortId?(gameState.pendingAnnualDraft.rarity==='legendary'?'傳奇佳人':'歷史佳人'):'秀女'}「{gameState.pendingAnnualDraft.name}」，請皇上決定是否納入後宮。此次選秀已記入年度待辦，與邊疆入侵、宮鬥不會互相覆蓋。</p>
                 {gameState.pendingAnnualDraft.specialConsortId&&<div className="rounded border border-purple-300 bg-purple-50 p-3 mb-3 text-sm"><b>{SPECIAL_CONSORT_MAP[gameState.pendingAnnualDraft.specialConsortId].skillName}</b>：{SPECIAL_CONSORT_MAP[gameState.pendingAnnualDraft.specialConsortId].skillEffect}</div>}
                 <div className="grid gap-3">
@@ -974,6 +975,7 @@
                 <div className="flex items-center justify-center h-full p-4 overflow-y-auto">
                     <div className="bg-white p-6 rounded-lg shadow-2xl border-t-4 border-red-800 max-w-md w-full max-h-full overflow-y-auto">
                         <h2 className="text-2xl font-bold text-red-900 mb-4 border-b pb-2 text-center">{currentEvent?.title}</h2>
+                        {currentEvent?.consortCandidate&&<div className="flex justify-center mb-4"><BetaPortrait detail portraitId={betaPortraitIdForCandidate(gameState,betaPortraitAssignments,'consort',currentEvent.consortCandidate)} label={currentEvent.consortCandidate.name} className="w-40 h-56 rounded-lg border border-pink-300" /></div>}
                         <p className="mb-6 text-lg font-serif leading-relaxed whitespace-pre-line">{currentEvent?.description}</p>
                         {currentEvent?.eventType === 'COURT' && currentEvent?.result ? (
                             <div className="space-y-4">

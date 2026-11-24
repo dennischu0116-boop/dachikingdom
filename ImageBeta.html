@@ -75,6 +75,36 @@
           }
           return next;
       };
+      const betaPortraitCandidateId=(type,person)=>type==='consort'
+          ?(person?.personId??person?.id)
+          :person?.id;
+      // 尚未正式錄取的人物也先加入圖片分配；正式入朝／入宮後沿用相同人物 ID，因此不會換圖。
+      const betaStateWithPortraitCandidates=(state)=>{
+          if(!state)return state;
+          const ministers=[...(state.ministers||[])];
+          const ministerIds=new Set(ministers.map(person=>String(person.id)));
+          for(const person of state.pendingRecruitDraw?.candidates||[]){
+              if(person?.id===undefined||person?.id===null||ministerIds.has(String(person.id)))continue;
+              ministers.push(person);ministerIds.add(String(person.id));
+          }
+          const consorts=[...(state.consorts||[])];
+          const draft=state.pendingAnnualDraft;
+          const draftId=betaPortraitCandidateId('consort',draft);
+          if(draft&&draftId!==undefined&&draftId!==null&&!consorts.some(person=>String(person.id)===String(draftId))){
+              consorts.push({...draft,id:draftId,rank:draft.rank||'答應'});
+          }
+          return {...state,ministers,consorts};
+      };
+      const betaPortraitIdForCandidate=(state,prior,type,person)=>{
+          if(!person)return null;
+          const id=betaPortraitCandidateId(type,person);
+          if(id===undefined||id===null)return null;
+          const base=betaStateWithPortraitCandidates(state);
+          const extended=type==='consort'
+              ?{...base,consorts:[...(base.consorts||[]).filter(item=>String(item.id)!==String(id)),{...person,id,rank:person.rank||'答應'}]}
+              :{...base,ministers:[...(base.ministers||[]).filter(item=>String(item.id)!==String(id)),{...person,id}]};
+          return betaAllocatePortraits(extended,prior)[betaPortraitKey(type,id)]||null;
+      };
       const BetaPortrait = React.memo(({portraitId,detail=false,label='',onClick=null,className=''})=>{
           const node=useRef(null);
           const [visible,setVisible]=useState(detail);

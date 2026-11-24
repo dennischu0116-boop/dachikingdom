@@ -4,6 +4,7 @@
               '規劃50張人物立繪與50張縮圖，分文官、武官、一般妃嬪及10位特殊佳人，人物圖片對應終生固定。',
               '吏部與後宮清單增設按需載入縮圖；人物詳細資料才載入高清立繪，載入失敗顯示古代人物剪影。',
               '官員與妃嬪清單使用符合縮圖原始比例的80×80正方形外框；妃嬪詳細視窗新增年齡、好感、背景、狀態、生育、性格及特殊能力資訊，未揭露資料維持隱藏。',
+              '科舉單抽、十連翻牌、十連候選與錄取名單顯示官員圖片；三年選秀及微服偶遇佳人會在決定是否納入後宮前顯示妃嬪立繪，正式加入後沿用同一張圖片。',
               '圖片效能實驗室可使用50／100／300／500人比較無圖、預載及懶載入並匯出測試數據。',
               '正式版v1.3.4不修改；測試素材尚需核對GitHub Pages圖片發布與完成實測。'
           ]},
@@ -421,11 +422,13 @@
       const consortFromCandidate=(candidate,bio,ordinaryAffection=50)=>{
           const special=candidate?.specialConsortId&&SPECIAL_CONSORT_MAP[candidate.specialConsortId];
           const ordinaryAvatars=['🌸','🌺','🌷','🌹','🌻'];
+          const legacyDraftId=!candidate?.personId&&String(candidate?.id||'').startsWith('draft_')?candidate.id:null;
+          const personId=candidate?.personId||legacyDraftId||royalNewId('consort');
           return makeConsort(special?{
-              id:royalNewId('consort'),name:special.name,rank:'答應',title:'',age:special.age,fertility:special.fertility,
+              id:personId,name:special.name,rank:'答應',title:'',age:special.age,fertility:special.fertility,
               affection:special.affection,bio,isSoulmate:false,inColdPalace:false,avatar:special.avatar,
               specialConsortId:special.id,specialRarity:special.rarity
-          }:{id:royalNewId('consort'),name:candidate.name,rank:'答應',title:'',affection:ordinaryAffection,bio,
+          }:{id:personId,name:candidate.name,rank:'答應',title:'',affection:ordinaryAffection,bio,
               isSoulmate:false,inColdPalace:false,avatar:ordinaryAvatars[Math.floor(Math.random()*ordinaryAvatars.length)]});
       };
 
@@ -887,7 +890,9 @@
       TUTORIAL_CONTENT.SCHOOL.desc += '\n\n【多選與底部操作】\n● 皇嗣清單可多選，批量培養、入學與逐出宮廷按鈕固定在遊戲畫面底部。批量培養支援每人1、5、10次，銀兩或體力不足時整批不執行；最大可培養次數保留為單人操作。\n● 批量入學會依每人天賦分別自動分班，並按每人1,500兩一次扣款；若名單含未滿6歲、已滿16歲、已入學、已畢業、已故或已逐出者，會在同一通知依原因分組列名，整批不入學也不扣款。國庫不足時會列出所需、現有與不足銀兩。\n● 批量逐出只確認一次，同步撤銷官職、太子身分與皇家書院學籍；已有國內賜婚或外邦和親紀錄的公主不可逐出。';
       TUTORIAL_CONTENT.RECRUIT.desc += '\n\n【錄取通知】\n● 科舉單抽、文武十連、微服書院及上朝舉薦統一使用新官入朝視窗。單人招募顯示姓名、年齡、文治、武力、忠誠、資質與特殊技能；十連只顯示一份合併名單，不逐人跳出。詳細資料仍寫入起居注。';
       TUTORIAL_CONTENT.RECRUIT.desc += '\n\n【金榜翻牌】\n● 科舉單抽名帖會自動翻開；十抽的十張名帖會同時自動翻開一次。播放期間可跳過動畫並立即顯示全部結果，再進入原有候選清單選擇招募0至10人。\n● 翻牌只是揭曉已固定的抽取結果，不會重新抽取，也不改變銀兩、機率或共用保底；牌背不會提前透露稀有度。';
+      TUTORIAL_CONTENT.RECRUIT.desc += '\n● 單抽使用高清立繪；十連翻牌、候選清單與錄取名單使用同一人物縮圖。正式收入朝中後不會更換人物圖片。';
       TUTORIAL_CONTENT.HAREM.desc += '\n\n【翻牌與探望】\n● 選定妃嬪翻牌後播放「紅燭高照，共度良宵」簡短過場；動畫期間不能重複操作，體力、好感及懷孕判定只結算一次。\n● 已懷孕妃嬪使用獨立的探望過場，不播放行房動畫；是否傳出喜脈仍依原規則由太醫後續奏報。';
+      TUTORIAL_CONTENT.HAREM.desc += '\n\n【候選佳人立繪】\n● 三年選秀與微服私訪偶遇佳人時，決定是否納入後宮前會顯示候選人的高清立繪；正式入宮後沿用同一張圖片。圖片只供辨識，不影響候選機率、費用、好感或事件結果。';
       TUTORIAL_CONTENT.MINISTERS.desc += '\n● 底部批次操作列固定在整個遊戲畫面最下方，官員清單捲動到任何位置都不會消失；開啟玩法說明、更新說明或其他全螢幕視窗時會暫時隱藏，避免遮擋。';
       TUTORIAL_CONTENT.SCHOOL.desc += '\n● 皇嗣底部批次操作列在玩法說明、更新說明或其他全螢幕視窗開啟時會暫時隱藏，關閉視窗後恢復。';
       TUTORIAL_CONTENT.SCHOOL.desc = TUTORIAL_CONTENT.SCHOOL.desc

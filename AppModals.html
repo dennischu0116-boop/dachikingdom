@@ -156,7 +156,7 @@
                                 <span className="recruit-flip-inner">
                                     <span className="recruit-flip-face recruit-flip-back"><b>殿試名帖</b><span>第 {index+1} 名</span><small>即將揭曉</small></span>
                                     <span className={`recruit-flip-face recruit-flip-front rarity-${rarity}`}>
-                                        <span className="flex justify-center">{renderAvatar(person.name,person.avatar)}</span>
+                                        <BetaPortrait detail={results.length===1} portraitId={betaPortraitIdForCandidate(gameState,betaPortraitAssignments,'minister',person)} label={person.name} className={`${results.length===1?'w-36 h-48':'w-20 h-20'} shrink-0 rounded-lg border border-amber-300`} />
                                         <b className="text-lg leading-tight mt-1">{person.name}</b>
                                         <span className="text-[11px] font-bold">{person.rarityLabel||'普通人才'}・{person.recruitType||'人才'}</span>
                                         <span className="text-xs mt-1"><em className="text-blue-700 not-italic font-bold">文 {Math.round(Number(person.civil)||0)}</em>　<em className="text-red-700 not-italic font-bold">武 {Math.round(Number(person.military)||0)}</em></span>
@@ -510,7 +510,7 @@
                       <p className="mt-4 mb-3 text-center text-sm text-stone-600">本次共錄取 {results.length} 名人才，所有結果集中顯示如下。</p>
                       <div className="flex-1 overflow-y-auto space-y-2 pr-1">
                         {results.map((person,index)=><div key={`${person.id}-${index}`} className="border border-amber-200 rounded-lg p-3 bg-amber-50/60 flex gap-3 items-start">
-                          <div className="shrink-0">{renderAvatar(person.name,person.avatar)}</div>
+                          <BetaPortrait portraitId={betaPortraitIdForCandidate(gameState,betaPortraitAssignments,'minister',person)} label={person.name} className="w-16 h-16 shrink-0 rounded border border-amber-300" />
                           <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><b className="text-lg text-stone-900">{person.name}</b><span className="text-xs rounded bg-amber-200 text-amber-950 px-2 py-0.5">{person.rarityLabel||'普通'}・{person.recruitType||'人才'}</span></div>
                           <p className="text-sm mt-1"><span className="text-blue-700 font-bold">文 {Math.round(Number(person.civil)||0)}</span>　<span className="text-red-700 font-bold">武 {Math.round(Number(person.military)||0)}</span>　忠誠 {Math.round(Number(person.loyalty)||0)}　資質 {Math.round(Number(person.aptitude)||0)}　{person.age}歲</p>
                           {person.specialId&&<p className="text-xs text-amber-900 mt-1">★ {getMinisterSkillText(person)}</p>}</div>
@@ -524,7 +524,7 @@
               <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 animate-in zoom-in duration-300">
                   <div className="bg-white p-6 rounded-lg max-w-sm w-full border-4 border-double border-yellow-600 shadow-2xl relative text-center">
                        <div className="absolute -top-6 left-1/2 transform -translate-x-1/2 bg-yellow-600 text-white px-4 py-1 rounded-full font-bold shadow whitespace-nowrap">{title}</div>
-                       <div className="mt-4 mb-2 flex justify-center">{renderAvatar(results[0].name, results[0].avatar)}</div>
+                       <div className="mt-4 mb-3 flex justify-center"><BetaPortrait detail portraitId={betaPortraitIdForCandidate(gameState,betaPortraitAssignments,'minister',results[0])} label={results[0].name} className="w-40 h-56 rounded-lg border border-amber-300" /></div>
                        <h3 className="text-3xl font-bold text-stone-800 mb-1">{results[0].name}</h3>
                       <div className="flex justify-center gap-4 mb-4 text-lg font-mono">
                            <span className="text-blue-700 font-bold">文: {Math.round(Number(results[0].civil) || 0)}</span>

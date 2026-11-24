@@ -8,10 +8,10 @@
         useEffect(()=>{
             if(!QING_IMAGE_BETA||!gameState.gameId)return;
             setBetaPortraitAssignments(previous=>{
-                const next=betaAllocatePortraits(gameState,previous);
+                const next=betaAllocatePortraits(betaStateWithPortraitCandidates(gameState),previous);
                 return Object.keys(next).length===Object.keys(previous).length?previous:next;
             });
-        },[gameState.gameId,gameState.ministers,gameState.consorts,gameState.retiredMinisters,gameState.deceasedConsorts,gameState.historicalConsorts]);
+        },[gameState.gameId,gameState.ministers,gameState.consorts,gameState.retiredMinisters,gameState.deceasedConsorts,gameState.historicalConsorts,gameState.pendingRecruitDraw,gameState.pendingAnnualDraft]);
         const [currentView, setCurrentView] = useState('THRONE'); 
         const [treasuryTab,setTreasuryTab]=useState('BAG');
         const [inventoryFilter,setInventoryFilter]=useState('全部');
@@ -1714,7 +1714,8 @@
 
               // 選秀與戰爭、宮鬥共用年度佇列。選秀資料可存入 localStorage，重新整理不會消失。
               const draftCandidate=(gameState.year+1)%3===0?drawConsortCandidate(gameState,'selection'):null;
-              const draftOffer=draftCandidate?{id:royalNewId('draft'),...draftCandidate,year:gameState.year+1}:null;
+              const draftId=draftCandidate?royalNewId('draft'):null;
+              const draftOffer=draftCandidate?{...draftCandidate,id:draftId,personId:`consort_${draftId}`,year:gameState.year+1}:null;
 
               newLogsAdd.forEach(l => addLog(l));
 
@@ -1976,7 +1977,9 @@
           if(!await confirmLowEnergySpend(cost,'微服私訪'))return;
           const specialAdventure=Math.random()<.15;
           const roll = Math.random();
-          const beautyCandidate=!specialAdventure&&roll<.12?drawConsortCandidate(gameState,'folk'):null;
+          const drawnBeautyCandidate=!specialAdventure&&roll<.12?drawConsortCandidate(gameState,'folk'):null;
+          const beautyCandidate=drawnBeautyCandidate?{...drawnBeautyCandidate,
+              personId:`consort_candidate_${Date.now()}_${drawnBeautyCandidate.specialConsortId||drawnBeautyCandidate.name||'person'}`}:null;
           setGameState(prev => ({...prev, energy: prev.energy - cost,
               beautyPity:beautyCandidate?beautyCandidate.nextBeautyPity:prev.beautyPity}));
           let result;
@@ -1988,6 +1991,7 @@
               result = {
                   title: '偶遇佳人',
                   desc: `在江南小巷偶遇${special?`${special.rarity==='legendary'?'傳奇':'歷史'}佳人「${candidateName}」；${special.skillName}：${special.skillEffect}`:`才貌雙全的女子「${candidateName}」`}，侍從請旨是否迎入後宮？`,
+                  consortCandidate: beautyCandidate,
                   options: [
                       { text: `迎入後宮（${special?'特殊佳人':'新增答應1人'}）`, effect: s => {
                           const newConsort = consortFromCandidate(beautyCandidate,'微服私訪偶遇',50);
@@ -2032,6 +2036,7 @@
           }
           const impactText=result.impact?`\n事件影響：${result.impact}`:'';
           setCurrentEvent({id:Date.now(),title:result.title,description:`${result.desc}\n\n出訪成本：體力-${cost}${impactText}`,
+              consortCandidate:result.consortCandidate||null,
               options:result.options || [{text:`回宮（${result.impact||'無額外數值變化'}）`,effect:result.effect}]});
           setCurrentView('MEMORIAL');
         };
