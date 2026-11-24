@@ -25,7 +25,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: performance-image-beta
-      - name: Check all 150 character files exist
+      - name: Check all 246 character files exist
         shell: bash
         run: |
           python3 - <<'PY'

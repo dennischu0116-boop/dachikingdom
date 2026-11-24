@@ -1,12 +1,15 @@
-      // v1.3.9-beta：本檔只在隔離測試分支載入。圖片 URL 不寫入遊戲數值。
+      // v1.3.10-beta：本檔只在隔離測試分支載入。圖片 URL 不寫入遊戲數值。
       const BETA_IMAGE_BASE=String(globalThis.QING_IMAGE_BETA_ASSET_BASE||
           'https://dennischu0116-boop.github.io/dachikingdom/assets/characters/').replace(/\/?$/,'/');
+      const BETA_IMAGE_REVISION='v1.3.10-beta';
+      const betaAssetUrl=asset=>`${BETA_IMAGE_BASE}${asset}?v=${encodeURIComponent(BETA_IMAGE_REVISION)}`;
       const BETA_IMAGE_GROUPS={
           civil:{count:12,ages:[4,5,3]},
           military:{count:10,ages:[4,4,2]},
           consort:{count:18,ages:[8,7,3]}
       };
       const BETA_SPECIAL_IDS=['diao_chan','wang_zhaojun','xi_shi','yang_yuhuan','zhen_mi','yu_ji','zhao_feiyan','zhangsun','xiaozhuang','wei_zifu'];
+      const BETA_ROYAL_COUNT=8;
       const BETA_IMAGE_META=(()=>{
           const entries={};
           for(const [kind,meta] of Object.entries(BETA_IMAGE_GROUPS)){
@@ -21,6 +24,12 @@
               });
           }
           BETA_SPECIAL_IDS.forEach(id=>{const key='special_'+id;entries[key]={id:key,kind:'special',age:'fixed',thumbnail:'thumbs/'+key+'.webp',portrait:'portraits/'+key+'.webp',headshot:'headshots/'+key+'.webp'};});
+          ['prince','princess'].forEach(role=>{
+              for(let n=1;n<=BETA_ROYAL_COUNT;n++)['child','adult'].forEach(stage=>{
+                  const id=`royal_${role}_${String(n).padStart(3,'0')}_${stage}`;
+                  entries[id]={id,kind:`royal_${role}`,age:stage,thumbnail:'thumbs/'+id+'.webp',portrait:'portraits/'+id+'.webp',headshot:'headshots/'+id+'.webp'};
+              });
+          });
           return entries;
       })();
       const betaHash = text => {
@@ -30,23 +39,71 @@
       };
       const betaPortraitAge = age => Number(age)<35?'young':Number(age)<55?'middle':'senior';
       const betaPortraitKey=(kind,id)=>kind+':'+String(id);
+      const betaRoyalRootPattern=/^(royal_(?:prince|princess)_\d{3})(?:_(?:child|adult))?$/;
+      const betaRoyalKind=person=>person?.gender==='female'?'princess':'prince';
+      const betaRoyalPermanentId=(state,person)=>{
+          if(!person)return null;
+          if(person.royalId!==undefined&&person.royalId!==null)return String(person.royalId);
+          if(person.childId!==undefined&&person.childId!==null&&person.id!==undefined&&person.id!==null)return String(person.id);
+          const family=(state.royalFamily||[]).find(member=>String(member.id)===String(person.id));
+          if(family)return String(family.id);
+          return person.id===undefined||person.id===null?null:royalIdOf(person,state);
+      };
+      const betaRoyalPersonForMinister=(state,minister)=>{
+          if(!minister||(!isRoyalChildMinister(minister)&&minister.royalChildId==null&&minister.royalId==null))return null;
+          const child=(state.childrenList||[]).find(person=>(minister.royalChildId!=null&&String(person.id)===String(minister.royalChildId))||
+              (minister.royalId!=null&&String(person.royalId||royalIdOf(person,state))===String(minister.royalId))||
+              String(person.name||'')===String(minister.name||'').replace(/^(皇子|公主|宗室|長公主|宗親)\s*/,''));
+          if(child)return child;
+          const family=(state.royalFamily||[]).find(person=>(minister.royalId!=null&&String(person.id)===String(minister.royalId))||
+              (minister.royalChildId!=null&&String(person.childId)===String(minister.royalChildId)));
+          if(family)return family;
+          return {...minister,royalId:minister.royalId||`legacy_royal_minister_${minister.id}`,
+              gender:minister.gender==='female'||/^公主\s/.test(String(minister.name||''))?'female':'male',age:Math.max(16,Number(minister.age)||16)};
+      };
+      const betaRoyalPortraitId=(state,assignments,person,forceAdult=null)=>{
+          const permanentId=betaRoyalPermanentId(state,person);
+          if(!permanentId)return null;
+          const role=betaRoyalKind(person);
+          const stored=String(assignments?.[betaPortraitKey('royal',permanentId)]||'');
+          const matched=stored.match(betaRoyalRootPattern);
+          const root=matched&&matched[1].startsWith(`royal_${role}_`)?matched[1]:
+              `royal_${role}_${String(betaHash(`${state.gameId||'game'}:royal:${permanentId}`)%BETA_ROYAL_COUNT+1).padStart(3,'0')}`;
+          const adult=forceAdult===null?Number(person.age)>=16:!!forceAdult;
+          return `${root}_${adult?'adult':'child'}`;
+      };
       // 使用純 Base64，避免 GAS 範本輸出內嵌 SVG 時令 Babel 誤判字串邊界。
       const BETA_SILHOUETTE='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMjgiIGhlaWdodD0iMTkyIiB2aWV3Qm94PSIwIDAgMTI4IDE5MiI+PHJlY3Qgd2lkdGg9IjEyOCIgaGVpZ2h0PSIxOTIiIGZpbGw9IiNlZmU1ZDEiLz48Y2lyY2xlIGN4PSI2NCIgY3k9IjYzIiByPSIzMCIgZmlsbD0iIzhjNzU1ZiIvPjxwYXRoIGQ9Ik01IDE5MlExMCAxMTUgNjQgMTE1UTExOCAxMTUgMTIzIDE5MiIgZmlsbD0iIzZhNGEzNiIvPjxwYXRoIGQ9Ik0yNSA0MGg3OHYxMkgyNXoiIGZpbGw9IiM0NDM2MmIiLz48cGF0aCBkPSJNNDcgMTRoMzR2MzJINDd6IiBmaWxsPSIjNDQzNjJiIi8+PC9zdmc+';
 
       // 固定圖片 ID，不依賴名字或官職。只分配缺少紀錄的人物，已故者保留原對應。
       const betaAllocatePortraits=(state,prior={})=>{
           const next={...prior};
+          const royalRecords=new Map();
+          const addRoyal=person=>{const id=betaRoyalPermanentId(state,person);if(id&&!royalRecords.has(id))royalRecords.set(id,person);};
+          (state.childrenList||[]).forEach(addRoyal);
+          (state.royalFamily||[]).forEach(addRoyal);
+          [...(state.ministers||[]),...(state.retiredMinisters||[])].forEach(person=>{const royal=betaRoyalPersonForMinister(state,person);if(royal)addRoyal(royal);});
+          for(const [permanentId,person] of [...royalRecords.entries()].sort(([a],[b])=>a.localeCompare(b))){
+              const role=betaRoyalKind(person),key=betaPortraitKey('royal',permanentId);
+              const matched=String(next[key]||'').match(betaRoyalRootPattern);
+              if(matched&&matched[1].startsWith(`royal_${role}_`)){
+                  next[key]=matched[1];continue;
+              }
+              next[key]=`royal_${role}_${String(betaHash(`${state.gameId||'game'}:${key}`)%BETA_ROYAL_COUNT+1).padStart(3,'0')}`;
+          }
           const live=[...(state.ministers||[]).map(person=>({person,kind:Number(person.military||0)>Number(person.civil||0)?'military':'civil',age:Number(person.age)||30})),
               ...(state.consorts||[]).map(person=>({person,kind:'consort',age:Number(person.age)||getConsortAge(person)}))];
           const used=new Map();
           for(const {person} of live){
               const key=betaPortraitKey(person.specialConsortId||Object.prototype.hasOwnProperty.call(person,'rank')?'consort':'minister',person.id);
               const assigned=next[key];
-              if(assigned)used.set(assigned,(used.get(assigned)||0)+1);
+              if(assigned&&!String(assigned).startsWith('royal_'))used.set(assigned,(used.get(assigned)||0)+1);
           }
           for(const {person,kind,age} of live){
               if(person.id===undefined||person.id===null)continue;
               const key=betaPortraitKey(kind==='consort'?'consort':'minister',person.id);
+              const royal=kind!=='consort'?betaRoyalPersonForMinister(state,person):null;
+              if(royal){next[key]=betaRoyalPortraitId(state,next,royal,true);continue;}
               if(next[key])continue;
               const special=kind==='consort'&&person.specialConsortId?'special_'+person.specialConsortId:null;
               if(special&&BETA_IMAGE_META[special]){next[key]=special;used.set(special,(used.get(special)||0)+1);continue;}
@@ -66,6 +123,8 @@
           for(const {person,type} of archives){
               if(person?.id===null||person?.id===undefined)continue;
               const key=betaPortraitKey(type,person.id);
+              const royal=type==='minister'?betaRoyalPersonForMinister(state,person):null;
+              if(royal){next[key]=betaRoyalPortraitId(state,next,royal,true);continue;}
               if(next[key])continue;
               const special=type==='consort'&&person.specialConsortId?'special_'+person.specialConsortId:null;
               if(special&&BETA_IMAGE_META[special]){next[key]=special;continue;}
@@ -75,6 +134,13 @@
               if(choices.length)next[key]=choices[betaHash(String(state.gameId||'game')+':'+key)%choices.length].id;
           }
           return next;
+      };
+      const betaPortraitIdForPerson=(state,assignments,type,person)=>{
+          if(type==='minister'){
+              const royal=betaRoyalPersonForMinister(state,person);
+              if(royal)return betaRoyalPortraitId(state,assignments,royal,true);
+          }
+          return person?.id===undefined||person?.id===null?null:assignments?.[betaPortraitKey(type,person.id)]||null;
       };
       const betaPortraitCandidateId=(type,person)=>type==='consort'
           ?(person?.personId??person?.id)
@@ -124,7 +190,7 @@
               return ()=>observer.disconnect();
           },[directAsset,visible,portraitId]);
           const asset=detail?meta?.portrait:(variant==='headshot'&&meta?.headshot?meta.headshot:meta?.thumbnail);
-          const src=meta&&visible&&!failed?BETA_IMAGE_BASE+asset:BETA_SILHOUETTE;
+          const src=meta&&visible&&!failed?betaAssetUrl(asset):BETA_SILHOUETTE;
           return <img ref={node} src={src} alt={label||'人物立繪'} loading={detail?'eager':'lazy'} decoding="async" onError={()=>setFailed(true)}
               onClick={onClick||undefined}
               className={className+' beta-character-image '+(variant==='headshot'?'beta-headshot-image '+(meta?.kind?`beta-headshot-${meta.kind}`:''):'')+(onClick?' cursor-pointer':'')}
@@ -189,12 +255,12 @@
                       <span>JS 記憶體：<b>{stats.heap===null?'無法取得':(stats.heap/1048576).toFixed(1)+' MB'}</b></span>
                       <span>DOM 數：<b>{stats.dom}</b></span><span>資源記錄：<b>{stats.resources}</b></span>
                   </div>
-                  <p className="text-xs px-3 text-stone-700">顯示圖片只使用50種共用素材；捲動下方名單測試按需載入。計時限制與圖片主機的跨來源政策會影響下載量讀數。</p>
+                  <p className="text-xs px-3 text-stone-700">顯示圖片使用82種共用素材（含皇子、公主幼年／成年配對）；捲動下方名單測試按需載入。計時限制與圖片主機的跨來源政策會影響下載量讀數。</p>
                   <div className="overflow-y-auto p-3 grid grid-cols-2 sm:grid-cols-5 gap-2" key={mode+'_'+population+'_'+run}>
                       {Array.from({length:population},(_,i)=>{
                           const id=labels[i%labels.length],meta=BETA_IMAGE_META[id];
                           return <div key={i} className="bg-white border rounded p-2 text-xs">
-                              {mode!=='none'&&<img src={BETA_IMAGE_BASE+((mode==='detail'&&i===0)?meta.portrait:meta.thumbnail)} loading={mode==='all'?'eager':'lazy'} decoding="async" onLoad={e=>{if(!e.currentTarget.src.startsWith('data:'))record(true);}} onError={e=>{record(false);e.currentTarget.onerror=null;e.currentTarget.src=BETA_SILHOUETTE;}} className="w-20 h-20 mx-auto object-contain"/>}
+                              {mode!=='none'&&<img src={betaAssetUrl((mode==='detail'&&i===0)?meta.portrait:meta.thumbnail)} loading={mode==='all'?'eager':'lazy'} decoding="async" onLoad={e=>{if(!e.currentTarget.src.startsWith('data:'))record(true);}} onError={e=>{record(false);e.currentTarget.onerror=null;e.currentTarget.src=BETA_SILHOUETTE;}} className="w-20 h-20 mx-auto object-contain"/>}
                               <div>測試人物 {i+1}</div><small>{id}</small>
                           </div>;
                       })}

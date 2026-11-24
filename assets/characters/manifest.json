@@ -1,11 +1,13 @@
 {
-  "version": "v1.3.9-beta",
-  "status": "PRODUCTION_CANDIDATE_50_REVISED",
+  "version": "v1.3.10-beta",
+  "status": "PRODUCTION_CANDIDATE_82_WITH_ROYAL_PAIRS",
   "counts": {
     "civil": 12,
     "military": 10,
     "consort": 18,
-    "special": 10
+    "special": 10,
+    "royal_prince": 16,
+    "royal_princess": 16
   },
   "portraits": {
     "civil_middle_001": {
@@ -257,6 +259,166 @@
       "thumb": "thumbs/special_zhen_mi.webp",
       "headshot": "headshots/special_zhen_mi.webp",
       "full": "portraits/special_zhen_mi.webp"
+    },
+    "royal_prince_001_adult": {
+      "thumb": "thumbs/royal_prince_001_adult.webp",
+      "headshot": "headshots/royal_prince_001_adult.webp",
+      "full": "portraits/royal_prince_001_adult.webp"
+    },
+    "royal_prince_001_child": {
+      "thumb": "thumbs/royal_prince_001_child.webp",
+      "headshot": "headshots/royal_prince_001_child.webp",
+      "full": "portraits/royal_prince_001_child.webp"
+    },
+    "royal_prince_002_adult": {
+      "thumb": "thumbs/royal_prince_002_adult.webp",
+      "headshot": "headshots/royal_prince_002_adult.webp",
+      "full": "portraits/royal_prince_002_adult.webp"
+    },
+    "royal_prince_002_child": {
+      "thumb": "thumbs/royal_prince_002_child.webp",
+      "headshot": "headshots/royal_prince_002_child.webp",
+      "full": "portraits/royal_prince_002_child.webp"
+    },
+    "royal_prince_003_adult": {
+      "thumb": "thumbs/royal_prince_003_adult.webp",
+      "headshot": "headshots/royal_prince_003_adult.webp",
+      "full": "portraits/royal_prince_003_adult.webp"
+    },
+    "royal_prince_003_child": {
+      "thumb": "thumbs/royal_prince_003_child.webp",
+      "headshot": "headshots/royal_prince_003_child.webp",
+      "full": "portraits/royal_prince_003_child.webp"
+    },
+    "royal_prince_004_adult": {
+      "thumb": "thumbs/royal_prince_004_adult.webp",
+      "headshot": "headshots/royal_prince_004_adult.webp",
+      "full": "portraits/royal_prince_004_adult.webp"
+    },
+    "royal_prince_004_child": {
+      "thumb": "thumbs/royal_prince_004_child.webp",
+      "headshot": "headshots/royal_prince_004_child.webp",
+      "full": "portraits/royal_prince_004_child.webp"
+    },
+    "royal_prince_005_adult": {
+      "thumb": "thumbs/royal_prince_005_adult.webp",
+      "headshot": "headshots/royal_prince_005_adult.webp",
+      "full": "portraits/royal_prince_005_adult.webp"
+    },
+    "royal_prince_005_child": {
+      "thumb": "thumbs/royal_prince_005_child.webp",
+      "headshot": "headshots/royal_prince_005_child.webp",
+      "full": "portraits/royal_prince_005_child.webp"
+    },
+    "royal_prince_006_adult": {
+      "thumb": "thumbs/royal_prince_006_adult.webp",
+      "headshot": "headshots/royal_prince_006_adult.webp",
+      "full": "portraits/royal_prince_006_adult.webp"
+    },
+    "royal_prince_006_child": {
+      "thumb": "thumbs/royal_prince_006_child.webp",
+      "headshot": "headshots/royal_prince_006_child.webp",
+      "full": "portraits/royal_prince_006_child.webp"
+    },
+    "royal_prince_007_adult": {
+      "thumb": "thumbs/royal_prince_007_adult.webp",
+      "headshot": "headshots/royal_prince_007_adult.webp",
+      "full": "portraits/royal_prince_007_adult.webp"
+    },
+    "royal_prince_007_child": {
+      "thumb": "thumbs/royal_prince_007_child.webp",
+      "headshot": "headshots/royal_prince_007_child.webp",
+      "full": "portraits/royal_prince_007_child.webp"
+    },
+    "royal_prince_008_adult": {
+      "thumb": "thumbs/royal_prince_008_adult.webp",
+      "headshot": "headshots/royal_prince_008_adult.webp",
+      "full": "portraits/royal_prince_008_adult.webp"
+    },
+    "royal_prince_008_child": {
+      "thumb": "thumbs/royal_prince_008_child.webp",
+      "headshot": "headshots/royal_prince_008_child.webp",
+      "full": "portraits/royal_prince_008_child.webp"
+    },
+    "royal_princess_001_adult": {
+      "thumb": "thumbs/royal_princess_001_adult.webp",
+      "headshot": "headshots/royal_princess_001_adult.webp",
+      "full": "portraits/royal_princess_001_adult.webp"
+    },
+    "royal_princess_001_child": {
+      "thumb": "thumbs/royal_princess_001_child.webp",
+      "headshot": "headshots/royal_princess_001_child.webp",
+      "full": "portraits/royal_princess_001_child.webp"
+    },
+    "royal_princess_002_adult": {
+      "thumb": "thumbs/royal_princess_002_adult.webp",
+      "headshot": "headshots/royal_princess_002_adult.webp",
+      "full": "portraits/royal_princess_002_adult.webp"
+    },
+    "royal_princess_002_child": {
+      "thumb": "thumbs/royal_princess_002_child.webp",
+      "headshot": "headshots/royal_princess_002_child.webp",
+      "full": "portraits/royal_princess_002_child.webp"
+    },
+    "royal_princess_003_adult": {
+      "thumb": "thumbs/royal_princess_003_adult.webp",
+      "headshot": "headshots/royal_princess_003_adult.webp",
+      "full": "portraits/royal_princess_003_adult.webp"
+    },
+    "royal_princess_003_child": {
+      "thumb": "thumbs/royal_princess_003_child.webp",
+      "headshot": "headshots/royal_princess_003_child.webp",
+      "full": "portraits/royal_princess_003_child.webp"
+    },
+    "royal_princess_004_adult": {
+      "thumb": "thumbs/royal_princess_004_adult.webp",
+      "headshot": "headshots/royal_princess_004_adult.webp",
+      "full": "portraits/royal_princess_004_adult.webp"
+    },
+    "royal_princess_004_child": {
+      "thumb": "thumbs/royal_princess_004_child.webp",
+      "headshot": "headshots/royal_princess_004_child.webp",
+      "full": "portraits/royal_princess_004_child.webp"
+    },
+    "royal_princess_005_adult": {
+      "thumb": "thumbs/royal_princess_005_adult.webp",
+      "headshot": "headshots/royal_princess_005_adult.webp",
+      "full": "portraits/royal_princess_005_adult.webp"
+    },
+    "royal_princess_005_child": {
+      "thumb": "thumbs/royal_princess_005_child.webp",
+      "headshot": "headshots/royal_princess_005_child.webp",
+      "full": "portraits/royal_princess_005_child.webp"
+    },
+    "royal_princess_006_adult": {
+      "thumb": "thumbs/royal_princess_006_adult.webp",
+      "headshot": "headshots/royal_princess_006_adult.webp",
+      "full": "portraits/royal_princess_006_adult.webp"
+    },
+    "royal_princess_006_child": {
+      "thumb": "thumbs/royal_princess_006_child.webp",
+      "headshot": "headshots/royal_princess_006_child.webp",
+      "full": "portraits/royal_princess_006_child.webp"
+    },
+    "royal_princess_007_adult": {
+      "thumb": "thumbs/royal_princess_007_adult.webp",
+      "headshot": "headshots/royal_princess_007_adult.webp",
+      "full": "portraits/royal_princess_007_adult.webp"
+    },
+    "royal_princess_007_child": {
+      "thumb": "thumbs/royal_princess_007_child.webp",
+      "headshot": "headshots/royal_princess_007_child.webp",
+      "full": "portraits/royal_princess_007_child.webp"
+    },
+    "royal_princess_008_adult": {
+      "thumb": "thumbs/royal_princess_008_adult.webp",
+      "headshot": "headshots/royal_princess_008_adult.webp",
+      "full": "portraits/royal_princess_008_adult.webp"
+    },
+    "royal_princess_008_child": {
+      "thumb": "thumbs/royal_princess_008_child.webp",
+      "headshot": "headshots/royal_princess_008_child.webp",
+      "full": "portraits/royal_princess_008_child.webp"
     }
   }
 }

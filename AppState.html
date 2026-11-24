@@ -9,9 +9,10 @@
             if(!QING_IMAGE_BETA||!gameState.gameId)return;
             setBetaPortraitAssignments(previous=>{
                 const next=betaAllocatePortraits(betaStateWithPortraitCandidates(gameState),previous);
-                return Object.keys(next).length===Object.keys(previous).length?previous:next;
+                const keys=Object.keys(next);
+                return keys.length===Object.keys(previous).length&&keys.every(key=>next[key]===previous[key])?previous:next;
             });
-        },[gameState.gameId,gameState.ministers,gameState.consorts,gameState.retiredMinisters,gameState.deceasedConsorts,gameState.historicalConsorts,gameState.pendingRecruitDraw,gameState.pendingAnnualDraft]);
+        },[gameState.gameId,gameState.ministers,gameState.consorts,gameState.retiredMinisters,gameState.deceasedConsorts,gameState.historicalConsorts,gameState.childrenList,gameState.royalFamily,gameState.pendingRecruitDraw,gameState.pendingAnnualDraft]);
         const [currentView, setCurrentView] = useState('THRONE'); 
         const [treasuryTab,setTreasuryTab]=useState('BAG');
         const [inventoryFilter,setInventoryFilter]=useState('全部');
@@ -108,6 +109,7 @@
         const [showBeautyRegistry,setShowBeautyRegistry]=useState(false);
         const [schoolTrainingCount,setSchoolTrainingCount]=useState('5');
         const [selectedRoyalChildIds,setSelectedRoyalChildIds]=useState([]);
+        const [royalPortraitDetailId,setRoyalPortraitDetailId]=useState(null);
         const [imperialStudyCourse,setImperialStudyCourse]=useState('civil');
         const [editingRoyalChildId, setEditingRoyalChildId] = useState(null);
         const [draftRoyalChildName, setDraftRoyalChildName] = useState('');
