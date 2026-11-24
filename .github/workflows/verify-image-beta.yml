@@ -32,6 +32,8 @@ jobs:
           node --check BetaServer.js
           node --check 程式碼.js
           node --check CodeSave.js
+          grep -q 'data:image/svg+xml;base64,' ImageBeta.html
+          ! grep -q "encodeURIComponent('<svg" ImageBeta.html
       - name: Check portrait assets and manifest integrity
         run: |
           python3 - <<'PY'

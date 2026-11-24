@@ -29,7 +29,8 @@
       };
       const betaPortraitAge = age => Number(age)<35?'young':Number(age)<55?'middle':'senior';
       const betaPortraitKey=(kind,id)=>kind+':'+String(id);
-      const BETA_SILHOUETTE='data:image/svg+xml;charset=utf-8,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="128" height="192" viewBox="0 0 128 192"><rect width="128" height="192" fill="#efe5d1"/><circle cx="64" cy="63" r="30" fill="#8c755f"/><path d="M5 192Q10 115 64 115Q118 115 123 192" fill="#6a4a36"/><path d="M25 40h78v12H25z" fill="#44362b"/><path d="M47 14h34v32H47z" fill="#44362b"/></svg>');
+      // 使用純 Base64，避免 GAS 範本輸出內嵌 SVG 時令 Babel 誤判字串邊界。
+      const BETA_SILHOUETTE='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMjgiIGhlaWdodD0iMTkyIiB2aWV3Qm94PSIwIDAgMTI4IDE5MiI+PHJlY3Qgd2lkdGg9IjEyOCIgaGVpZ2h0PSIxOTIiIGZpbGw9IiNlZmU1ZDEiLz48Y2lyY2xlIGN4PSI2NCIgY3k9IjYzIiByPSIzMCIgZmlsbD0iIzhjNzU1ZiIvPjxwYXRoIGQ9Ik01IDE5MlExMCAxMTUgNjQgMTE1UTExOCAxMTUgMTIzIDE5MiIgZmlsbD0iIzZhNGEzNiIvPjxwYXRoIGQ9Ik0yNSA0MGg3OHYxMkgyNXoiIGZpbGw9IiM0NDM2MmIiLz48cGF0aCBkPSJNNDcgMTRoMzR2MzJINDd6IiBmaWxsPSIjNDQzNjJiIi8+PC9zdmc+';
 
       // 固定圖片 ID，不依賴名字或官職。只分配缺少紀錄的人物，已故者保留原對應。
       const betaAllocatePortraits=(state,prior={})=>{
