@@ -8,7 +8,8 @@
               '修正正式GAS頁面可能在人物圖片網址或主畫面背景網址處發生Babel語法錯誤、導致遊戲無法開啟的問題；瀏覽器版Babel固定為已驗證版本。',
               '恢復遊戲頂端、系統設定右側的藍色雲端存檔按鈕，依登入與綁定狀態顯示Google登入、雲端已登入或目前槽位。',
               '排行榜開啟前會先補交目前頭像，更換頭像後立即同步；自己的排行榜詳情直接使用本機頭像，其他玩家的自訂縮圖仍在展開時按需讀取。',
-              '切回瀏覽器視窗時的Google雲端核對改為背景執行，只在藍色雲端按鈕顯示核對中；全頁載入畫面僅保留給首次啟動。'
+              '切回瀏覽器視窗時的Google雲端核對改為背景執行，只在藍色雲端按鈕顯示核對中；全頁載入畫面僅保留給首次啟動。',
+              '修正已征服敵國的舊地遭第三國奪走後，原敵國關卡也被錯誤開放的問題；原關卡改為顯示實際佔領者並鎖定，只能攻打佔領國收復原地塊。'
           ]},
           {version:'v1.4.0',title:'人物立繪正式上線・皇嗣成長圖片',details:[
               '正式加入82個人物圖片ID、共246張WebP：12組文官、10組武將、18組一般妃嬪、10位特殊佳人，以及皇子、公主各8組幼年／成年配對。',
@@ -645,6 +646,15 @@
       const hasEnemyHomeland = (state, enemyName) =>
           [...(state.provinces || []), ...(state.lostProvinces || [])]
               .some(prov => String(prov.name || '') === enemyTerritoryName(enemyName));
+      // 敵國舊地被第三國奪走時，原敵國已無可攻打領土；回傳實際佔領者供關卡鎖定與提示。
+      const enemyHomelandOccupation = (state, enemyName) => {
+          const homelandName=enemyTerritoryName(enemyName);
+          if((state.provinces||[]).some(prov=>String(prov.name||'')===homelandName))return null;
+          const lost=(state.lostProvinces||[]).find(prov=>
+              String(prov.name||'')===homelandName&&prov.occupier!=null&&
+              String(prov.occupier).trim()!==''&&String(prov.occupier)!==String(enemyName));
+          return lost?{province:lost,occupier:String(lost.occupier)}:null;
+      };
       // 保護現有省份：不合併既有同名地塊，也不以省名當成收復時的唯一身分。
       const reclaimOccupiedProvinces = (state, occupierName) => {
           const recovered = (state.lostProvinces || []).filter(prov => prov.occupier === occupierName);
@@ -889,6 +899,7 @@
       TUTORIAL_CONTENT.SCHOOL.desc += '\n● 皇嗣卡顯示近景頭像，點擊可查看完整立繪；滿16歲後切換成同一人物的成年圖，自動入仕後官員名冊沿用成年圖片。';
       TUTORIAL_CONTENT.WAR.desc += '\n\n【人口與募兵】\n● 基礎募兵千人數＝人口÷500向下取整＋城市數×2，再套用兵部尚書、皇帝武力及編練新軍加成。實際每增加10千軍隊會消耗1萬人口；遣散10千軍隊返還1萬人口。戰死士兵不會返還人口。';
       TUTORIAL_CONTENT.WAR.desc += '\n\n【疆域與失土資料】\n● 每塊土地使用永久ID，在現有疆域與失土之間搬移；失守不會刪除土地，收復也不會另外建立同一塊土地。\n● 敵國舊地以實際持有狀態同步征服紀錄；若舊地被第三國佔領，收復後會自動恢復原屬敵國的征服狀態。\n● 舊存檔若包含重複土地、缺少ID、幽靈戰線或同城市重複戰線，讀取時會自動修復；同名但不同ID的合法土地仍分別保留。';
+      TUTORIAL_CONTENT.WAR.desc += '\n● 敵國舊地被第三國奪走時，原敵國關卡只顯示失土去向且不可再次攻打；必須攻打實際佔領者。勝利會一次收復該國佔領的全部原地塊，並保留土地ID、發展度與既有資料。';
       TUTORIAL_CONTENT.MINISTERS.desc += '\n\n【固定批次操作列】\n● 官員清單的賞賜、進修與逐出按鈕固定在遊戲畫面底部，捲動長清單後不必返回頁首。';
       TUTORIAL_CONTENT.CLOUD.desc += '\n\n【登入操作】\n● Google登入會另開OAuth授權視窗；授權成功後回到遊戲按「完成Google登入」。遊戲進行中可直接使用頂端「Google登入／槽位」按鈕。';
       TUTORIAL_CONTENT.INTRO.desc += '\n\n【排行榜頭像】\n● 排行榜展開詳細資料時會顯示該局皇帝頭像。自訂圖片只公開96×96、最多12KB的裁切縮圖，原始檔不會上傳；圖片不參與排名或玩法計算。';

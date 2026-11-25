@@ -162,8 +162,13 @@
                       <h3 className="font-bold mb-2 flex items-center gap-2"><MapIcon/> 選擇目標 (難度極高)</h3>
                       <div className="flex gap-2 overflow-x-auto pb-2">
                           {ENEMIES.map((e, idx) => {
-                              const isOccupier = gameState.lostProvinces.some(p => p.occupier === e.name);
-                              return <button key={e.name} disabled={(gameState.conqueredEnemies || []).some(x => Number(x) === idx) && !isOccupier} onClick={() => setGameState(p => ({...p, warSetup: {...p.warSetup, targetIndex: Number(idx)}}))} className={`px-3 py-2 rounded whitespace-nowrap border flex flex-col items-center ${isOccupier ? (targetIndex === idx ? 'bg-red-700 text-white border-red-900 ring-2 ring-red-400' : 'bg-red-100 text-red-800 border-red-300') : (gameState.conqueredEnemies.includes(idx) ? 'bg-gray-300 text-gray-500' : (targetIndex === idx ? 'bg-red-800 text-white border-red-900' : 'bg-gray-100 border-gray-300'))}`}><span>{e.name}</span>{isOccupier && <span className="text-[10px] font-bold blink">(佔領: {gameState.lostProvinces.find(p => p.occupier === e.name).name})</span>}{!isOccupier && <span className="text-[10px]">{gameState.conqueredEnemies.includes(idx) ? '(已征服)' : `(強:${e.strength})`}</span>}</button>
+                              const occupiedLand=(gameState.lostProvinces||[]).filter(p=>p.occupier===e.name);
+                              const isOccupier=occupiedLand.length>0;
+                              const isConquered=(gameState.conqueredEnemies||[]).some(x=>Number(x)===idx);
+                              const displacedHomeland=enemyHomelandOccupation(gameState,e.name);
+                              const isUnavailable=!isOccupier&&(isConquered||!!displacedHomeland);
+                              const occupiedLabel=occupiedLand.length===1?`佔領: ${occupiedLand[0].name}`:`佔領失土: ${occupiedLand.length}城`;
+                              return <button key={e.name} disabled={isUnavailable} title={displacedHomeland?`${e.name}舊地目前由${displacedHomeland.occupier}佔領，請攻打實際佔領者。`:isOccupier?occupiedLand.map(p=>p.name).join('、'):''} onClick={() => setGameState(p => ({...p, warSetup: {...p.warSetup, targetIndex: Number(idx)}}))} className={`px-3 py-2 rounded whitespace-nowrap border flex flex-col items-center ${isOccupier ? (targetIndex === idx ? 'bg-red-700 text-white border-red-900 ring-2 ring-red-400' : 'bg-red-100 text-red-800 border-red-300') : (isUnavailable ? 'bg-gray-300 text-gray-500' : (targetIndex === idx ? 'bg-red-800 text-white border-red-900' : 'bg-gray-100 border-gray-300'))}`}><span>{e.name}</span>{isOccupier && <span className="text-[10px] font-bold blink">({occupiedLabel})</span>}{!isOccupier && <span className="text-[10px]">{displacedHomeland?`(舊地遭${displacedHomeland.occupier}佔領)`:isConquered?'(已征服)':`(強:${e.strength})`}</span>}</button>
                           })}
                       </div>
                       </div>
@@ -187,6 +192,10 @@
                                   idx => Number(idx) === targetIndex
                               );
                               const hasLostLand = (gameState.lostProvinces || []).some(p => p.occupier === target.name);
+                              const displacedHomeland=enemyHomelandOccupation(gameState,target.name);
+                              if (!hasLostLand && displacedHomeland) {
+                                  showMessage(`${target.name}舊地目前由${displacedHomeland.occupier}佔領，請改為攻打${displacedHomeland.occupier}收復失土。`); return;
+                              }
                               if (alreadyConquered && !hasLostLand) {
                                   showMessage(`${target.name}已被征服，無須再次出征。`); return;
                               }

@@ -23,6 +23,18 @@ assert(read('AppWarAndMain.html').includes('className="game-main-surface ') && r
 assert(read('AppWarAndMain.html').includes("onClick={()=>setShowCloudPanel(true)}") && read('AppWarAndMain.html').includes("cloudSlot?`槽位 ${cloudSlot}`:'雲端已登入'"), 'in-game cloud slot button is missing');
 assert(read('AppWarAndMain.html').includes('appBooting&&<AppLoadingScreen/>') && !read('AppWarAndMain.html').includes('appBooting||cloudSessionChecking'), 'cloud session checks must not trigger the full-screen loader');
 assert(read('AppWarAndMain.html').includes("cloudSessionChecking?'雲端核對中…'"), 'cloud session check needs a non-blocking status indicator');
+assert(read('ClientContent.html').includes('const enemyHomelandOccupation = (state, enemyName) =>'), 'foreign occupation resolver is missing');
+assert(read('AppWarAndMain.html').includes('displacedHomeland=enemyHomelandOccupation(gameState,target.name)') && read('AppWarAndMain.html').includes('請改為攻打${displacedHomeland.occupier}收復失土'), 'foreign-occupied homeland attack guard is missing');
+assert(read('AppWarAndMain.html').includes('舊地遭${displacedHomeland.occupier}佔領'), 'foreign occupation target status is missing');
+const territoryRuleMatch=read('ClientContent.html').match(/      const enemyTerritoryName =[\s\S]*?(?=      \/\/ 保護現有省份)/);
+assert(territoryRuleMatch, 'could not isolate territory occupation rules');
+const territoryRuleContext={globalThis:{}};
+territoryRuleContext.globalThis=territoryRuleContext;
+vm.runInNewContext(`${territoryRuleMatch[0]}\nglobalThis.__enemyHomelandOccupation=enemyHomelandOccupation;`,territoryRuleContext);
+const foreignOccupiedState={provinces:[],lostProvinces:[{id:'former-a',name:'甲國舊地',occupier:'乙國'}]};
+assert(territoryRuleContext.__enemyHomelandOccupation(foreignOccupiedState,'甲國')?.occupier==='乙國', 'foreign occupier was not resolved from lost territory');
+assert(territoryRuleContext.__enemyHomelandOccupation({provinces:[{id:'owned-a',name:'甲國舊地'}],lostProvinces:[]},'甲國')===null, 'owned homeland must not be treated as foreign occupied');
+assert(territoryRuleContext.__enemyHomelandOccupation({provinces:[],lostProvinces:[{id:'former-a',name:'甲國舊地',occupier:'甲國'}]},'甲國')===null, 'enemy reclaiming its own homeland must remain an actionable occupier');
 
 const clasp = JSON.parse(read('.clasp.json'));
 assert(clasp.scriptId === '1XgG3H6UsAsOkhYWEMnkf8svciGRGrXqcwQYzJtrEhABvrrfCfo0K9C0t', 'unexpected production GAS script ID');
