@@ -4,6 +4,7 @@ import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 import { transformSync } from '@babel/core';
 import presetReact from '@babel/preset-react';
+import BabelStandalone from '@babel/standalone';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
@@ -15,6 +16,8 @@ assert(packageJson.version === '1.4.1', 'package.json must be v1.4.1');
 assert(manifest.version === 'v1.4.1' && manifest.status === 'PRODUCTION', 'character manifest is not production v1.4.1');
 assert(read('ClientCore.html').includes('const APP_VERSION = "v1.4.1"'), 'ClientCore version mismatch');
 assert(/const QING_SAVE_KEY\s*=\s*'qing_saveData'/.test(read('ClientShell.html')), 'production save key is missing');
+assert(read('Index.html').includes('https://unpkg.com/@babel/standalone@7.28.5/babel.min.js'), 'browser Babel version must stay pinned to 7.28.5');
+assert(read('ImageBeta.html').includes('const BETA_IMAGE_BASE=String(globalThis.QING_IMAGE_BETA_ASSET_BASE || "https://'), 'production image base must use the GAS-safe single-line literal');
 
 const clasp = JSON.parse(read('.clasp.json'));
 assert(clasp.scriptId === '1XgG3H6UsAsOkhYWEMnkf8svciGRGrXqcwQYzJtrEhABvrrfCfo0K9C0t', 'unexpected production GAS script ID');
@@ -29,6 +32,7 @@ assert(!compiled.includes('<?!='), 'unresolved Apps Script template include');
 const babelSource = compiled.match(/<script type="text\/babel">([\s\S]*?)<\/script>/)?.[1];
 assert(babelSource, 'could not find the Babel application script');
 transformSync(babelSource, { presets: [[presetReact, { runtime: 'classic' }]], babelrc: false, configFile: false });
+BabelStandalone.transform(babelSource, { presets: ['react'], sourceType: 'script' });
 
 const expectedCounts = { civil: 12, military: 10, consort: 18, special: 10, royal_prince: 16, royal_princess: 16, emperor: 4 };
 assert(JSON.stringify(manifest.counts) === JSON.stringify(expectedCounts), 'character category counts changed unexpectedly');
