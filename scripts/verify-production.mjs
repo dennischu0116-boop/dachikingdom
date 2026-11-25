@@ -94,6 +94,9 @@ assert(state.includes('setBetaPortraitAssignments(normalized.betaPortraitAssignm
 assert(!state.includes('圖片測試版已停用排行榜連線'), 'beta leaderboard guard remains');
 assert(!read('AppWarAndMain.html').includes('圖片效能實驗室'), 'image performance lab remains in player UI');
 assert(state.includes('...emperorLeaderboardAvatarPayload(stateToSave)'), 'leaderboard submission omits emperor avatar');
+assert(state.includes('submitScore(gameState, true, loadLeaderboard)') && state.includes('else if (showLeaderboard) loadLeaderboard()'), 'leaderboard refresh must sync once without recursion');
+assert(state.includes('submitScore(next,true)'), 'avatar changes must immediately update the leaderboard');
+assert(read('AppModals.html').includes("id===String(gameState.gameId||'')") && read('AppModals.html').includes('assets={gameState.emperorAvatarAssets}'), 'current leaderboard entry must use the local avatar');
 const leaderboardServer=read('程式碼.js');
 assert(leaderboardServer.includes("'avatarKind', 'avatarValue'"), 'leaderboard avatar columns are missing');
 assert(leaderboardServer.includes('function getLeaderboardAvatar(gameId)'), 'on-demand leaderboard avatar endpoint is missing');

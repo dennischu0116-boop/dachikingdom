@@ -369,8 +369,10 @@
 
         const showMessage = (msg, type = 'error') => { setFeedbackMessage({ text: msg, type }); setTimeout(() => setFeedbackMessage(null), 3000); };
         const handleEmperorAvatarChange=(avatar,newAssets={})=>{
-            setGameState(previous=>normalizeEmperorAvatarState({...previous,emperorAvatar:avatar,
-                emperorAvatarAssets:{...(previous.emperorAvatarAssets||{}),...newAssets}}));
+            const next=normalizeEmperorAvatarState({...gameState,emperorAvatar:avatar,
+                emperorAvatarAssets:{...(gameState.emperorAvatarAssets||{}),...newAssets}});
+            setGameState(next);
+            submitScore(next,true);
             showMessage('皇帝頭像已更新，將隨目前進度保存。','success');
         };
 
@@ -759,7 +761,7 @@
         };
 
         // 世界排行榜：透過 Apps Script 伺服器存取 Google Sheets。
-        const fetchLeaderboard = () => {
+        const loadLeaderboard = () => {
             setShowLeaderboard(true);
             setIsLeaderboardLoading(true);
             setLeaderboardError('');
@@ -785,6 +787,16 @@
                     setIsLeaderboardLoading(false);
                 })
                 .getLeaderboard(gameState.gameId || '');
+        };
+        const fetchLeaderboard = () => {
+            setShowLeaderboard(true);
+            setIsLeaderboardLoading(true);
+            setLeaderboardError('');
+            if (isGameStarted && gameState.gameId && typeof google !== 'undefined' && google.script?.run) {
+                submitScore(gameState, true, loadLeaderboard);
+                return;
+            }
+            loadLeaderboard();
         };
         const toggleLeaderboardDetails=entry=>{
             const id=String(entry?.gameId||'');
@@ -854,7 +866,7 @@
                         }
                         if (!silent) showMessage('世界排行榜成績已更新！', 'success');
                         if (onDone) onDone();
-                        else if (showLeaderboard) fetchLeaderboard();
+                        else if (showLeaderboard) loadLeaderboard();
                     })
                     .withFailureHandler(error => {
                         console.warn('世界排行榜連線失敗：', error);

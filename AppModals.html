@@ -257,6 +257,7 @@
             ];
             const leaderboardAvatar=entry=>{
                 const id=String(entry.gameId||''),kind=String(entry.avatarKind||'');
+                if(id&&id===String(gameState.gameId||''))return <EmperorAvatar avatar={gameState.emperorAvatar} assets={gameState.emperorAvatarAssets} label={`${entry.name||'玩家'}頭像`} className="w-28 h-28 rounded-xl border-2 border-amber-400"/>;
                 if(kind==='custom'){
                     const value=leaderboardAvatarCache[id];
                     if(value)return <img src={value} alt={`${entry.name||'玩家'}頭像`} className="w-28 h-28 rounded-xl border-2 border-amber-400 object-cover bg-amber-50"/>;
