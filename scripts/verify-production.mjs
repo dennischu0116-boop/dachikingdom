@@ -18,6 +18,8 @@ assert(read('ClientCore.html').includes('const APP_VERSION = "v1.4.1"'), 'Client
 assert(/const QING_SAVE_KEY\s*=\s*'qing_saveData'/.test(read('ClientShell.html')), 'production save key is missing');
 assert(read('Index.html').includes('https://unpkg.com/@babel/standalone@7.28.5/babel.min.js'), 'browser Babel version must stay pinned to 7.28.5');
 assert(read('ImageBeta.html').includes('const BETA_IMAGE_BASE=String(globalThis.QING_IMAGE_BETA_ASSET_BASE || "https://'), 'production image base must use the GAS-safe single-line literal');
+assert(!read('AppWarAndMain.html').includes("bg-[url('https://"), 'external background URLs must not be embedded in JSX utility classes');
+assert(read('AppWarAndMain.html').includes('className="game-main-surface ') && read('Styles.html').includes('.game-main-surface {'), 'main background must use the GAS-safe CSS class');
 
 const clasp = JSON.parse(read('.clasp.json'));
 assert(clasp.scriptId === '1XgG3H6UsAsOkhYWEMnkf8svciGRGrXqcwQYzJtrEhABvrrfCfo0K9C0t', 'unexpected production GAS script ID');
