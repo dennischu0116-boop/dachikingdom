@@ -12,9 +12,9 @@ const assert = (condition, message) => { if (!condition) throw new Error(message
 
 const packageJson = JSON.parse(read('package.json'));
 const manifest = JSON.parse(read('assets/characters/manifest.json'));
-assert(packageJson.version === '1.4.1', 'package.json must be v1.4.1');
-assert(manifest.version === 'v1.4.1' && manifest.status === 'PRODUCTION', 'character manifest is not production v1.4.1');
-assert(read('ClientCore.html').includes('const APP_VERSION = "v1.4.1"'), 'ClientCore version mismatch');
+assert(packageJson.version === '1.4.2', 'package.json must be v1.4.2');
+assert(manifest.version === 'v1.4.2' && manifest.status === 'PRODUCTION', 'character manifest is not production v1.4.2');
+assert(read('ClientCore.html').includes('const APP_VERSION = "v1.4.2"'), 'ClientCore version mismatch');
 assert(/const QING_SAVE_KEY\s*=\s*'qing_saveData'/.test(read('ClientShell.html')), 'production save key is missing');
 assert(read('Index.html').includes('https://unpkg.com/@babel/standalone@7.28.5/babel.min.js'), 'browser Babel version must stay pinned to 7.28.5');
 assert(read('ImageBeta.html').includes('const BETA_IMAGE_BASE=String(globalThis.QING_IMAGE_BETA_ASSET_BASE || "https://'), 'production image base must use the GAS-safe single-line literal');
@@ -51,10 +51,10 @@ assert(babelSource, 'could not find the Babel application script');
 transformSync(babelSource, { presets: [[presetReact, { runtime: 'classic' }]], babelrc: false, configFile: false });
 BabelStandalone.transform(babelSource, { presets: ['react'], sourceType: 'script' });
 
-const expectedCounts = { civil: 12, military: 10, consort: 18, special: 10, royal_prince: 16, royal_princess: 16, emperor: 4 };
+const expectedCounts = { civil: 24, military: 20, consort: 30, special: 10, royal_prince: 32, royal_princess: 32, emperor: 4 };
 assert(JSON.stringify(manifest.counts) === JSON.stringify(expectedCounts), 'character category counts changed unexpectedly');
 const entries = Object.entries(manifest.portraits || {});
-assert(entries.length === 82, `expected 82 character IDs, found ${entries.length}`);
+assert(entries.length === 148, `expected 148 character IDs, found ${entries.length}`);
 const dimensions = { thumbs: [128, 128, 64 * 1024], headshots: [256, 256, 96 * 1024], portraits: [768, 1152, 384 * 1024] };
 
 const webpSize = buffer => {
@@ -90,7 +90,7 @@ for (const directory of Object.keys(dimensions)) {
     if (file.endsWith('.webp')) actualFiles.push(`${directory}/${file}`);
   }
 }
-assert(actualFiles.length === 246, `expected 246 WebP files, found ${actualFiles.length}`);
+assert(actualFiles.length === 444, `expected 444 WebP files, found ${actualFiles.length}`);
 assert(actualFiles.every(file => expectedFiles.has(file)), 'unlisted WebP file found');
 const emperorEntries=Object.entries(manifest.emperorAvatars||{});
 assert(emperorEntries.length===4,'expected four emperor avatar entries');
@@ -117,7 +117,7 @@ assert(leaderboardServer.includes('function getLeaderboardAvatar(gameId)'), 'on-
 assert(read('ClientShell.html').includes('fullCanvas.width=256')&&read('ClientShell.html').includes('boardCanvas.width=96'), 'avatar upload resize rules are missing');
 
 const portraitSource = read('ImageBeta.html').split('      const BetaPortrait =')[0] + `
-globalThis.__portraits={betaAllocatePortraits,betaPortraitKey,betaRoyalPortraitId,betaPortraitIdForPerson,normalizeEmperorAvatarState,emperorLeaderboardAvatarPayload};`;
+globalThis.__portraits={BETA_IMAGE_META,betaAllocatePortraits,betaPortraitKey,betaRoyalPortraitId,betaPortraitIdForPerson,normalizeEmperorAvatarState,emperorLeaderboardAvatarPayload};`;
 const portraitContext = {
   globalThis: {},
   getConsortAge: person => Number(person.age) || 20,
@@ -136,6 +136,18 @@ const sampleState = {
   childrenList: [royalChild], royalFamily: []
 };
 const firstAssignments = portraits.betaAllocatePortraits(sampleState, {});
+assert(Object.keys(portraits.BETA_IMAGE_META).length===148,'expanded portrait metadata count is incorrect');
+assert(portraits.BETA_IMAGE_META.civil_young_008&&portraits.BETA_IMAGE_META.military_senior_004&&portraits.BETA_IMAGE_META.consort_senior_005&&portraits.BETA_IMAGE_META.royal_princess_016_adult,'expanded portrait IDs are missing');
+const preservedAssignments=portraits.betaAllocatePortraits(sampleState,{'minister:minister-1':'civil_young_001','consort:consort-1':'consort_young_001'});
+assert(preservedAssignments['minister:minister-1']==='civil_young_001'&&preservedAssignments['consort:consort-1']==='consort_young_001','existing portrait assignments changed after pool expansion');
+const expandedPoolState={...sampleState,gameId:'expanded-pool-check',childrenList:[],
+  ministers:[...[...Array(8)].map((_,index)=>({id:`civil-${index}`,name:`文官${index}`,age:25,civil:80,military:20})),
+    ...[...Array(8)].map((_,index)=>({id:`military-${index}`,name:`武將${index}`,age:25,civil:20,military:80}))],
+  consorts:[...Array(13)].map((_,index)=>({id:`consort-${index}`,name:`妃嬪${index}`,age:22,rank:'答應'}))};
+const expandedPoolAssignments=Object.values(portraits.betaAllocatePortraits(expandedPoolState,{}));
+assert(expandedPoolAssignments.some(id=>/^civil_young_00[5-8]$/.test(id)),'new civil portraits are not reachable by allocation');
+assert(expandedPoolAssignments.some(id=>/^military_young_00[5-8]$/.test(id)),'new military portraits are not reachable by allocation');
+assert(expandedPoolAssignments.some(id=>/^consort_young_0(09|1[0-3])$/.test(id)),'new consort portraits are not reachable by allocation');
 const renamedAssignments = portraits.betaAllocatePortraits({ ...sampleState, childrenList: [{ ...royalChild, name: '永安' }] }, firstAssignments);
 assert(firstAssignments['royal:royal-1'] === renamedAssignments['royal:royal-1'], 'royal portrait changed after renaming');
 const childPortrait = portraits.betaRoyalPortraitId(sampleState, firstAssignments, royalChild);
@@ -151,4 +163,4 @@ const customState=portraits.normalizeEmperorAvatarState({gameId:'run-avatar',cur
 assert(customState.emperorAvatar.kind==='custom'&&Object.keys(customState.emperorAvatarAssets).length===1,'custom emperor avatar deduplication/pruning failed');
 assert(portraits.emperorLeaderboardAvatarPayload(customState).avatarValue===customAsset.leaderboard,'leaderboard thumbnail selection failed');
 
-console.log('Production verification passed: v1.4.1, Babel syntax, GAS target, 82 character IDs, 4 emperor avatars and 250 WebP assets.');
+console.log('Production verification passed: v1.4.2, Babel syntax, GAS target, 148 character IDs, 4 emperor avatars and 448 WebP assets.');

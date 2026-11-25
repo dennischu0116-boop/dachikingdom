@@ -37,7 +37,7 @@ jobs:
       - name: Install verification dependencies
         run: npm ci
 
-      - name: Verify production source and all 250 character images
+      - name: Verify production source and all 448 character images
         run: npm run verify:production
 
       - name: Stage public character assets

@@ -1,13 +1,13 @@
 {
-  "version": "v1.4.1",
+  "version": "v1.4.2",
   "status": "PRODUCTION",
   "counts": {
-    "civil": 12,
-    "military": 10,
-    "consort": 18,
+    "civil": 24,
+    "military": 20,
+    "consort": 30,
     "special": 10,
-    "royal_prince": 16,
-    "royal_princess": 16,
+    "royal_prince": 32,
+    "royal_princess": 32,
     "emperor": 4
   },
   "emperorAvatars": {
@@ -42,6 +42,31 @@
       "headshot": "headshots/civil_middle_005.webp",
       "full": "portraits/civil_middle_005.webp"
     },
+    "civil_middle_006": {
+      "thumb": "thumbs/civil_middle_006.webp",
+      "headshot": "headshots/civil_middle_006.webp",
+      "full": "portraits/civil_middle_006.webp"
+    },
+    "civil_middle_007": {
+      "thumb": "thumbs/civil_middle_007.webp",
+      "headshot": "headshots/civil_middle_007.webp",
+      "full": "portraits/civil_middle_007.webp"
+    },
+    "civil_middle_008": {
+      "thumb": "thumbs/civil_middle_008.webp",
+      "headshot": "headshots/civil_middle_008.webp",
+      "full": "portraits/civil_middle_008.webp"
+    },
+    "civil_middle_009": {
+      "thumb": "thumbs/civil_middle_009.webp",
+      "headshot": "headshots/civil_middle_009.webp",
+      "full": "portraits/civil_middle_009.webp"
+    },
+    "civil_middle_010": {
+      "thumb": "thumbs/civil_middle_010.webp",
+      "headshot": "headshots/civil_middle_010.webp",
+      "full": "portraits/civil_middle_010.webp"
+    },
     "civil_senior_001": {
       "thumb": "thumbs/civil_senior_001.webp",
       "headshot": "headshots/civil_senior_001.webp",
@@ -56,6 +81,21 @@
       "thumb": "thumbs/civil_senior_003.webp",
       "headshot": "headshots/civil_senior_003.webp",
       "full": "portraits/civil_senior_003.webp"
+    },
+    "civil_senior_004": {
+      "thumb": "thumbs/civil_senior_004.webp",
+      "headshot": "headshots/civil_senior_004.webp",
+      "full": "portraits/civil_senior_004.webp"
+    },
+    "civil_senior_005": {
+      "thumb": "thumbs/civil_senior_005.webp",
+      "headshot": "headshots/civil_senior_005.webp",
+      "full": "portraits/civil_senior_005.webp"
+    },
+    "civil_senior_006": {
+      "thumb": "thumbs/civil_senior_006.webp",
+      "headshot": "headshots/civil_senior_006.webp",
+      "full": "portraits/civil_senior_006.webp"
     },
     "civil_young_001": {
       "thumb": "thumbs/civil_young_001.webp",
@@ -76,6 +116,26 @@
       "thumb": "thumbs/civil_young_004.webp",
       "headshot": "headshots/civil_young_004.webp",
       "full": "portraits/civil_young_004.webp"
+    },
+    "civil_young_005": {
+      "thumb": "thumbs/civil_young_005.webp",
+      "headshot": "headshots/civil_young_005.webp",
+      "full": "portraits/civil_young_005.webp"
+    },
+    "civil_young_006": {
+      "thumb": "thumbs/civil_young_006.webp",
+      "headshot": "headshots/civil_young_006.webp",
+      "full": "portraits/civil_young_006.webp"
+    },
+    "civil_young_007": {
+      "thumb": "thumbs/civil_young_007.webp",
+      "headshot": "headshots/civil_young_007.webp",
+      "full": "portraits/civil_young_007.webp"
+    },
+    "civil_young_008": {
+      "thumb": "thumbs/civil_young_008.webp",
+      "headshot": "headshots/civil_young_008.webp",
+      "full": "portraits/civil_young_008.webp"
     },
     "consort_middle_001": {
       "thumb": "thumbs/consort_middle_001.webp",
@@ -112,6 +172,31 @@
       "headshot": "headshots/consort_middle_007.webp",
       "full": "portraits/consort_middle_007.webp"
     },
+    "consort_middle_008": {
+      "thumb": "thumbs/consort_middle_008.webp",
+      "headshot": "headshots/consort_middle_008.webp",
+      "full": "portraits/consort_middle_008.webp"
+    },
+    "consort_middle_009": {
+      "thumb": "thumbs/consort_middle_009.webp",
+      "headshot": "headshots/consort_middle_009.webp",
+      "full": "portraits/consort_middle_009.webp"
+    },
+    "consort_middle_010": {
+      "thumb": "thumbs/consort_middle_010.webp",
+      "headshot": "headshots/consort_middle_010.webp",
+      "full": "portraits/consort_middle_010.webp"
+    },
+    "consort_middle_011": {
+      "thumb": "thumbs/consort_middle_011.webp",
+      "headshot": "headshots/consort_middle_011.webp",
+      "full": "portraits/consort_middle_011.webp"
+    },
+    "consort_middle_012": {
+      "thumb": "thumbs/consort_middle_012.webp",
+      "headshot": "headshots/consort_middle_012.webp",
+      "full": "portraits/consort_middle_012.webp"
+    },
     "consort_senior_001": {
       "thumb": "thumbs/consort_senior_001.webp",
       "headshot": "headshots/consort_senior_001.webp",
@@ -126,6 +211,16 @@
       "thumb": "thumbs/consort_senior_003.webp",
       "headshot": "headshots/consort_senior_003.webp",
       "full": "portraits/consort_senior_003.webp"
+    },
+    "consort_senior_004": {
+      "thumb": "thumbs/consort_senior_004.webp",
+      "headshot": "headshots/consort_senior_004.webp",
+      "full": "portraits/consort_senior_004.webp"
+    },
+    "consort_senior_005": {
+      "thumb": "thumbs/consort_senior_005.webp",
+      "headshot": "headshots/consort_senior_005.webp",
+      "full": "portraits/consort_senior_005.webp"
     },
     "consort_young_001": {
       "thumb": "thumbs/consort_young_001.webp",
@@ -167,6 +262,31 @@
       "headshot": "headshots/consort_young_008.webp",
       "full": "portraits/consort_young_008.webp"
     },
+    "consort_young_009": {
+      "thumb": "thumbs/consort_young_009.webp",
+      "headshot": "headshots/consort_young_009.webp",
+      "full": "portraits/consort_young_009.webp"
+    },
+    "consort_young_010": {
+      "thumb": "thumbs/consort_young_010.webp",
+      "headshot": "headshots/consort_young_010.webp",
+      "full": "portraits/consort_young_010.webp"
+    },
+    "consort_young_011": {
+      "thumb": "thumbs/consort_young_011.webp",
+      "headshot": "headshots/consort_young_011.webp",
+      "full": "portraits/consort_young_011.webp"
+    },
+    "consort_young_012": {
+      "thumb": "thumbs/consort_young_012.webp",
+      "headshot": "headshots/consort_young_012.webp",
+      "full": "portraits/consort_young_012.webp"
+    },
+    "consort_young_013": {
+      "thumb": "thumbs/consort_young_013.webp",
+      "headshot": "headshots/consort_young_013.webp",
+      "full": "portraits/consort_young_013.webp"
+    },
     "military_middle_001": {
       "thumb": "thumbs/military_middle_001.webp",
       "headshot": "headshots/military_middle_001.webp",
@@ -187,6 +307,26 @@
       "headshot": "headshots/military_middle_004.webp",
       "full": "portraits/military_middle_004.webp"
     },
+    "military_middle_005": {
+      "thumb": "thumbs/military_middle_005.webp",
+      "headshot": "headshots/military_middle_005.webp",
+      "full": "portraits/military_middle_005.webp"
+    },
+    "military_middle_006": {
+      "thumb": "thumbs/military_middle_006.webp",
+      "headshot": "headshots/military_middle_006.webp",
+      "full": "portraits/military_middle_006.webp"
+    },
+    "military_middle_007": {
+      "thumb": "thumbs/military_middle_007.webp",
+      "headshot": "headshots/military_middle_007.webp",
+      "full": "portraits/military_middle_007.webp"
+    },
+    "military_middle_008": {
+      "thumb": "thumbs/military_middle_008.webp",
+      "headshot": "headshots/military_middle_008.webp",
+      "full": "portraits/military_middle_008.webp"
+    },
     "military_senior_001": {
       "thumb": "thumbs/military_senior_001.webp",
       "headshot": "headshots/military_senior_001.webp",
@@ -196,6 +336,16 @@
       "thumb": "thumbs/military_senior_002.webp",
       "headshot": "headshots/military_senior_002.webp",
       "full": "portraits/military_senior_002.webp"
+    },
+    "military_senior_003": {
+      "thumb": "thumbs/military_senior_003.webp",
+      "headshot": "headshots/military_senior_003.webp",
+      "full": "portraits/military_senior_003.webp"
+    },
+    "military_senior_004": {
+      "thumb": "thumbs/military_senior_004.webp",
+      "headshot": "headshots/military_senior_004.webp",
+      "full": "portraits/military_senior_004.webp"
     },
     "military_young_001": {
       "thumb": "thumbs/military_young_001.webp",
@@ -217,55 +367,25 @@
       "headshot": "headshots/military_young_004.webp",
       "full": "portraits/military_young_004.webp"
     },
-    "special_diao_chan": {
-      "thumb": "thumbs/special_diao_chan.webp",
-      "headshot": "headshots/special_diao_chan.webp",
-      "full": "portraits/special_diao_chan.webp"
+    "military_young_005": {
+      "thumb": "thumbs/military_young_005.webp",
+      "headshot": "headshots/military_young_005.webp",
+      "full": "portraits/military_young_005.webp"
     },
-    "special_wang_zhaojun": {
-      "thumb": "thumbs/special_wang_zhaojun.webp",
-      "headshot": "headshots/special_wang_zhaojun.webp",
-      "full": "portraits/special_wang_zhaojun.webp"
+    "military_young_006": {
+      "thumb": "thumbs/military_young_006.webp",
+      "headshot": "headshots/military_young_006.webp",
+      "full": "portraits/military_young_006.webp"
     },
-    "special_wei_zifu": {
-      "thumb": "thumbs/special_wei_zifu.webp",
-      "headshot": "headshots/special_wei_zifu.webp",
-      "full": "portraits/special_wei_zifu.webp"
+    "military_young_007": {
+      "thumb": "thumbs/military_young_007.webp",
+      "headshot": "headshots/military_young_007.webp",
+      "full": "portraits/military_young_007.webp"
     },
-    "special_xi_shi": {
-      "thumb": "thumbs/special_xi_shi.webp",
-      "headshot": "headshots/special_xi_shi.webp",
-      "full": "portraits/special_xi_shi.webp"
-    },
-    "special_xiaozhuang": {
-      "thumb": "thumbs/special_xiaozhuang.webp",
-      "headshot": "headshots/special_xiaozhuang.webp",
-      "full": "portraits/special_xiaozhuang.webp"
-    },
-    "special_yang_yuhuan": {
-      "thumb": "thumbs/special_yang_yuhuan.webp",
-      "headshot": "headshots/special_yang_yuhuan.webp",
-      "full": "portraits/special_yang_yuhuan.webp"
-    },
-    "special_yu_ji": {
-      "thumb": "thumbs/special_yu_ji.webp",
-      "headshot": "headshots/special_yu_ji.webp",
-      "full": "portraits/special_yu_ji.webp"
-    },
-    "special_zhangsun": {
-      "thumb": "thumbs/special_zhangsun.webp",
-      "headshot": "headshots/special_zhangsun.webp",
-      "full": "portraits/special_zhangsun.webp"
-    },
-    "special_zhao_feiyan": {
-      "thumb": "thumbs/special_zhao_feiyan.webp",
-      "headshot": "headshots/special_zhao_feiyan.webp",
-      "full": "portraits/special_zhao_feiyan.webp"
-    },
-    "special_zhen_mi": {
-      "thumb": "thumbs/special_zhen_mi.webp",
-      "headshot": "headshots/special_zhen_mi.webp",
-      "full": "portraits/special_zhen_mi.webp"
+    "military_young_008": {
+      "thumb": "thumbs/military_young_008.webp",
+      "headshot": "headshots/military_young_008.webp",
+      "full": "portraits/military_young_008.webp"
     },
     "royal_prince_001_adult": {
       "thumb": "thumbs/royal_prince_001_adult.webp",
@@ -347,6 +467,86 @@
       "headshot": "headshots/royal_prince_008_child.webp",
       "full": "portraits/royal_prince_008_child.webp"
     },
+    "royal_prince_009_adult": {
+      "thumb": "thumbs/royal_prince_009_adult.webp",
+      "headshot": "headshots/royal_prince_009_adult.webp",
+      "full": "portraits/royal_prince_009_adult.webp"
+    },
+    "royal_prince_009_child": {
+      "thumb": "thumbs/royal_prince_009_child.webp",
+      "headshot": "headshots/royal_prince_009_child.webp",
+      "full": "portraits/royal_prince_009_child.webp"
+    },
+    "royal_prince_010_adult": {
+      "thumb": "thumbs/royal_prince_010_adult.webp",
+      "headshot": "headshots/royal_prince_010_adult.webp",
+      "full": "portraits/royal_prince_010_adult.webp"
+    },
+    "royal_prince_010_child": {
+      "thumb": "thumbs/royal_prince_010_child.webp",
+      "headshot": "headshots/royal_prince_010_child.webp",
+      "full": "portraits/royal_prince_010_child.webp"
+    },
+    "royal_prince_011_adult": {
+      "thumb": "thumbs/royal_prince_011_adult.webp",
+      "headshot": "headshots/royal_prince_011_adult.webp",
+      "full": "portraits/royal_prince_011_adult.webp"
+    },
+    "royal_prince_011_child": {
+      "thumb": "thumbs/royal_prince_011_child.webp",
+      "headshot": "headshots/royal_prince_011_child.webp",
+      "full": "portraits/royal_prince_011_child.webp"
+    },
+    "royal_prince_012_adult": {
+      "thumb": "thumbs/royal_prince_012_adult.webp",
+      "headshot": "headshots/royal_prince_012_adult.webp",
+      "full": "portraits/royal_prince_012_adult.webp"
+    },
+    "royal_prince_012_child": {
+      "thumb": "thumbs/royal_prince_012_child.webp",
+      "headshot": "headshots/royal_prince_012_child.webp",
+      "full": "portraits/royal_prince_012_child.webp"
+    },
+    "royal_prince_013_adult": {
+      "thumb": "thumbs/royal_prince_013_adult.webp",
+      "headshot": "headshots/royal_prince_013_adult.webp",
+      "full": "portraits/royal_prince_013_adult.webp"
+    },
+    "royal_prince_013_child": {
+      "thumb": "thumbs/royal_prince_013_child.webp",
+      "headshot": "headshots/royal_prince_013_child.webp",
+      "full": "portraits/royal_prince_013_child.webp"
+    },
+    "royal_prince_014_adult": {
+      "thumb": "thumbs/royal_prince_014_adult.webp",
+      "headshot": "headshots/royal_prince_014_adult.webp",
+      "full": "portraits/royal_prince_014_adult.webp"
+    },
+    "royal_prince_014_child": {
+      "thumb": "thumbs/royal_prince_014_child.webp",
+      "headshot": "headshots/royal_prince_014_child.webp",
+      "full": "portraits/royal_prince_014_child.webp"
+    },
+    "royal_prince_015_adult": {
+      "thumb": "thumbs/royal_prince_015_adult.webp",
+      "headshot": "headshots/royal_prince_015_adult.webp",
+      "full": "portraits/royal_prince_015_adult.webp"
+    },
+    "royal_prince_015_child": {
+      "thumb": "thumbs/royal_prince_015_child.webp",
+      "headshot": "headshots/royal_prince_015_child.webp",
+      "full": "portraits/royal_prince_015_child.webp"
+    },
+    "royal_prince_016_adult": {
+      "thumb": "thumbs/royal_prince_016_adult.webp",
+      "headshot": "headshots/royal_prince_016_adult.webp",
+      "full": "portraits/royal_prince_016_adult.webp"
+    },
+    "royal_prince_016_child": {
+      "thumb": "thumbs/royal_prince_016_child.webp",
+      "headshot": "headshots/royal_prince_016_child.webp",
+      "full": "portraits/royal_prince_016_child.webp"
+    },
     "royal_princess_001_adult": {
       "thumb": "thumbs/royal_princess_001_adult.webp",
       "headshot": "headshots/royal_princess_001_adult.webp",
@@ -426,6 +626,136 @@
       "thumb": "thumbs/royal_princess_008_child.webp",
       "headshot": "headshots/royal_princess_008_child.webp",
       "full": "portraits/royal_princess_008_child.webp"
+    },
+    "royal_princess_009_adult": {
+      "thumb": "thumbs/royal_princess_009_adult.webp",
+      "headshot": "headshots/royal_princess_009_adult.webp",
+      "full": "portraits/royal_princess_009_adult.webp"
+    },
+    "royal_princess_009_child": {
+      "thumb": "thumbs/royal_princess_009_child.webp",
+      "headshot": "headshots/royal_princess_009_child.webp",
+      "full": "portraits/royal_princess_009_child.webp"
+    },
+    "royal_princess_010_adult": {
+      "thumb": "thumbs/royal_princess_010_adult.webp",
+      "headshot": "headshots/royal_princess_010_adult.webp",
+      "full": "portraits/royal_princess_010_adult.webp"
+    },
+    "royal_princess_010_child": {
+      "thumb": "thumbs/royal_princess_010_child.webp",
+      "headshot": "headshots/royal_princess_010_child.webp",
+      "full": "portraits/royal_princess_010_child.webp"
+    },
+    "royal_princess_011_adult": {
+      "thumb": "thumbs/royal_princess_011_adult.webp",
+      "headshot": "headshots/royal_princess_011_adult.webp",
+      "full": "portraits/royal_princess_011_adult.webp"
+    },
+    "royal_princess_011_child": {
+      "thumb": "thumbs/royal_princess_011_child.webp",
+      "headshot": "headshots/royal_princess_011_child.webp",
+      "full": "portraits/royal_princess_011_child.webp"
+    },
+    "royal_princess_012_adult": {
+      "thumb": "thumbs/royal_princess_012_adult.webp",
+      "headshot": "headshots/royal_princess_012_adult.webp",
+      "full": "portraits/royal_princess_012_adult.webp"
+    },
+    "royal_princess_012_child": {
+      "thumb": "thumbs/royal_princess_012_child.webp",
+      "headshot": "headshots/royal_princess_012_child.webp",
+      "full": "portraits/royal_princess_012_child.webp"
+    },
+    "royal_princess_013_adult": {
+      "thumb": "thumbs/royal_princess_013_adult.webp",
+      "headshot": "headshots/royal_princess_013_adult.webp",
+      "full": "portraits/royal_princess_013_adult.webp"
+    },
+    "royal_princess_013_child": {
+      "thumb": "thumbs/royal_princess_013_child.webp",
+      "headshot": "headshots/royal_princess_013_child.webp",
+      "full": "portraits/royal_princess_013_child.webp"
+    },
+    "royal_princess_014_adult": {
+      "thumb": "thumbs/royal_princess_014_adult.webp",
+      "headshot": "headshots/royal_princess_014_adult.webp",
+      "full": "portraits/royal_princess_014_adult.webp"
+    },
+    "royal_princess_014_child": {
+      "thumb": "thumbs/royal_princess_014_child.webp",
+      "headshot": "headshots/royal_princess_014_child.webp",
+      "full": "portraits/royal_princess_014_child.webp"
+    },
+    "royal_princess_015_adult": {
+      "thumb": "thumbs/royal_princess_015_adult.webp",
+      "headshot": "headshots/royal_princess_015_adult.webp",
+      "full": "portraits/royal_princess_015_adult.webp"
+    },
+    "royal_princess_015_child": {
+      "thumb": "thumbs/royal_princess_015_child.webp",
+      "headshot": "headshots/royal_princess_015_child.webp",
+      "full": "portraits/royal_princess_015_child.webp"
+    },
+    "royal_princess_016_adult": {
+      "thumb": "thumbs/royal_princess_016_adult.webp",
+      "headshot": "headshots/royal_princess_016_adult.webp",
+      "full": "portraits/royal_princess_016_adult.webp"
+    },
+    "royal_princess_016_child": {
+      "thumb": "thumbs/royal_princess_016_child.webp",
+      "headshot": "headshots/royal_princess_016_child.webp",
+      "full": "portraits/royal_princess_016_child.webp"
+    },
+    "special_diao_chan": {
+      "thumb": "thumbs/special_diao_chan.webp",
+      "headshot": "headshots/special_diao_chan.webp",
+      "full": "portraits/special_diao_chan.webp"
+    },
+    "special_wang_zhaojun": {
+      "thumb": "thumbs/special_wang_zhaojun.webp",
+      "headshot": "headshots/special_wang_zhaojun.webp",
+      "full": "portraits/special_wang_zhaojun.webp"
+    },
+    "special_wei_zifu": {
+      "thumb": "thumbs/special_wei_zifu.webp",
+      "headshot": "headshots/special_wei_zifu.webp",
+      "full": "portraits/special_wei_zifu.webp"
+    },
+    "special_xi_shi": {
+      "thumb": "thumbs/special_xi_shi.webp",
+      "headshot": "headshots/special_xi_shi.webp",
+      "full": "portraits/special_xi_shi.webp"
+    },
+    "special_xiaozhuang": {
+      "thumb": "thumbs/special_xiaozhuang.webp",
+      "headshot": "headshots/special_xiaozhuang.webp",
+      "full": "portraits/special_xiaozhuang.webp"
+    },
+    "special_yang_yuhuan": {
+      "thumb": "thumbs/special_yang_yuhuan.webp",
+      "headshot": "headshots/special_yang_yuhuan.webp",
+      "full": "portraits/special_yang_yuhuan.webp"
+    },
+    "special_yu_ji": {
+      "thumb": "thumbs/special_yu_ji.webp",
+      "headshot": "headshots/special_yu_ji.webp",
+      "full": "portraits/special_yu_ji.webp"
+    },
+    "special_zhangsun": {
+      "thumb": "thumbs/special_zhangsun.webp",
+      "headshot": "headshots/special_zhangsun.webp",
+      "full": "portraits/special_zhangsun.webp"
+    },
+    "special_zhao_feiyan": {
+      "thumb": "thumbs/special_zhao_feiyan.webp",
+      "headshot": "headshots/special_zhao_feiyan.webp",
+      "full": "portraits/special_zhao_feiyan.webp"
+    },
+    "special_zhen_mi": {
+      "thumb": "thumbs/special_zhen_mi.webp",
+      "headshot": "headshots/special_zhen_mi.webp",
+      "full": "portraits/special_zhen_mi.webp"
     }
   }
 }

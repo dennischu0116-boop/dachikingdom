@@ -1,14 +1,14 @@
-      // v1.4.1：正式人物圖片與皇帝頭像模組。圖片 URL 不寫入遊戲數值。
+      // v1.4.2：正式人物圖片擴充與皇帝頭像模組。圖片 URL 不寫入遊戲數值。
       const BETA_IMAGE_BASE=String(globalThis.QING_IMAGE_BETA_ASSET_BASE || "https://dennischu0116-boop.github.io/dachikingdom/assets/characters/").replace(/\/?$/, "/");
-      const BETA_IMAGE_REVISION='v1.4.1';
+      const BETA_IMAGE_REVISION='v1.4.2';
       const betaAssetUrl=asset=>`${BETA_IMAGE_BASE}${asset}?v=${encodeURIComponent(BETA_IMAGE_REVISION)}`;
       const BETA_IMAGE_GROUPS={
-          civil:{count:12,ages:[4,5,3]},
-          military:{count:10,ages:[4,4,2]},
-          consort:{count:18,ages:[8,7,3]}
+          civil:{count:24,ages:[8,10,6]},
+          military:{count:20,ages:[8,8,4]},
+          consort:{count:30,ages:[13,12,5]}
       };
       const BETA_SPECIAL_IDS=['diao_chan','wang_zhaojun','xi_shi','yang_yuhuan','zhen_mi','yu_ji','zhao_feiyan','zhangsun','xiaozhuang','wei_zifu'];
-      const BETA_ROYAL_COUNT=8;
+      const BETA_ROYAL_COUNT=16;
       const BETA_IMAGE_META=(()=>{
           const entries={};
           for(const [kind,meta] of Object.entries(BETA_IMAGE_GROUPS)){
