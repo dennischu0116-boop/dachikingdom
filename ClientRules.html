@@ -973,7 +973,9 @@
                   corruptionRate: normalizeCorruptionRate(saved.corruptionRate)
               }),
               logs: Array.isArray(raw.logs) ? raw.logs : [],
-              betaPortraitAssignments: QING_IMAGE_BETA && raw.betaPortraitAssignments && typeof raw.betaPortraitAssignments==='object' ? raw.betaPortraitAssignments : {}
+              betaPortraitAssignments: raw.betaPortraitAssignments && typeof raw.betaPortraitAssignments==='object'
+                  ? raw.betaPortraitAssignments
+                  : (raw.portraitAssignments && typeof raw.portraitAssignments==='object' ? raw.portraitAssignments : {})
           };
       };
       const readAutoSave = () => {

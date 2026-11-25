@@ -1,9 +1,10 @@
 {
-  "name": "dachikingdom-image-beta-tools",
+  "name": "dachikingdom-tools",
   "private": true,
-  "version": "1.3.10-beta",
+  "version": "1.4.0",
   "scripts": {
-    "build:beta-preview": "node scripts/build-beta-preview.mjs && tailwindcss -i scripts/beta-preview-tailwind.css -o .beta-preview/tailwind.css --content .beta-preview/index.html --minify"
+    "build:beta-preview": "node scripts/build-beta-preview.mjs && tailwindcss -i scripts/beta-preview-tailwind.css -o .beta-preview/tailwind.css --content .beta-preview/index.html --minify",
+    "verify:production": "node scripts/verify-production.mjs"
   },
   "devDependencies": {
     "@babel/core": "7.28.5",

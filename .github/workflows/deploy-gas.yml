@@ -29,6 +29,23 @@ jobs:
         with:
           node-version: "22"
 
+      - name: Install verification dependencies
+        run: npm ci
+
+      - name: Verify production source and character assets
+        run: npm run verify:production
+
+      - name: Stage only the production Apps Script application
+        shell: bash
+        run: |
+          mkdir -p gas_production_deploy
+          cp ./程式碼.js ./CodeSave.js ./*.html ./appsscript.json gas_production_deploy/
+          test "$(find gas_production_deploy -maxdepth 1 -type f | wc -l)" -eq 15
+          test "$(find gas_production_deploy -maxdepth 1 -type f -name '*.js' | wc -l)" -eq 2
+          test ! -e gas_production_deploy/BetaServer.js
+          jq '.rootDir = "gas_production_deploy"' .clasp.json > .clasp.deploy.json
+          mv .clasp.deploy.json .clasp.json
+
       - name: Restore clasp credentials
         shell: bash
         env:

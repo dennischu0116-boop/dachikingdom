@@ -1,6 +1,6 @@
 {
-  "version": "v1.3.10-beta",
-  "status": "PRODUCTION_CANDIDATE_82_WITH_ROYAL_PAIRS",
+  "version": "v1.4.0",
+  "status": "PRODUCTION",
   "counts": {
     "civil": 12,
     "military": 10,

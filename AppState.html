@@ -1,12 +1,12 @@
       function App() {
         // 初始化時先載入舊存檔，避免首次 render 用預設值覆蓋存檔。
         const [initialSave] = useState(readAutoSave);
-        const [initialCloudBinding] = useState(()=>null);
+        const [initialCloudBinding] = useState(readCloudBinding);
         const [isGameStarted, setIsGameStarted] = useState(!!initialSave);
         const [gameState, setGameState] = useState(initialSave ? initialSave.gameState : INITIAL_STATE);
         const [betaPortraitAssignments,setBetaPortraitAssignments]=useState(initialSave?.betaPortraitAssignments||{});
         useEffect(()=>{
-            if(!QING_IMAGE_BETA||!gameState.gameId)return;
+            if(!gameState.gameId)return;
             setBetaPortraitAssignments(previous=>{
                 const next=betaAllocatePortraits(betaStateWithPortraitCandidates(gameState),previous);
                 const keys=Object.keys(next);
@@ -127,7 +127,6 @@
 
         // Google OAuth2 授權碼登入與五槽雲端存檔；Session Token 僅保存在目前分頁。
         const [showCloudPanel, setShowCloudPanel] = useState(false);
-        const [showImageLab,setShowImageLab]=useState(false);
         const [betaConsortDetailId,setBetaConsortDetailId]=useState(null);
         const [cloudConfig, setCloudConfig] = useState({enabled:false, oauthReady:false, maxSlots:5, loading:true});
         const [cloudToken, setCloudToken] = useState('');
@@ -147,7 +146,7 @@
         const [cloudBinding,setCloudBinding]=useState(()=>initialCloudBinding&&initialSave?.gameState?.gameId===initialCloudBinding.gameId?initialCloudBinding:null);
         const [cloudGuard,setCloudGuard]=useState(()=>initialCloudBinding&&initialSave?.gameState?.gameId===initialCloudBinding.gameId?{
             type:'login',message:'這是已連結雲端槽位的遊戲。請登入原本的 Google 帳號，核對雲端版本後才能繼續。'}:null);
-        const cloudLatestRef = useRef({isGameStarted,gameState,logs});
+        const cloudLatestRef = useRef({isGameStarted,gameState,logs,betaPortraitAssignments});
         const cloudContextRef = useRef({token:'',slot:null,revision:0,name:''});
         const cloudDirtyRef = useRef(false);
         const cloudTimerRef = useRef(null);
@@ -218,7 +217,6 @@
         };
 
         useEffect(() => {
-            if(QING_IMAGE_BETA){setCloudConfig({enabled:false,oauthReady:false,maxSlots:0,loading:false});setAppBooting(false);return;}
             let active = true;
             (async()=>{
                 try{
@@ -250,7 +248,7 @@
         },[cloudToken,cloudSlot,cloudRevision,cloudName]);
 
         useEffect(() => {
-            cloudLatestRef.current={isGameStarted,gameState,logs};
+            cloudLatestRef.current={isGameStarted,gameState,logs,betaPortraitAssignments};
             const context=cloudContextRef.current;
             if(!context.token||!context.slot||!isGameStarted||!gameState.gameId||cloudPauseRef.current)return;
             cloudGenerationRef.current+=1;
@@ -259,7 +257,7 @@
             if(cloudTimerRef.current)clearTimeout(cloudTimerRef.current);
             cloudTimerRef.current=setTimeout(()=>{cloudTimerRef.current=null;cloudSyncRef.current?.(false);},4000);
             return ()=>{if(cloudTimerRef.current)clearTimeout(cloudTimerRef.current);};
-        },[isGameStarted,gameState,logs]);
+        },[isGameStarted,gameState,logs,betaPortraitAssignments]);
 
         // 每次國庫或人數改變都立即保存峰值，避免同一年內先增加、後減少而遺失紀錄。
         useEffect(() => {
@@ -322,18 +320,19 @@
 
         const handleStartGame = async (eraName, playerName) => {
             const fresh=createFreshGame(eraName,playerName);
-            if(QING_IMAGE_BETA)setBetaPortraitAssignments({});
+            const freshPortraitAssignments=betaAllocatePortraits(betaStateWithPortraitCandidates(fresh.state),{});
+            setBetaPortraitAssignments(freshPortraitAssignments);
             const targetSlot=Number(pendingCloudNewGameSlot)||null;
             cloudPauseRef.current=true;
             if(targetSlot){
                 const previousSave=readAutoSave(),previousBinding=readCloudBinding();
                 if(!cloudToken){
-                    if(previousSave){setGameState(previousSave.gameState);setLogs(previousSave.logs);setIsGameStarted(true);}
+                    if(previousSave){setGameState(previousSave.gameState);setBetaPortraitAssignments(previousSave.betaPortraitAssignments||{});setLogs(previousSave.logs);setIsGameStarted(true);}
                     if(previousBinding)setCloudGuard({type:'login',message:'Google登入已失效，未建立新的雲端遊戲。請重新登入原帳號後再操作。'});
                     setCloudStatus('需要重新登入・未建立新遊戲');setPendingCloudNewGameSlot(null);cloudPauseRef.current=false;
                     return;
                 }
-                const payload={version:2,savedAt:Date.now(),gameState:cleanGameStateForSave(fresh.state),logs:fresh.logs};
+                const payload={version:2,savedAt:Date.now(),gameState:cleanGameStateForSave(fresh.state),logs:fresh.logs,betaPortraitAssignments:freshPortraitAssignments};
                 const saveName=`${fresh.state.eraName}・${fresh.state.playerName}`.slice(0,40);
                 setCloudBusy(true);
                 try{
@@ -346,7 +345,7 @@
                     await refreshCloudSlots(cloudToken);
                     showMessage(`新遊戲已建立於雲端槽位 ${targetSlot}`,'success');
                 }catch(error){
-                    if(previousSave){setGameState(previousSave.gameState);setLogs(previousSave.logs);setIsGameStarted(true);}
+                    if(previousSave){setGameState(previousSave.gameState);setBetaPortraitAssignments(previousSave.betaPortraitAssignments||{});setLogs(previousSave.logs);setIsGameStarted(true);}
                     if(previousBinding)setCloudGuard({type:'login',message:'雲端新遊戲建立失敗，系統已保留並恢復原本的遊戲；請核對登入與槽位後再試。'});
                     setCloudStatus('雲端建立失敗・原遊戲已保留');
                     showMessage(`${error.message||'雲端槽位建立失敗'}；未切換或建立本機新遊戲`,'error');
@@ -567,7 +566,7 @@
             const normalized=normalizeLoadedGame(loaded.payload);
             if(!normalized)throw new Error('雲端存檔格式不完整，未覆蓋目前進度。');
             cloudPauseRef.current=true;
-            setGameState(normalized.gameState);setLogs(normalized.logs);setIsGameStarted(true);
+            setGameState(normalized.gameState);setBetaPortraitAssignments(normalized.betaPortraitAssignments||{});setLogs(normalized.logs);setIsGameStarted(true);
             setCurrentView('THRONE');setCurrentEvent(null);setYearReport(null);setShowVictoryModal(false);setShowHeirSelection(false);
             setCloudSlot(Number(loaded.slot));setCloudRevision(Number(loaded.revision)||0);setCloudName(loaded.name||slotRecord?.name||`雲端存檔 ${loaded.slot}`);
             setCloudSavedAt(loaded.updatedAt||'');cloudDirtyRef.current=false;
@@ -624,7 +623,7 @@
             const generation=cloudGenerationRef.current;
             let succeeded=false;
             cloudWritingRef.current=true;setCloudStatus(`同步槽位 ${context.slot}…`);
-            const payload={version:2,savedAt:Date.now(),gameState:cleanGameStateForSave(normalizeRoyalState(latest.gameState)),logs:latest.logs};
+            const payload={version:2,savedAt:Date.now(),gameState:cleanGameStateForSave(normalizeRoyalState(latest.gameState)),logs:latest.logs,betaPortraitAssignments:latest.betaPortraitAssignments||{}};
             try{
                 const expectedGameId=readCloudBinding()?.gameId||latest.gameState.gameId;
                 const saved=await qingCloudGas('saveCloudGame',context.token,context.slot,context.name,payload,context.revision,expectedGameId);
@@ -723,8 +722,6 @@
                 if (!Array.isArray(imported.gameState.ministers) || !Array.isArray(imported.gameState.provinces)) {
                     return {ok: false, error: '存檔缺少官員或省份資料，無法安全恢復。'};
                 }
-                // 測試版允許匯入正式版手動備份，但僅寫入測試專用鍵，不連接任何雲端。
-                if(QING_IMAGE_BETA){try{const old=localStorage.getItem(QING_SAVE_KEY);if(old)localStorage.setItem('qing_image_beta_pre_import_backup_v1',old);}catch(error){console.warn('匯入前備份失敗',error);}}
                 // 原本的存檔在成功驗證前絕不覆蓋；React 更新後才由即時存檔保存新資料。
                 cloudPauseRef.current=true;
                 setGameState(imported.gameState);
@@ -753,7 +750,6 @@
 
         // 世界排行榜：透過 Apps Script 伺服器存取 Google Sheets。
         const fetchLeaderboard = () => {
-            if(QING_IMAGE_BETA){setShowLeaderboard(true);setIsLeaderboardLoading(false);setLeaderboardError('圖片測試版已停用排行榜連線。');return;}
             setShowLeaderboard(true);
             setIsLeaderboardLoading(true);
             setLeaderboardError('');
@@ -782,7 +778,6 @@
         };
 
         const submitScore = (stateToSave = gameState, silent = false, onDone = null) => {
-            if(QING_IMAGE_BETA){if(onDone)onDone();return;}
             if (typeof google === 'undefined' || !google.script || !google.script.run) {
                 if (!silent) showMessage('目前無法連線至世界排行榜', 'error');
                 if (onDone) onDone();
@@ -847,7 +842,6 @@
         // 僅在雲端確認完成匯入後標記，失敗時下次進入遊戲會重試。
         const legacyImportRunningRef = useRef(false);
         useEffect(() => {
-            if(QING_IMAGE_BETA)return;
             if (legacyImportRunningRef.current) return;
             if (typeof google === 'undefined' || !google.script?.run) return;
             legacyImportRunningRef.current = true;
@@ -1355,7 +1349,7 @@
             // 重新開始前先提交目前這一局的最新峰值；新局會在登基時建立另一個gameId。
             if (isGameStarted && gameState.gameId) submitScore(gameState, true);
             try { localStorage.removeItem(QING_SAVE_KEY); } catch (err) { console.warn(err); }
-            if(QING_IMAGE_BETA)setBetaPortraitAssignments({});
+            setBetaPortraitAssignments({});
             setShowRestartConfirm(false);
             setShowSystemSettings(false);
             setShowImportModal(false);
