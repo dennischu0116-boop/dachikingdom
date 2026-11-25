@@ -824,7 +824,8 @@
       {showImportModal && <ImportModal onClose={() => setShowImportModal(false)} onImport={processImport} />}
       {showSystemSettings && <SystemSettingsModal onClose={()=>setShowSystemSettings(false)} onSave={handleSave} onLoad={handleLoad}
           onExport={handleExportSave} onDownload={handleDownloadBackup} onImport={()=>{setShowSystemSettings(false);setShowImportModal(true);}}
-          onRestart={restartGame} autoSaveStatus={autoSaveStatus} isGameStarted={isGameStarted} />}
+          onRestart={restartGame} onAvatarChange={handleEmperorAvatarChange} emperorAvatar={gameState.emperorAvatar}
+          emperorAvatarAssets={gameState.emperorAvatarAssets} autoSaveStatus={autoSaveStatus} isGameStarted={isGameStarted} />}
       {betaConsortDetailId!=null&&(()=>{
           const person=(gameState.consorts||[]).find(c=>String(c.id)===String(betaConsortDetailId));
           if(!person)return null;
@@ -885,6 +886,7 @@
       <div className="bg-stone-900 text-amber-50 p-2 shadow-md sticky top-0 z-40">
          <div className="max-w-6xl mx-auto flex flex-wrap justify-between items-center gap-2">
             <div className="flex items-center gap-2 font-serif text-lg">
+               <EmperorAvatar avatar={gameState.emperorAvatar} assets={gameState.emperorAvatarAssets} label={`${gameState.playerName||'皇帝'}頭像`} className="w-10 h-10 rounded-full border-2 border-amber-400 shrink-0" />
                <span className="bg-red-800 px-2 rounded border border-yellow-600">{gameState.eraName}{gameState.year}年</span>
                <span className="text-sm opacity-80">{gameState.age}歲</span>
                <button onClick={()=>setShowReleaseNotes(true)} className="text-[11px] text-amber-200 underline whitespace-nowrap" title="查看更新說明">{APP_VERSION} 更新</button>

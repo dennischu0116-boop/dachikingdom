@@ -255,6 +255,16 @@
                 `最多子女：${entry.maxDescendantCount||0}人`,
                 `在位：${entry.years||0}年`
             ];
+            const leaderboardAvatar=entry=>{
+                const id=String(entry.gameId||''),kind=String(entry.avatarKind||'');
+                if(kind==='custom'){
+                    const value=leaderboardAvatarCache[id];
+                    if(value)return <img src={value} alt={`${entry.name||'玩家'}頭像`} className="w-28 h-28 rounded-xl border-2 border-amber-400 object-cover bg-amber-50"/>;
+                    return <div className="w-28 h-28 rounded-xl border-2 border-amber-300 bg-amber-50 flex items-center justify-center text-center text-xs text-stone-500 px-2">{leaderboardAvatarLoading[id]?'頭像讀取中…':leaderboardAvatarErrors[id]||'尚無頭像'}</div>;
+                }
+                if((kind==='builtin'||kind==='royal')&&entry.avatarValue)return <EmperorAvatar avatar={{kind,id:entry.avatarValue}} label={`${entry.name||'玩家'}頭像`} className="w-28 h-28 rounded-xl border-2 border-amber-400"/>;
+                return <div className="w-28 h-28 rounded-xl border-2 border-amber-300 bg-amber-50 flex items-center justify-center text-4xl">👑</div>;
+            };
 
             return (
             <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-2 sm:p-4 animate-in fade-in">
@@ -291,9 +301,9 @@
                                       <div className="col-span-2 truncate">{entry.eraName||'—'}</div>
                                       <div className="col-span-2 text-center">{entry.years||0}年</div>
                                       <div className="col-span-3 text-right font-mono text-xs">{renderValue(entry)}</div>
-                                      <div className="col-span-2 text-center"><button onClick={()=>setLeaderboardExpandedId(expanded?null:entry.gameId)} className="rounded bg-stone-200 hover:bg-stone-300 px-3 py-1 text-xs font-bold">{expanded?'收起':'查看詳情'}</button></div>
+                                      <div className="col-span-2 text-center"><button onClick={()=>toggleLeaderboardDetails(entry)} className="rounded bg-stone-200 hover:bg-stone-300 px-3 py-1 text-xs font-bold">{expanded?'收起':'查看詳情'}</button></div>
                                   </div>
-                                  {expanded&&<div className="grid grid-cols-2 lg:grid-cols-4 gap-2 p-3 bg-[#fffdf5] border-b border-amber-200">{allScoreSummary(entry).map((text,index)=><div key={index} className="rounded border border-amber-200 bg-white px-3 py-2 text-xs">{text}</div>)}</div>}
+                                  {expanded&&<div className="flex gap-4 items-start p-3 bg-[#fffdf5] border-b border-amber-200">{leaderboardAvatar(entry)}<div className="grid grid-cols-2 lg:grid-cols-4 gap-2 flex-1">{allScoreSummary(entry).map((text,index)=><div key={index} className="rounded border border-amber-200 bg-white px-3 py-2 text-xs">{text}</div>)}</div></div>}
                               </div>;
                           })}
                       </div>

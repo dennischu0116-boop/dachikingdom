@@ -1,5 +1,5 @@
 {
-  "version": "v1.4.0",
+  "version": "v1.4.1",
   "status": "PRODUCTION",
   "counts": {
     "civil": 12,
@@ -7,7 +7,14 @@
     "consort": 18,
     "special": 10,
     "royal_prince": 16,
-    "royal_princess": 16
+    "royal_princess": 16,
+    "emperor": 4
+  },
+  "emperorAvatars": {
+    "emperor_001": "emperors/emperor_001.webp",
+    "emperor_002": "emperors/emperor_002.webp",
+    "emperor_003": "emperors/emperor_003.webp",
+    "emperor_004": "emperors/emperor_004.webp"
   },
   "portraits": {
     "civil_middle_001": {

@@ -398,7 +398,7 @@
                     {knownGenerations.map(gen=><div key={gen}>
                       <h3 className="font-bold text-amber-900 mb-2 border-b border-amber-300 pb-1">第 {gen} 代</h3>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-2">{people.filter(p=>Number(p.generation)===gen).map(p=><div key={p.id} className="flex gap-3 bg-white border border-amber-200 rounded p-3 text-sm">
-                        <BetaPortrait variant="headshot" portraitId={betaRoyalPortraitId(state,betaPortraitAssignments,p)} label={p.name} className="w-16 h-16 shrink-0 rounded-lg border border-amber-300 bg-amber-50"/><div><div className="font-bold">{p.id===state.currentEmperorId?'👑':p.gender==='female'?'👸':'🐉'} {p.name} <span className="text-xs text-gray-500">{relationOf(p)}</span></div>
+                        {p.id===state.currentEmperorId?<EmperorAvatar avatar={state.emperorAvatar} assets={state.emperorAvatarAssets} label={p.name} className="w-16 h-16 shrink-0 rounded-lg border border-amber-300"/>:<BetaPortrait variant="headshot" portraitId={betaRoyalPortraitId(state,betaPortraitAssignments,p)} label={p.name} className="w-16 h-16 shrink-0 rounded-lg border border-amber-300 bg-amber-50"/>}<div><div className="font-bold">{p.id===state.currentEmperorId?'👑':p.gender==='female'?'👸':'🐉'} {p.name} <span className="text-xs text-gray-500">{relationOf(p)}</span></div>
                         <p className="text-xs text-gray-600">父：{nameOf(p.fatherId)}　母：{p.motherName||'未記錄'}</p>
                         <p className="text-xs text-gray-600">{p.age!=null?`${p.age}歲`:'年齡未詳'} · {p.alive===false?'已故':p.expelled?'已逐出宗籍':p.hasBeenEmperor?'曾登基':'宗室'}</p></div>
                       </div>)}</div>
@@ -409,12 +409,12 @@
                     {!people.length && <p className="text-center">尚無資料</p>}
                   </div>}
                   {bureauTab === 'EMPERORS' && <div className="space-y-3">
-                    {[...state.emperorHistory, {emperorId:state.currentEmperorId,name:state.playerName,eraName:state.eraName,reignYears:state.year,
+                    {[...state.emperorHistory, {emperorId:state.currentEmperorId,name:state.playerName,eraName:state.eraName,reignYears:state.year,avatar:state.emperorAvatar,
                         accessionAge:state.accessionAge,ageAtEnd:state.age,endType:'在位中',gameId:state.gameId,
                         conqueredCount:(state.conqueredEnemies||[]).length,provinceCount:state.provinces.length,endingTreasury:state.treasury}].map((emperor,i)=>{
                       const harem=(state.historicalConsorts||[]).find(h=>String(h.emperorId||`emperor_${h.gameId}`)===String(emperor.emperorId));
-                      return <div key={`${emperor.emperorId}_${i}`} className="bg-white border border-amber-300 rounded p-4">
-                        <h3 className="text-lg font-bold text-red-900">👑 第 {i+1} 任　{emperor.eraName}帝 · {emperor.name}</h3>
+                      return <div key={`${emperor.emperorId}_${i}`} className="flex gap-4 bg-white border border-amber-300 rounded p-4">
+                        <EmperorAvatar avatar={emperor.avatar} assets={state.emperorAvatarAssets} label={`${emperor.name}頭像`} className="w-20 h-20 shrink-0 rounded-lg border-2 border-amber-300"/><div className="min-w-0 flex-1"><h3 className="text-lg font-bold text-red-900">👑 第 {i+1} 任　{emperor.eraName}帝 · {emperor.name}</h3>
                         <p className="text-sm mt-1">在位 {emperor.reignYears??'未詳'} 年　／　{emperor.endType}</p>
                         <p className="text-xs text-gray-600 mt-1">登基年齡：{emperor.accessionAge??'未記錄'}　退位／終止年齡：{emperor.ageAtEnd??'未記錄'}</p>
                         {emperor.successorName&&<p className="text-xs text-gray-600">繼位者：{emperor.successorName}</p>}
@@ -422,7 +422,7 @@
                         {harem&&<details className="text-xs mt-2"><summary className="cursor-pointer font-bold">歷代后妃（{(harem.consorts||[]).length} 人）</summary>
                           <div className="pl-2 pt-1">{(harem.consorts||[]).map((c,n)=><div key={n}>{c.title||''}{c.rank||''} · {c.name||'未詳'}</div>)}</div>
                         </details>}
-                      </div>;
+                      </div></div>;
                     })}
                   </div>}
                   {bureauTab === 'MARRIAGES' && <div className="space-y-3">

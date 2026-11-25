@@ -3,7 +3,7 @@
  * 世界排行榜：使用既有的 Google Sheets，所有玩家共用。
  * 部署：網頁應用程式；執行身分「我」；存取權限「任何人」。
  * 可手動執行 setupLeaderboard() 授權及確認試算表。
- * v1.1.3 排行榜擴充：保留 A:M 舊欄位，首次讀寫時自動補齊 N:P。
+ * v1.4.1 排行榜擴充：保留 A:P 舊欄位，首次讀寫時自動補齊 Q:R 頭像欄。
  */
 const QING_SHEET_PROPERTY = 'QING_LEADERBOARD_SPREADSHEET_ID';
 const QING_SPREADSHEET_ID = '1-4Jbgl5C7_HoJj7VNY2E4GyVm5h1AIWSBxyufWgwKPE';
@@ -14,7 +14,7 @@ const QING_LEGACY_HEADERS = [
 ];
 const QING_HEADERS = [
   ...QING_LEGACY_HEADERS, 'winYears', 'dynastyId', 'unificationOwnerGameId',
-  'maxTreasury', 'maxConsortCount', 'maxDescendantCount'
+  'maxTreasury', 'maxConsortCount', 'maxDescendantCount', 'avatarKind', 'avatarValue'
 ];
 
 function doGet(e) {
@@ -71,7 +71,7 @@ function getLeaderboardSheet_() {
 }
 
 /**
- * 升級已存在的 A:J 或 A:M 排行榜：不移動、不刪除也不重寫既有紀錄。
+ * 升級已存在的 A:J、A:M 或 A:P 排行榜：不移動、不刪除也不重寫既有紀錄。
  * 為防止欄位錯位，既有欄名必須位於預期位置；右側缺少的欄名會自動補齊。
  */
 function ensureLeaderboardHeaders_(sheet) {
@@ -115,6 +115,40 @@ function safeNumber_(value, max) {
   return Math.min(max, Math.max(0, Math.floor(n)));
 }
 
+function webpDimensions_(bytes) {
+  const byte = index => (Number(bytes[index]) + 256) % 256;
+  const text = (start, length) => Array.from({length}, (_, i) => String.fromCharCode(byte(start + i))).join('');
+  const readLE = (start, length) => Array.from({length}, (_, i) => byte(start + i) * Math.pow(256, i)).reduce((a, b) => a + b, 0);
+  if (bytes.length < 30 || text(0, 4) !== 'RIFF' || text(8, 4) !== 'WEBP') throw new Error('排行榜頭像不是有效 WebP');
+  const chunk = text(12, 4);
+  if (chunk === 'VP8X') return [readLE(24, 3) + 1, readLE(27, 3) + 1];
+  if (chunk === 'VP8L') {
+    const bits = readLE(21, 4);
+    return [(bits & 0x3fff) + 1, ((bits >>> 14) & 0x3fff) + 1];
+  }
+  if (chunk === 'VP8 ') return [readLE(26, 2) & 0x3fff, readLE(28, 2) & 0x3fff];
+  throw new Error('排行榜頭像 WebP 格式不支援');
+}
+
+function normalizeLeaderboardAvatar_(kindValue, avatarValue) {
+  const kind = String(kindValue || '');
+  const value = String(avatarValue || '');
+  if (!kind && !value) return { avatarKind:'', avatarValue:'' };
+  if (kind === 'builtin' && /^emperor_00[1-4]$/.test(value)) return { avatarKind:kind, avatarValue:value };
+  if (kind === 'royal' && /^royal_prince_00[1-8]_adult$/.test(value)) return { avatarKind:kind, avatarValue:value };
+  if (kind === 'custom') {
+    if (value.length > 18000) throw new Error('排行榜頭像資料過大');
+    const match = value.match(/^data:image\/webp;base64,([A-Za-z0-9+/]+={0,2})$/);
+    if (!match) throw new Error('排行榜頭像格式不正確');
+    const bytes = Utilities.base64Decode(match[1]);
+    if (bytes.length > 12 * 1024) throw new Error('排行榜頭像超過 12KB');
+    const dimensions = webpDimensions_(bytes);
+    if (dimensions[0] !== 96 || dimensions[1] !== 96) throw new Error('排行榜頭像必須為 96×96');
+    return { avatarKind:kind, avatarValue:value };
+  }
+  throw new Error('排行榜頭像識別資料不正確');
+}
+
 /** 前後端一致的皇室官員舊姓名前綴規則。 */
 function isRoyalChildMinisterName_(name) {
   return /^(皇子|公主|宗室|長公主|宗親)\s/.test(String(name || '').trim());
@@ -143,6 +177,7 @@ function normalizeScore_(input) {
   // 不能將目前在位年數假裝成已知的首次統一年數。
   const requestedWinYears = safeNumber_(input.winYears, 100000);
   const winYears = gameWon && requestedWinYears > 0 ? requestedWinYears : 0;
+  const avatar = normalizeLeaderboardAvatar_(input.avatarKind, input.avatarValue);
   return stripRoyalChildMinister_({
     gameId,
     name: safeText_(input.name || '無名氏', 30),
@@ -159,7 +194,9 @@ function normalizeScore_(input) {
     unificationOwnerGameId: owner,
     maxTreasury: safeNumber_(input.maxTreasury, 1000000000000000),
     maxConsortCount: safeNumber_(input.maxConsortCount, 100000),
-    maxDescendantCount: safeNumber_(input.maxDescendantCount, 100000)
+    maxDescendantCount: safeNumber_(input.maxDescendantCount, 100000),
+    avatarKind: avatar.avatarKind,
+    avatarValue: avatar.avatarValue
   });
 }
 
@@ -177,6 +214,8 @@ function rowToObject_(row) {
   o.maxTreasury = safeNumber_(o.maxTreasury, 1000000000000000);
   o.maxConsortCount = safeNumber_(o.maxConsortCount, 100000);
   o.maxDescendantCount = safeNumber_(o.maxDescendantCount, 100000);
+  o.avatarKind = String(o.avatarKind || '');
+  o.avatarValue = String(o.avatarValue || '');
   if (o.unificationOwnerGameId && o.unificationOwnerGameId !== o.gameId) {
     o.gameWon = false;
     o.winYears = 0;
@@ -229,6 +268,10 @@ function mergeLeaderboardScore_(old, incoming) {
     incoming.maxChildScore = old.maxChildScore;
     incoming.maxChildName = old.maxChildName;
   }
+  if (!incoming.avatarKind && old.avatarKind) {
+    incoming.avatarKind = old.avatarKind;
+    incoming.avatarValue = old.avatarValue;
+  }
   incoming.dynastyId = incoming.dynastyId || old.dynastyId || '';
   incoming.unificationOwnerGameId = incoming.unificationOwnerGameId && incoming.unificationOwnerGameId !== 'unknown'
     ? incoming.unificationOwnerGameId : (old.unificationOwnerGameId || incoming.unificationOwnerGameId || '');
@@ -241,6 +284,11 @@ function mergeLeaderboardScore_(old, incoming) {
     incoming.winYears = old.winYears > 0 ? old.winYears : (incoming.gameWon ? incoming.winYears : 0);
   }
   return incoming;
+}
+
+function publicLeaderboardRecord_(record) {
+  return {...record, avatarValue:record.avatarKind === 'custom' ? '' : record.avatarValue,
+    hasCustomAvatar:record.avatarKind === 'custom'};
 }
 
 /** 每次年末、勝利或駕崩更新同一局；多使用者同時提交時加鎖。 */
@@ -311,10 +359,31 @@ function getLeaderboard(playerGameId) {
       const index = rankings[key].findIndex(item => String(item.gameId) === wantedId);
       if (index >= 0) mine[key] = { rank: index + 1, record: rankings[key][index] };
     });
-    return { ok: true, data: [...unique.values()], mine };
+    const publicMine = Object.fromEntries(Object.entries(mine).map(([key,item])=>[key,{...item,record:publicLeaderboardRecord_(item.record)}]));
+    return { ok: true, data: [...unique.values()].map(publicLeaderboardRecord_), mine: publicMine };
   } catch (error) {
     console.error('getLeaderboard: ' + error);
     return { ok: false, error: String(error.message || error), data: [], mine: {} };
+  }
+}
+
+/** 自訂頭像只在玩家展開排行榜詳情時讀取；主排行榜不回傳全部 Base64 圖片。 */
+function getLeaderboardAvatar(gameId) {
+  try {
+    const id=String(gameId||'').trim();
+    if(!/^run_[A-Za-z0-9_-]{1,80}$/.test(id))throw new Error('遊戲編號格式錯誤');
+    const sheet=getLeaderboardSheet_(),last=sheet.getLastRow();
+    if(last<=1)return {ok:false,error:'找不到排行榜紀錄'};
+    const ids=sheet.getRange(2,1,last-1,1).getValues();
+    const index=ids.findIndex(row=>String(row[0])===id);
+    if(index<0)return {ok:false,error:'找不到排行榜紀錄'};
+    const row=rowToObject_(sheet.getRange(index+2,1,1,QING_HEADERS.length).getValues()[0]);
+    if(row.avatarKind!=='custom')return {ok:true,kind:row.avatarKind,value:row.avatarValue||''};
+    const avatar=normalizeLeaderboardAvatar_(row.avatarKind,row.avatarValue);
+    return {ok:true,kind:avatar.avatarKind,value:avatar.avatarValue};
+  }catch(error){
+    console.error('getLeaderboardAvatar: '+error);
+    return {ok:false,error:String(error.message||error)};
   }
 }
 
@@ -355,7 +424,8 @@ function importExistingLeaderboardScores(records) {
             merged.unificationOwnerGameId === old.unificationOwnerGameId &&
             merged.maxTreasury === old.maxTreasury &&
             merged.maxConsortCount === old.maxConsortCount &&
-            merged.maxDescendantCount === old.maxDescendantCount) {
+            merged.maxDescendantCount === old.maxDescendantCount &&
+            merged.avatarKind === old.avatarKind && merged.avatarValue === old.avatarValue) {
           skipped++;
           return;
         }

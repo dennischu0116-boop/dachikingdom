@@ -1,7 +1,7 @@
-      // v1.4.0：正式人物圖片模組。圖片 URL 不寫入遊戲數值。
+      // v1.4.1：正式人物圖片與皇帝頭像模組。圖片 URL 不寫入遊戲數值。
       const BETA_IMAGE_BASE=String(globalThis.QING_IMAGE_BETA_ASSET_BASE||
           'https://dennischu0116-boop.github.io/dachikingdom/assets/characters/').replace(/\/?$/,'/');
-      const BETA_IMAGE_REVISION='v1.4.0';
+      const BETA_IMAGE_REVISION='v1.4.1';
       const betaAssetUrl=asset=>`${BETA_IMAGE_BASE}${asset}?v=${encodeURIComponent(BETA_IMAGE_REVISION)}`;
       const BETA_IMAGE_GROUPS={
           civil:{count:12,ages:[4,5,3]},
@@ -36,6 +36,41 @@
           let value=2166136261;
           for(let i=0;i<text.length;i++){value^=text.charCodeAt(i);value=Math.imul(value,16777619);}
           return value>>>0;
+      };
+      const EMPEROR_AVATAR_IDS=['emperor_001','emperor_002','emperor_003','emperor_004'];
+      const emperorBuiltinAvatar=id=>({kind:'builtin',id:EMPEROR_AVATAR_IDS.includes(id)?id:EMPEROR_AVATAR_IDS[0]});
+      const defaultEmperorAvatarFor=(gameId,emperorId)=>emperorBuiltinAvatar(
+          EMPEROR_AVATAR_IDS[betaHash(`${gameId||'legacy'}:${emperorId||'emperor'}`)%EMPEROR_AVATAR_IDS.length]);
+      const validEmperorCustomImage=(value,maxLength)=>typeof value==='string'&&value.length<=maxLength&&
+          /^data:image\/webp;base64,[A-Za-z0-9+/]+={0,2}$/.test(value);
+      const normalizeEmperorAvatarAssets=raw=>Object.fromEntries(Object.entries(raw&&typeof raw==='object'?raw:{}).filter(([id,item])=>
+          /^custom_[a-f0-9]{8}$/.test(id)&&item&&validEmperorCustomImage(item.full,115000)&&validEmperorCustomImage(item.leaderboard,18000))
+          .map(([id,item])=>[id,{full:item.full,leaderboard:item.leaderboard}]));
+      const normalizeEmperorAvatar=(raw,assets,fallbackGameId='',fallbackEmperorId='')=>{
+          if(raw?.kind==='builtin'&&EMPEROR_AVATAR_IDS.includes(raw.id))return {kind:'builtin',id:raw.id};
+          if(raw?.kind==='royal'&&/^royal_prince_\d{3}_adult$/.test(String(raw.id||''))&&BETA_IMAGE_META[raw.id])return {kind:'royal',id:raw.id};
+          if(raw?.kind==='custom'&&assets?.[raw.assetId])return {kind:'custom',assetId:raw.assetId};
+          return defaultEmperorAvatarFor(fallbackGameId,fallbackEmperorId);
+      };
+      const normalizeEmperorAvatarState=rawState=>{
+          const state=rawState||{},assets=normalizeEmperorAvatarAssets(state.emperorAvatarAssets);
+          const history=(Array.isArray(state.emperorHistory)?state.emperorHistory:[]).map(record=>({...record,
+              avatar:normalizeEmperorAvatar(record.avatar,assets,record.gameId,record.emperorId)}));
+          const emperorAvatar=normalizeEmperorAvatar(state.emperorAvatar,assets,state.gameId,state.currentEmperorId);
+          const used=new Set([emperorAvatar,...history.map(record=>record.avatar)]
+              .filter(avatar=>avatar?.kind==='custom').map(avatar=>avatar.assetId));
+          return {...state,emperorAvatar,emperorAvatarAssets:Object.fromEntries(Object.entries(assets).filter(([id])=>used.has(id))),emperorHistory:history};
+      };
+      const emperorAvatarSrc=(avatar,assets={})=>{
+          if(avatar?.kind==='custom')return assets?.[avatar.assetId]?.full||'';
+          if(avatar?.kind==='royal')return BETA_IMAGE_META[avatar.id]?.headshot?betaAssetUrl(BETA_IMAGE_META[avatar.id].headshot):'';
+          const id=EMPEROR_AVATAR_IDS.includes(avatar?.id)?avatar.id:EMPEROR_AVATAR_IDS[0];
+          return betaAssetUrl(`emperors/${id}.webp`);
+      };
+      const emperorLeaderboardAvatarPayload=state=>{
+          const normalized=normalizeEmperorAvatarState(state),avatar=normalized.emperorAvatar;
+          if(avatar.kind==='custom')return {avatarKind:'custom',avatarValue:normalized.emperorAvatarAssets[avatar.assetId]?.leaderboard||''};
+          return {avatarKind:avatar.kind,avatarValue:avatar.id||''};
       };
       const betaPortraitAge = age => Number(age)<35?'young':Number(age)<55?'middle':'senior';
       const betaPortraitKey=(kind,id)=>kind+':'+String(id);
@@ -197,3 +232,8 @@
               style={{objectFit:'contain'}}
               title={failed?'人物圖片暫時無法載入，已使用預設剪影':label}/>;
       });
+      const EmperorAvatar=({avatar,assets={},label='皇帝頭像',className=''})=>{
+          const src=emperorAvatarSrc(avatar,assets);
+          return src?<img src={src} alt={label} loading="lazy" decoding="async" className={`${className} emperor-avatar-image`} />:
+              <div className={`${className} emperor-avatar-placeholder`} aria-label={label}>👑</div>;
+      };

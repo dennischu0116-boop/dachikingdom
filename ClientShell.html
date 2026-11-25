@@ -28,13 +28,87 @@
           }
       });
 
+      const emperorAvatarDataBytes=value=>{
+          const encoded=String(value||'').split(',')[1]||'';
+          return Math.max(0,Math.floor(encoded.length*3/4)-(encoded.endsWith('==')?2:encoded.endsWith('=')?1:0));
+      };
+      const canvasToBoundedWebp=(canvas,maxBytes,qualities)=>{
+          for(const quality of qualities){
+              const value=canvas.toDataURL('image/webp',quality);
+              if(value.startsWith('data:image/webp;base64,')&&emperorAvatarDataBytes(value)<=maxBytes)return value;
+          }
+          throw new Error('圖片內容過於複雜，壓縮後仍超過容量限制，請改用較簡潔的圖片。');
+      };
+      const decodeAvatarUpload=async file=>{
+          if(!file||!['image/jpeg','image/png','image/webp'].includes(file.type))throw new Error('只支援 JPG、PNG 或 WebP 圖片。');
+          if(file.size>10*1024*1024)throw new Error('原始圖片不可超過 10MB。');
+          let source=null,objectUrl='';
+          try{
+              if(typeof createImageBitmap==='function'){
+                  try{source=await createImageBitmap(file,{imageOrientation:'from-image'});}
+                  catch(error){source=null;}
+              }
+              if(!source){
+                  objectUrl=URL.createObjectURL(file);
+                  source=await new Promise((resolve,reject)=>{const image=new Image();image.onload=()=>resolve(image);image.onerror=()=>reject(new Error('無法解碼圖片。'));image.src=objectUrl;});
+              }
+              const width=Number(source.width||source.naturalWidth),height=Number(source.height||source.naturalHeight);
+              if(!width||!height)throw new Error('圖片尺寸無效。');
+              const side=Math.min(width,height),sx=(width-side)/2,sy=(height-side)/2;
+              const fullCanvas=document.createElement('canvas');fullCanvas.width=256;fullCanvas.height=256;
+              const fullContext=fullCanvas.getContext('2d',{alpha:false});
+              if(!fullContext)throw new Error('瀏覽器無法處理圖片畫布。');
+              fullContext.fillStyle='#f7f0e5';fullContext.fillRect(0,0,256,256);
+              fullContext.drawImage(source,sx,sy,side,side,0,0,256,256);
+              const full=canvasToBoundedWebp(fullCanvas,80*1024,[.86,.78,.70,.62,.54,.46]);
+              const boardCanvas=document.createElement('canvas');boardCanvas.width=96;boardCanvas.height=96;
+              const boardContext=boardCanvas.getContext('2d',{alpha:false});
+              if(!boardContext)throw new Error('瀏覽器無法產生排行榜縮圖。');
+              boardContext.fillStyle='#f7f0e5';boardContext.fillRect(0,0,96,96);
+              boardContext.drawImage(fullCanvas,0,0,96,96);
+              const leaderboard=canvasToBoundedWebp(boardCanvas,12*1024,[.82,.72,.62,.52,.42]);
+              const assetId=`custom_${betaHash(full).toString(16).padStart(8,'0')}`;
+              return {avatar:{kind:'custom',assetId},assets:{[assetId]:{full,leaderboard}}};
+          }finally{
+              if(source?.close)source.close();
+              if(objectUrl)URL.revokeObjectURL(objectUrl);
+          }
+      };
+      const EmperorAvatarSelector=({avatar,assets,onChange,dark=false})=>{
+          const [busy,setBusy]=useState(false),[error,setError]=useState('');
+          const fileRef=useRef(null);
+          const selectBuiltin=id=>{setError('');onChange({kind:'builtin',id},{});};
+          const upload=async event=>{
+              const file=event.target.files?.[0];event.target.value='';if(!file)return;
+              setBusy(true);setError('');
+              try{const prepared=await decodeAvatarUpload(file);onChange(prepared.avatar,prepared.assets);}
+              catch(uploadError){setError(uploadError.message||'圖片處理失敗');}
+              finally{setBusy(false);}
+          };
+          const custom=avatar?.kind==='custom',inheritedRoyal=avatar?.kind==='royal';
+          return <div className={`rounded-lg border p-3 ${dark?'border-amber-500/60 bg-stone-950/35':'border-amber-300 bg-amber-50'}`}>
+              <div className="flex items-center justify-between gap-3 mb-2"><b className={dark?'text-yellow-100':'text-red-950'}>皇帝頭像</b><span className="text-[11px] opacity-75">4款內建／自行上傳</span></div>
+              <div className="grid grid-cols-4 gap-2">{EMPEROR_AVATAR_IDS.map((id,index)=><button type="button" key={id} onClick={()=>selectBuiltin(id)} className={`rounded-lg border-2 p-1 ${avatar?.kind==='builtin'&&avatar.id===id?'border-yellow-400 bg-yellow-100/20':'border-transparent bg-white/10'}`} aria-label={`選擇皇帝頭像${index+1}`}><EmperorAvatar avatar={{kind:'builtin',id}} className="w-full aspect-square rounded-md" /></button>)}</div>
+              <div className="mt-3 flex items-center gap-3">
+                  {(custom||inheritedRoyal)&&<div className="shrink-0 text-center"><EmperorAvatar avatar={avatar} assets={assets} className="w-16 h-16 rounded-lg border-2 border-emerald-500" label="目前皇帝頭像"/><div className="mt-1 text-[10px] opacity-75">{custom?'自訂圖片':'繼位人物圖'}</div></div>}
+                  <button type="button" disabled={busy} onClick={()=>fileRef.current?.click()} className={`flex-1 rounded px-3 py-2 text-sm font-bold ${dark?'bg-emerald-800 text-white':'bg-emerald-700 text-white'} disabled:opacity-50`}>{busy?'正在裁切與壓縮…':'📷 上傳自己的圖片'}</button>
+                  <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={upload} className="hidden" />
+              </div>
+              <p className={`mt-2 text-[11px] leading-5 ${dark?'text-amber-100/80':'text-stone-600'}`}>圖片會置中裁切為正方形。提交排行榜後，96×96裁切縮圖會在排行榜詳細資料中公開；原始檔不會上傳。</p>
+              {error&&<p className="mt-2 rounded bg-red-100 px-2 py-1 text-xs text-red-800">{error}</p>}
+          </div>;
+      };
+
       const StartScreen = ({ onStart, onSettings, onHelp, onUpdates, onCloud, cloudStatus, pendingCloudSlot }) => {
           const [era, setEra] = useState(() => generateRandomEraName());
           const [name, setName] = useState(() => generateRandomEmperorName());
+          const [avatar,setAvatar]=useState(()=>emperorBuiltinAvatar(EMPEROR_AVATAR_IDS[0]));
+          const [avatarAssets,setAvatarAssets]=useState({});
+          const changeAvatar=(next,newAssets)=>{setAvatar(next);setAvatarAssets(next.kind==='custom'?{...avatarAssets,...newAssets}:{});};
           const randomizeBoth = () => { setEra(generateRandomEraName()); setName(generateRandomEmperorName()); };
           return (
               <div className="fixed inset-0 bg-stone-900 flex flex-col items-center justify-center z-[60] text-amber-50 animate-in fade-in overflow-y-auto p-3">
-                  <div className="bg-red-900/80 p-6 md:p-8 rounded-lg border-4 border-yellow-600 shadow-2xl max-w-md w-full text-center my-auto">
+                  <div className="bg-red-900/80 p-6 md:p-8 rounded-lg border-4 border-yellow-600 shadow-2xl max-w-xl w-full text-center my-auto">
                       <Crown />
                       <h1 className="text-4xl font-serif font-bold mb-2 text-yellow-100">大清帝國模擬器</h1>
                       <p className="text-amber-200/80 text-sm">治國平天下，開創萬世基業</p>
@@ -62,14 +136,15 @@
                               </div>
                           </div>
                           <button type="button" onClick={randomizeBoth} className="w-full py-2 rounded border border-amber-400/60 bg-amber-950/40 text-amber-100 text-sm hover:bg-amber-900">🎲 年號與皇帝姓名全部隨機</button>
+                          <EmperorAvatarSelector avatar={avatar} assets={avatarAssets} onChange={changeAvatar} dark />
                       </div>
-                      <button onClick={() => onStart(era, name)} className="w-full bg-yellow-600 text-white py-3 rounded font-bold text-lg shadow-lg hover:bg-yellow-500 transition-transform hover:scale-105">登基大典（開始新遊戲）</button>
+                      <button onClick={() => onStart(era,name,{avatar,assets:avatarAssets})} className="w-full bg-yellow-600 text-white py-3 rounded font-bold text-lg shadow-lg hover:bg-yellow-500 transition-transform hover:scale-105">登基大典（開始新遊戲）</button>
                   </div>
               </div>
           );
       };
 
-      const SystemSettingsModal = ({ onClose, onSave, onLoad, onExport, onDownload, onImport, onRestart, autoSaveStatus, isGameStarted }) => (
+      const SystemSettingsModal = ({ onClose, onSave, onLoad, onExport, onDownload, onImport, onRestart, onAvatarChange, emperorAvatar, emperorAvatarAssets, autoSaveStatus, isGameStarted }) => (
           <div className="fixed inset-0 bg-black/75 flex items-center justify-center z-[85] p-4 animate-in fade-in">
               <div className="bg-stone-100 rounded-xl border-4 border-amber-600 shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-5">
                   <div className="screen-modal-header flex items-center justify-between gap-3 mb-2">
@@ -80,6 +155,7 @@
                       <b>即時存檔：{autoSaveStatus}</b>
                       <div className="text-xs mt-1">遊戲進度會自動保存在目前瀏覽器；下載備份可另存到電腦或雲端。</div>
                   </div>
+                  {isGameStarted&&<div className="mb-4"><EmperorAvatarSelector avatar={emperorAvatar} assets={emperorAvatarAssets} onChange={onAvatarChange}/></div>}
                   <div className="grid grid-cols-2 gap-2">
                       <button disabled={!isGameStarted} onClick={onSave} className="p-3 rounded bg-stone-700 text-white font-bold disabled:opacity-40">💾 立即存檔</button>
                       <button onClick={onLoad} className="p-3 rounded bg-stone-700 text-white font-bold">📂 讀取本機存檔</button>
@@ -200,7 +276,7 @@
       const cleanGameStateForSave = (state) => {
           const { logsAdd: _unused, ...rest } = normalizeTerritoryState(state);
           // 相容舊版圖片存檔：避免把龐大的 base64 圖片再度存入。
-          return {
+          return normalizeEmperorAvatarState({
               ...rest,
               ministers: (rest.ministers || []).map(m => ({...m, avatar: typeof m.avatar === 'string' && m.avatar.startsWith('data:') ? '👤' : m.avatar})),
               consorts: (rest.consorts || []).map(c => ({...c, avatar: typeof c.avatar === 'string' && c.avatar.startsWith('data:') ? '🌸' : c.avatar})),
@@ -209,7 +285,7 @@
                   consorts: (record.consorts || []).map(c => ({...c, avatar: typeof c.avatar === 'string' && c.avatar.startsWith('data:') ? '🌸' : c.avatar}))
               })),
               childrenList: (rest.childrenList || []).map(c => ({...c, avatar: typeof c.avatar === 'string' && c.avatar.startsWith('data:') ? '👤' : c.avatar}))
-          };
+          });
       };
       // 官職空缺清單：只統計需要正式任命的中央三職與各省總督、巡撫。
       // 兵部戰時主將、副將、軍師屬臨時出征配置，不納入常設官職空缺總數。

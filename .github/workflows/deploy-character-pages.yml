@@ -37,13 +37,13 @@ jobs:
       - name: Install verification dependencies
         run: npm ci
 
-      - name: Verify production source and all 246 character images
+      - name: Verify production source and all 250 character images
         run: npm run verify:production
 
       - name: Stage public character assets
         run: |
           mkdir -p _site/assets/characters
-          cp -R assets/characters/portraits assets/characters/thumbs assets/characters/headshots assets/characters/manifest.json _site/assets/characters/
+          cp -R assets/characters/portraits assets/characters/thumbs assets/characters/headshots assets/characters/emperors assets/characters/manifest.json _site/assets/characters/
 
       - uses: actions/configure-pages@v5
         with:

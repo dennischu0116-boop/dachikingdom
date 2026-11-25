@@ -124,6 +124,9 @@
         const [leaderboardExpandedId,setLeaderboardExpandedId] = useState(null);
         const [isLeaderboardLoading, setIsLeaderboardLoading] = useState(false);
         const [leaderboardError, setLeaderboardError] = useState('');
+        const [leaderboardAvatarCache,setLeaderboardAvatarCache]=useState({});
+        const [leaderboardAvatarLoading,setLeaderboardAvatarLoading]=useState({});
+        const [leaderboardAvatarErrors,setLeaderboardAvatarErrors]=useState({});
 
         // Google OAuth2 授權碼登入與五槽雲端存檔；Session Token 僅保存在目前分頁。
         const [showCloudPanel, setShowCloudPanel] = useState(false);
@@ -299,13 +302,15 @@
         const dangerousMinisters = gameState.ministers.filter(m => m.loyalty < 20);
         const dangerousConsorts = gameState.consorts.filter(c => c.affection < 20 && !c.inColdPalace);
 
-        const createFreshGame = (eraName, playerName) => {
+        const createFreshGame = (eraName, playerName, avatarSelection={}) => {
             const gameId = royalNewId('run');
             const finalEraName = String(eraName||'').trim() || generateRandomEraName();
             const finalPlayerName = String(playerName||'').trim() || generateRandomEmperorName();
             const base = JSON.parse(JSON.stringify(INITIAL_STATE));
-            const state = normalizeRoyalState({
+            const state = normalizeEmperorAvatarState(normalizeRoyalState({
                 ...base, gameId, currentEmperorId: `emperor_${gameId}`,
+                emperorAvatar:avatarSelection.avatar||emperorBuiltinAvatar(EMPEROR_AVATAR_IDS[0]),
+                emperorAvatarAssets:avatarSelection.assets||{},
                 consorts:(base.consorts||[]).map(makeConsort),
                 dynastyId: `dynasty_${gameId}`, accessionAge: 16,
                 eraName: finalEraName,
@@ -313,13 +318,13 @@
                 corruptionRate: DEFAULT_CORRUPTION_RATE,
                 unlockedAchievements: [],
                 unificationGameId: null, unificationYear: null, unificationAttributionUnknown: false
-            });
+            }));
             const firstLog=`奉天承運，皇帝詔曰：朕繼承大統，改元${finalEraName}，定名${finalPlayerName}。`;
             return {state,logs:[firstLog]};
         };
 
-        const handleStartGame = async (eraName, playerName) => {
-            const fresh=createFreshGame(eraName,playerName);
+        const handleStartGame = async (eraName, playerName, avatarSelection) => {
+            const fresh=createFreshGame(eraName,playerName,avatarSelection);
             const freshPortraitAssignments=betaAllocatePortraits(betaStateWithPortraitCandidates(fresh.state),{});
             setBetaPortraitAssignments(freshPortraitAssignments);
             const targetSlot=Number(pendingCloudNewGameSlot)||null;
@@ -363,6 +368,11 @@
         };
 
         const showMessage = (msg, type = 'error') => { setFeedbackMessage({ text: msg, type }); setTimeout(() => setFeedbackMessage(null), 3000); };
+        const handleEmperorAvatarChange=(avatar,newAssets={})=>{
+            setGameState(previous=>normalizeEmperorAvatarState({...previous,emperorAvatar:avatar,
+                emperorAvatarAssets:{...(previous.emperorAvatarAssets||{}),...newAssets}}));
+            showMessage('皇帝頭像已更新，將隨目前進度保存。','success');
+        };
 
         const copyToClipboard = async (value) => {
             // GAS iframe 中 navigator.clipboard 不一定可用，因此保留傳統複製後備。
@@ -776,6 +786,26 @@
                 })
                 .getLeaderboard(gameState.gameId || '');
         };
+        const toggleLeaderboardDetails=entry=>{
+            const id=String(entry?.gameId||'');
+            if(!id)return;
+            const opening=String(leaderboardExpandedId)!==id;
+            setLeaderboardExpandedId(opening?id:null);
+            if(!opening||entry.avatarKind!=='custom'||Object.prototype.hasOwnProperty.call(leaderboardAvatarCache,id)||leaderboardAvatarLoading[id])return;
+            if(typeof google==='undefined'||!google.script?.run){
+                setLeaderboardAvatarErrors(previous=>({...previous,[id]:'只能由正式 GAS 網頁讀取玩家頭像'}));return;
+            }
+            setLeaderboardAvatarLoading(previous=>({...previous,[id]:true}));
+            setLeaderboardAvatarErrors(previous=>({...previous,[id]:''}));
+            google.script.run.withSuccessHandler(result=>{
+                if(result?.ok&&validEmperorCustomImage(result.value,18000))setLeaderboardAvatarCache(previous=>({...previous,[id]:result.value}));
+                else setLeaderboardAvatarErrors(previous=>({...previous,[id]:result?.error||'玩家頭像無法讀取'}));
+                setLeaderboardAvatarLoading(previous=>({...previous,[id]:false}));
+            }).withFailureHandler(error=>{
+                setLeaderboardAvatarErrors(previous=>({...previous,[id]:error?.message||'玩家頭像讀取失敗'}));
+                setLeaderboardAvatarLoading(previous=>({...previous,[id]:false}));
+            }).getLeaderboardAvatar(id);
+        };
 
         const submitScore = (stateToSave = gameState, silent = false, onDone = null) => {
             if (typeof google === 'undefined' || !google.script || !google.script.run) {
@@ -810,6 +840,7 @@
                         (stateToSave.gameWon || hasConqueredAllEnemies(stateToSave))),
                     winYears: stateToSave.unificationGameId === stateToSave.gameId
                         ? (stateToSave.unificationYear || stateToSave.year) : 0,
+                    ...emperorLeaderboardAvatarPayload(stateToSave),
                     ...peaks
                 };
                 if (!record.gameId) return;
@@ -1264,8 +1295,10 @@
                 const heirId = String(candidate.royalId);
                 const familyById = new Map(normalized.royalFamily.map(p => [String(p.id),p]));
                 const heirPerson = familyById.get(heirId) || makeRoyalMember(candidate,normalized);
+                const heirAvatarId=betaRoyalPortraitId(normalized,betaPortraitAssignments,heirPerson,true);
                 const history = [...normalized.emperorHistory, {
                     emperorId: nowRulerId, gameId: prev.gameId, name: prev.playerName || '無名氏',
+                    avatar:normalized.emperorAvatar,
                     eraName: prev.eraName, reignYears: prev.year, accessionAge: prev.accessionAge ?? null,
                     ageAtEnd: prev.age, endType: voluntary ? '禪讓' : '駕崩',
                     successorId: heirId, successorName: heirPerson.name,
@@ -1308,6 +1341,7 @@
                 for(const role of ['commanderId','viceId','strategistId']) if(reigningMinisterIds.has(defenseSetup[role])) defenseSetup[role]=null;
                 const successor = {
                     ...prev, currentEmperorId:heirId, royalFamily:family, emperorHistory:history,
+                    emperorAvatar:{kind:'royal',id:heirAvatarId},
                     historicalConsorts:[...(prev.historicalConsorts||[]), {
                         emperorId:nowRulerId, emperorName:prev.playerName || '無名氏', eraName:prev.eraName,
                         reignYears:prev.year, gameId:prev.gameId, successionType:voluntary?'禪讓':'駕崩',
@@ -1334,7 +1368,7 @@
                         maxConsortCount:0,maxDescendantCount:newChildren.length
                     }
                 };
-                return normalizeRoyalState(successor);
+                return normalizeEmperorAvatarState(normalizeRoyalState(successor));
             });
             setCurrentEvent(null); setYearReport(null); setShowVictoryModal(false);
             setLogs([`${voluntary?'禪讓':'駕崩'}後，${candidate.relationshipLabel} ${candidate.name} 繼位，改元${newEra}。先帝后妃封存於歷史紀錄，先帝子女移入宗人府，原國土與官職保留；百官忠誠下降${loyaltyLoss}。`]);
