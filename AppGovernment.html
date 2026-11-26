@@ -414,6 +414,10 @@
             const base=mode==='full'?70:mode==='group'?60:45;
             const chance=Math.max(mode==='full'?45:10,Math.min(95,base-decay+(hasDiRenjie?10:0)));
             const investigationRoll=Math.random()*100;
+            watchInvestigationOutcome(`case:${caseId}`,state=>{
+                const entry=(state.corruptionCases||[]).find(item=>String(item.id)===String(caseId))?.investigationHistory?.slice(-1)[0];
+                return entry?.year===currentYear?entry.success:undefined;
+            });
             setGameState(prev=>{
                 const cases=[...(prev.corruptionCases||[])];
                 const index=cases.findIndex(c=>String(c.id)===String(caseId));
@@ -449,6 +453,11 @@
             const hasDiRenjie=Object.values(gameState.centralOfficials||{}).some(id=>gameState.ministers.some(m=>String(m.id)===String(id)&&m.specialId==='di_renjie'));
             const chance=Math.min(95,60+(hasDiRenjie?10:0));
             const success=Math.random()*100<chance;
+            const year=Number(gameState.dynastyYear||gameState.year);
+            watchInvestigationOutcome(`group:${groupId}`,state=>{
+                const latest=(state.corruptionGroups||[]).find(item=>String(item.id)===String(groupId));
+                return Number(latest?.lastInvestigatedYear)===year?latest.revealed:undefined;
+            });
             setGameState(prev=>{
                 const latest=(prev.corruptionGroups||[]).find(g=>String(g.id)===String(groupId));
                 if(!latest||latest.revealed||Number(latest.lastInvestigatedYear)===Number(prev.dynastyYear||prev.year))return prev;

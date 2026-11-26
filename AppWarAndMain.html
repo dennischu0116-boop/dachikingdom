@@ -45,6 +45,7 @@
               const allAssigned=lines.flatMap(line=>line.abandon?[]:[line.commanderId,line.viceId,line.strategistId].filter(Boolean).map(String));
               if(new Set(allAssigned).size!==allAssigned.length){showMessage('同一名將領不能出現在兩條戰線或兼任兩個軍職','error');return;}
               if(!await requestGameConfirm(singleFront?`確定以全軍${totalAssigned}千迎戰並結算？確認後不可更改。`:`確定鎖定${lines.length}條戰線並一次結算？已分配${totalAssigned}千兵力，確認後不可更改。`,{title:'確認戰事部署'}))return;
+              if(battleSettlementRef.current)return;
               battleSettlementRef.current=true;
               const results=lines.map(line=>{
                   const info=preview(line);
@@ -92,9 +93,7 @@
                    return `${result.line.provinceName}｜${result.line.attackers.map(a=>a.name).join('、')}\n聯軍：${coalition}（合計${result.line.coalitionStrength}）\n我軍${battleTroops(result.line)}千・主將${result.info.cmd.name}／副將${result.info.vice.name}／軍師${result.info.strat.name}\n守城+${Math.round(result.info.defenseBonus*1000)/10}%・我軍戰力${result.info.finalPower}／敵軍有效戰力${Math.round(result.info.enemyPower)}・勝率${result.info.winRate}%\n${result.outcome.label}・損兵${result.damage}千・民心${result.morale>=0?'+':''}${result.morale}${result.outcome.kind==='loss'?'・省份失守':'・省份保全'}`;
                }).join('\n\n');
               const totalDamage=results.reduce((sum,r)=>sum+r.damage,0),totalMorale=results.reduce((sum,r)=>sum+r.morale,0),paid=Math.min(Math.max(0,Number(gameState.treasury)||0),results.reduce((sum,r)=>sum+r.cost,0));
-              const battleCue=results.some(result=>result.outcome.kind==='loss')?'loss':
-                  results.some(result=>result.outcome.kind==='win')?'win':'draw';
-              playPalaceCue(battleCue);
+              playPalaceCue(defenseOutcomeCue(results.map(result=>result.outcome.kind)));
               setCurrentEvent({id:'MULTI_WAR_REPORT',title:singleFront?'年度防守戰報':'年度多線防守總戰報',description:`${report}\n\n全國總計：損兵${totalDamage}千、民心${totalMorale>=0?'+':''}${totalMorale}、防守支出${paid}兩。`,options:[{text:'朕知道了',effect:s=>s}]});setCurrentView('MEMORIAL');
               setTimeout(()=>{battleSettlementRef.current=false;},500);
           };
@@ -210,9 +209,11 @@
                               }
                               if(!await confirmLowEnergySpend(val(20),`攻打${target.name}`))return;
                           }
+                          if(battleSettlementRef.current)return;
+                          battleSettlementRef.current=true;
+                          setTimeout(()=>{battleSettlementRef.current=false;},500);
                           const outcome=battleOutcome(winRate);
                           const isWin=outcome.kind==='win',isDraw=outcome.kind==='draw';
-                          playPalaceCue(outcome.kind);
                           let damage = Math.floor(gameState.army * outcome.casualty);
                           const lossMultiplier=cmd.specialId==='yue_fei'?0.8:mode==='ATTACK'&&cmd.specialId==='wei_qing'?0.85:mode==='DEFEND'&&cmd.specialId==='qi_jiguang'?0.8:1;
                           damage=Math.floor(damage*lossMultiplier);
@@ -286,6 +287,7 @@
                               setGameState(p => ({ ...p, ...normalizeTerritoryState({...p,provinces:newProvinces,lostProvinces:newLostProvinces,conqueredEnemies:newConquered}), army: Math.max(0, p.army - damage), treasury: p.treasury - 200, incomingInvasion: null, stability: p.stability + (isWin?defenseVictoryStability:-defenseStabilityLoss) }));
                               setCurrentEvent({ id: 'WAR_RESULT', title: isWin?"防禦成功！":"防禦失敗！", description: isWin?`擊退${target.name}，保住領土。\n損兵：${damage}千`:`領土淪陷！敵軍長驅直入。\n損兵：${damage}千`, options: [{ text: "朕知道了", effect: (s) => ({ ...s, logsAdd: isWin?"防禦成功":"防禦失敗" }) }] }); setCurrentView('MEMORIAL');
                           }
+                          playPalaceCue(outcome.kind);
                   }} className="w-full py-3 bg-red-900 text-white font-bold rounded shadow hover:bg-red-800 active:scale-95 transform transition"><Sword/> {btnText}</button>
             </div>
         </div>
@@ -894,7 +896,7 @@
       {showCloudPanel && CloudSavePanel()}
       {showRestartConfirm && <RestartConfirmModal onCancel={()=>setShowRestartConfirm(false)} onConfirm={confirmRestartGame} />}
       <CloudGuardModal />
-      <GameDialogModal />
+      {gameDialog&&<GameDialogModal key={gameDialog.id} dialog={gameDialog} onResolve={resolveGameDialog} />}
       <FeedbackMsg />
       
       <div className="bg-stone-900 text-amber-50 p-2 shadow-md sticky top-0 z-40">
@@ -1072,6 +1074,10 @@
                                      if(Array.isArray(opt.recruits)&&opt.recruits.length)setExamResult({source:'event',title:opt.recruitTitle||'新官入朝',results:opt.recruits});
                                      else if(Array.isArray(_newRecruits)&&_newRecruits.length)setExamResult({source:'event',title:_recruitTitle||'新官入朝',results:_newRecruits});
                                     if (currentEvent?.eventType === 'COURT') {
+                                        if(_courtOutcome?.kind==='check'&&!playedCourtOutcomes.current.has(currentEvent)){
+                                            playedCourtOutcomes.current.add(currentEvent);
+                                            playEventOutcome(_courtOutcome.success);
+                                        }
                                         const numberEffects = [
                                             {key:'treasury',label:'國庫',unit:'兩',digits:0},
                                             {key:'stability',label:'民心',unit:'點',digits:0},

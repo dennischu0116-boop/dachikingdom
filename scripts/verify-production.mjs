@@ -13,9 +13,9 @@ const assert = (condition, message) => { if (!condition) throw new Error(message
 
 const packageJson = JSON.parse(read('package.json'));
 const manifest = JSON.parse(read('assets/characters/manifest.json'));
-assert(packageJson.version === '1.4.5', 'package.json must be v1.4.5');
+assert(packageJson.version === '1.4.6', 'package.json must be v1.4.6');
 assert(manifest.version === 'v1.4.2' && manifest.status === 'PRODUCTION', 'character manifest is not production v1.4.2');
-assert(read('ClientCore.html').includes('const APP_VERSION = "v1.4.5"'), 'ClientCore version mismatch');
+assert(read('ClientCore.html').includes('const APP_VERSION = "v1.4.6"'), 'ClientCore version mismatch');
 assert(/const QING_SAVE_KEY\s*=\s*'qing_saveData'/.test(read('ClientShell.html')), 'production save key is missing');
 assert(read('Index.html').includes('https://unpkg.com/@babel/standalone@7.28.5/babel.min.js'), 'browser Babel version must stay pinned to 7.28.5');
 assert(read('ImageBeta.html').includes('const BETA_IMAGE_BASE=String(globalThis.QING_IMAGE_BETA_ASSET_BASE || "https://'), 'production image base must use the GAS-safe single-line literal');
@@ -25,7 +25,36 @@ assert(read('AppWarAndMain.html').includes("onClick={()=>setShowCloudPanel(true)
 assert(read('AppWarAndMain.html').includes('appBooting&&<AppLoadingScreen/>') && !read('AppWarAndMain.html').includes('appBooting||cloudSessionChecking'), 'cloud session checks must not trigger the full-screen loader');
 assert(read('AppWarAndMain.html').includes("cloudSessionChecking?'雲端核對中…'"), 'cloud session check needs a non-blocking status indicator');
 const modalSource=read('AppModals.html');
-assert(modalSource.includes("!event.nativeEvent?.isComposing&&event.keyCode!==229"), 'text prompts must not submit while a Chinese IME is composing');
+const dialogSource=read('ClientShell.html').slice(read('ClientShell.html').indexOf('      const GameDialogModal ='));
+assert(!modalSource.includes('const GameDialogModal')&&read('AppWarAndMain.html').includes('key={gameDialog.id} dialog={gameDialog}'),
+  'text prompts must preserve a stable input component across game updates');
+const promptRefs=[];
+const promptResults=[];
+const dialogContext={
+  React:{createElement:(type,props,...children)=>({type,props,children})},
+  useRef:value=>{const ref={current:value};promptRefs.push(ref);return ref;},
+  promptResults
+};
+vm.createContext(dialogContext);
+vm.runInContext(transformSync(`${dialogSource}
+globalThis.promptTree=GameDialogModal({dialog:{id:1,type:'prompt',value:'景祐'},onResolve:value=>promptResults.push(value)});
+`,{presets:[presetReact]}).code,dialogContext);
+const promptNodes=(node)=>node?.children?[node,...node.children.flatMap(promptNodes)]:[];
+const textField=promptNodes(dialogContext.promptTree).find(node=>node.type==='input').props;
+const confirmPrompt=promptNodes(dialogContext.promptTree).filter(node=>node.type==='button')[1].props;
+textField.ref.current={value:'景祐ㄅ'};
+const imeEnter=(timeStamp,nativeEvent={})=>textField.onKeyDown({key:'Enter',timeStamp,nativeEvent,preventDefault(){}});
+assert(textField.defaultValue==='景祐'&&textField.value===undefined,'browser must own the composing text');
+textField.onCompositionStart();
+imeEnter(100);
+confirmPrompt.onClick();
+textField.ref.current.value='景祐寶';
+textField.onCompositionEnd({timeStamp:150});
+imeEnter(151);
+imeEnter(220,{keyCode:229});
+assert(promptResults.length===0,'candidate selection must never submit unfinished input');
+imeEnter(250);
+assert(promptResults.length===1&&promptResults[0]==='景祐寶','Enter after composition must submit committed Chinese text');
 assert(!modalSource.includes('完成 Google 登入'), 'manual cloud-login completion button remains');
 assert(modalSource.includes("beginCloudLogin('same_tab')")&&modalSource.includes('改在目前頁面登入'), 'same-tab OAuth fallback is missing');
 const cloudServer=read('CodeSave.js');
@@ -77,11 +106,12 @@ const cloudDriveFolder={
     const matches=[...cloudFiles.values()].filter(file=>file.getName()===name);
     return {hasNext:()=>matches.length>0,next:()=>matches.shift()};
   },
-  createFile:({name,raw})=>{
+  createFile:({name,raw,parent='folder'})=>{
     const id='file-'+(cloudFiles.size+1);
     let trashed=false;
     const file={
       getId:()=>id, getName:()=>name, getLastUpdated:()=>new Date(1000), isTrashed:()=>trashed,
+      getParents:()=>{let more=true;return {hasNext:()=>more,next:()=>{more=false;return {getId:()=>parent};}};},
       setTrashed:value=>{trashed=value;}, getBlob:()=>({getDataAsString:()=>raw})
     };
     cloudFiles.set(id,file);
@@ -152,6 +182,35 @@ assert(listCloudSaves('player').slots[1].status==='review'&&
 cloudRows.push([...cloudRows[0]]);
 assert(listCloudSaves('player').slots[0].status==='review'&&!loadCloudSave('player',1,2,synced.slotIdentity).ok,'duplicate index rows must not resolve to an arbitrary save');
 
+const legacyName=(user,slot)=>`save_${cloudApiContext.hash(user).slice(0,12)}_${slot}.json`;
+const putLegacy=(slot,gameId,payload,name=legacyName('player',slot),parent='folder')=>{
+  const file=cloudDriveFolder.createFile({name,raw:JSON.stringify(payload),parent});
+  cloudRows.push(['player',slot,'相容檔',file.getId(),1,1,'',1,gameId]);
+  return file;
+};
+putLegacy(3,'run_renamed',{gameState:cloudPayload('run_renamed','dynasty_renamed',4).gameState},'以前的存檔.json');
+const renamed=listCloudSaves('player').slots.find(slot=>slot.slot===3);
+assert(renamed.gameId==='run_renamed'&&loadCloudSave('player',3,1,renamed.slotIdentity).payload.logs.length===0,
+  'verified renamed legacy save should load even without historical logs');
+const inherited=cloudPayload('run_inherited','dynasty_inherited',1);
+inherited.gameState.emperorHistory=[{gameId:'run_predecessor',successorId:'heir'}];
+const originalRecovery=putLegacy(4,'run_predecessor',inherited);
+const recovery=listCloudSaves('player').slots.find(slot=>slot.slot===4);
+assert(recovery.status==='recoverable'&&!loadCloudSave('player',4,1,recovery.slotIdentity).ok&&
+  loadCloudSave('player',4,1,recovery.slotIdentity,true).payload.gameState.gameId==='run_inherited'&&
+  !loadCloudSave('player',4,1,'different-file',true).ok,'successor may only use the verified local recovery path');
+assert(!saveCloudGame('player',4,'新檔',inherited,1,'run_predecessor',recovery.slotIdentity).ok&&
+  !renameCloudSave('player',4,'改名',1,recovery.slotIdentity).ok&&!deleteCloudSave('player',4,1,recovery.slotIdentity).ok&&
+  !originalRecovery.isTrashed(),'local recovery must preserve the original slot and file');
+putLegacy(5,'run_foreign',cloudPayload('run_foreign','dynasty_foreign',5),legacyName('different-player',5));
+assert(listCloudSaves('player').slots.find(slot=>slot.slot===5).status==='review',
+  'a file with a foreign-managed filename must not bypass account checks, even with the same game ID');
+cloudRows.push(['different-player',3,'別的帳號',renamed.slotIdentity,1,1,'',4,'run_renamed']);
+assert(!loadCloudSave('player',3,1,renamed.slotIdentity).ok&&!loadCloudSave('different-player',3,1,renamed.slotIdentity).ok,
+  'a file referenced by more than one account must be unavailable to both');
+assert(listCloudSaves('player').slots.find(slot=>slot.slot===2).error.includes('垃圾桶'),
+  'the recoverability screen must explain known Drive errors');
+
 const cloudClient=read('AppState.html');
 const switchSource=cloudClient.slice(cloudClient.indexOf('        const applyLoadedCloudSave ='),cloudClient.indexOf('        const loadCloudSlot ='));
 const restoreSource=cloudClient.slice(cloudClient.indexOf('        const restoreCloudBinding='),cloudClient.indexOf('        useEffect(() => {',cloudClient.indexOf('        const restoreCloudBinding=')));
@@ -160,14 +219,15 @@ const identitySource=coreSource.slice(coreSource.indexOf('      const cloudDynas
 const clientWrites=[];
 let rejectLocalWrite=true;
 const cloudClientContext={
-  cloudUser:{id:'player'}, QING_SAVE_KEY:'qing_saveData',
+  cloudUser:{id:'player'}, cloudToken:'player', QING_SAVE_KEY:'qing_saveData',
   localStorage:{setItem:(key,value)=>{
     if(rejectLocalWrite)throw new Error('quota exceeded');
     clientWrites.push(['local',key,JSON.parse(value)]);
   }},
   normalizeLoadedGame:payload=>({...payload,betaPortraitAssignments:{}}), cleanGameStateForSave:state=>state,
   cloudBindingFor:record=>({slot:record.slot,gameId:record.gameId,dynastyId:record.dynastyId,userId:record.userId}),
-  bindCloudRecord:(record,binding)=>clientWrites.push(['bind',binding]), clearCloudSyncTimer(){},
+  bindCloudRecord:(record,binding)=>clientWrites.push(['bind',binding]),
+  clearCloudBinding:()=>clientWrites.push(['detach']),clearCloudSyncTimer(){},
   cloudPauseRef:{current:false}, setTimeout(){}, cancelCloudNewGame(){},
   cloudBindingRef:{current:{userId:'player',slot:1,revision:1,gameId:'run_old',dirty:false}},
   cloudLatestRef:{current:{isGameStarted:true,gameState:successor.gameState}},
@@ -201,6 +261,15 @@ const migratedBinding=clientWrites.find(([kind])=>kind==='binding')?.[1];
 assert(migratedBinding?.dynastyId==='dynasty_old'&&migratedBinding.gameId==='run_old'&&migratedBinding.dirty,
   'an unsynced legacy succession must keep its original slot and expected remote reign');
 
+clientWrites.length=0;
+const localRecoveryResponse=loadCloudSave('player',4,1,recovery.slotIdentity,true);
+try { cloudClientContext.applyLoadedCloudSave(localRecoveryResponse); } catch(error) { assert(error.message.includes('不符'),'unexpected recovery mode error'); }
+assert(clientWrites.length===0,'local-only response cannot be applied by the normal cloud load path');
+cloudClientContext.applyLoadedCloudSave(localRecoveryResponse,true);
+assert(clientWrites[0][0]==='local'&&clientWrites[0][2].cloudBinding===null&&
+  clientWrites[0][2].gameState.gameId==='run_inherited'&&!clientWrites.some(([kind])=>kind==='bind')&&
+  cloudClientContext.cloudContextRef.current.slot===null,'local recovery must update the browser save without binding or enabling sync');
+
 const preferenceSource=read('ClientPreferences.html');
 const audioContextMarker=preferenceSource.indexOf('      const usePlayerPreferences');
 assert(audioContextMarker>0,'missing player preferences hook');
@@ -219,9 +288,12 @@ const preferencesContext={
 };
 vm.createContext(preferencesContext);
 vm.runInContext(`${preferenceSource.slice(0,audioContextMarker)}
-Object.assign(globalThis,{normalizePreferences,readPlayerPreferences,rescuePersonKey,rescueNeedsPopup,createPalaceAudio});
+Object.assign(globalThis,{normalizePreferences,readPlayerPreferences,rescuePersonKey,rescueNeedsPopup,createPalaceAudio,eventOutcomeCue,defenseOutcomeCue});
 `,preferencesContext);
 const {normalizePreferences,readPlayerPreferences,rescuePersonKey,rescueNeedsPopup,createPalaceAudio}=preferencesContext;
+assert(preferencesContext.eventOutcomeCue(true)==='eventSuccess'&&preferencesContext.eventOutcomeCue(false)==='eventFailure'&&
+  preferencesContext.eventOutcomeCue(undefined)===null&&preferencesContext.defenseOutcomeCue(['win','loss'])==='mixed'&&
+  preferencesContext.defenseOutcomeCue(['draw'])==='draw','only actual outcomes should select distinct cues');
 const settingsDefault=readPlayerPreferences();
 assert(settingsDefault.muted&&settingsDefault.musicVolume===30&&settingsDefault.effectsVolume===45&&settingsDefault.report==='popup','old browser should retain visible notices and start muted');
 const dynasty={dynastyId:'dynasty_a',gameId:'run_old',childrenList:[{id:7,royalId:'royal_7',name:'幼名'}]};
@@ -450,4 +522,4 @@ const customState=portraits.normalizeEmperorAvatarState({gameId:'run-avatar',cur
 assert(customState.emperorAvatar.kind==='custom'&&Object.keys(customState.emperorAvatarAssets).length===1,'custom emperor avatar deduplication/pruning failed');
 assert(portraits.emperorLeaderboardAvatarPayload(customState).avatarValue===customAsset.leaderboard,'leaderboard thumbnail selection failed');
 
-console.log('Production verification passed: v1.4.5, Babel syntax, automatic OAuth handoff, cloud save integrity, IME-safe prompts, responsive recruit cards, player preferences and annual notices, 173 character IDs and 523 WebP assets.');
+console.log('Production verification passed: v1.4.6, Babel syntax, automatic OAuth handoff, cloud save integrity, IME-safe prompts, legacy cloud recovery, event and battle cues, responsive recruit cards, player preferences and annual notices, 173 character IDs and 523 WebP assets.');

@@ -19,6 +19,23 @@
         const scene=!isGameStarted||pendingCloudNewGameSlot?'title':['WAR','DEFEND'].includes(currentView)?'war':'court';
         const {preferences,change:changePreferences,reduceMotion,play:playPalaceCue}=usePlayerPreferences(scene);
         const togglePalaceAudio=()=>changePreferences({muted:!preferences.muted});
+        const playEventOutcome=success=>{
+            const cue=eventOutcomeCue(success);
+            if(cue)playPalaceCue(cue);
+        };
+        const playedCourtOutcomes=useRef(new WeakSet());
+        const pendingInvestigationCues=useRef(new Map());
+        const watchInvestigationOutcome=(key,readOutcome)=>{
+            pendingInvestigationCues.current.set(key,{gameId:gameState.gameId,readOutcome});
+        };
+        useEffect(()=>{
+            const pending=pendingInvestigationCues.current;
+            pendingInvestigationCues.current=new Map();
+            pending.forEach(({gameId,readOutcome})=>{
+                if(gameId===gameState.gameId)playEventOutcome(readOutcome(gameState));
+            });
+        },[gameState]);
+        const palaceDecisionBusyRef=useRef(false);
         const [treasuryTab,setTreasuryTab]=useState('BAG');
         const [inventoryFilter,setInventoryFilter]=useState('全部');
         const [selectedUseItemId,setSelectedUseItemId]=useState(null);
@@ -69,10 +86,11 @@
         const [feedbackMessage, setFeedbackMessage] = useState(null);
         const [gameDialog,setGameDialog]=useState(null);
         const gameDialogResolverRef=useRef(null);
+        const gameDialogIdRef=useRef(0);
         const openGameDialog=config=>new Promise(resolve=>{
             if(gameDialogResolverRef.current)gameDialogResolverRef.current(false);
             gameDialogResolverRef.current=resolve;
-            setGameDialog({...config,value:String(config.value??'')});
+            setGameDialog({...config,id:++gameDialogIdRef.current,value:String(config.value??'')});
         });
         const requestGameConfirm=(message,options={})=>openGameDialog({type:'confirm',message,...options});
         const requestGamePrompt=(message,value='',options={})=>openGameDialog({type:'prompt',message,value,...options});
@@ -223,7 +241,7 @@
             if(!local.isGameStarted||!cloudBindingMatches(binding,local.gameState))return false;
             const sameUser=String(result.user?.id)===String(binding.userId);
             const slot=(result.slots||[]).find(item=>Number(item.slot)===Number(binding.slot));
-            const sameSlot=slot&&!slot.empty&&slot.status!=='review'&&
+            const sameSlot=slot&&!slot.empty&&slot.status!=='review'&&slot.status!=='recoverable'&&
                 slot.dynastyId===cloudDynastyId(local.gameState)&&
                 (!binding.slotIdentity||binding.slotIdentity===slot.slotIdentity);
             if(!sameUser||!sameSlot||Number(slot.revision)!==Number(binding.revision)){
@@ -699,19 +717,27 @@
             saveCloudDraft(null);
             setPendingCloudNewGameSlot(null);
         };
-        const applyLoadedCloudSave = loaded => {
+        const applyLoadedCloudSave = (loaded, recoverLocal=false) => {
             const normalized=normalizeLoadedGame(loaded.payload);
-            if(!normalized||String(loaded.userId)!==String(cloudUser?.id)||!loaded.slotIdentity||
+            if(!normalized||!cloudUser||String(loaded.userId)!==String(cloudUser.id)||!loaded.slotIdentity||
+                (loaded.status==='recoverable')!==recoverLocal||
                 loaded.gameId!==String(normalized.gameState.gameId)||loaded.dynastyId!==cloudDynastyId(normalized.gameState)){
                 throw new Error('帳號、槽位或存檔內容不符，目前進度已保留。');
             }
-            const binding=cloudBindingFor(loaded);
+            const binding=recoverLocal?null:cloudBindingFor(loaded);
             // 一次寫入完整進度與綁定，成功後才切換畫面。
             localStorage.setItem(QING_SAVE_KEY,JSON.stringify({version:2,savedAt:Date.now(),
                 gameState:cleanGameStateForSave(normalized.gameState),logs:normalized.logs,
                 betaPortraitAssignments:normalized.betaPortraitAssignments,cloudBinding:binding}));
             clearCloudSyncTimer();cloudPauseRef.current=true;
-            bindCloudRecord(loaded,binding);
+            if(recoverLocal){
+                clearCloudBinding();setCloudGuard(null);cloudSyncBlockedRef.current=false;cloudDirtyRef.current=false;
+                cloudContextRef.current={token:cloudToken,slot:null,revision:0,name:''};
+                setCloudSlot(null);setCloudRevision(0);setCloudName('');setCloudSavedAt('');
+                setCloudStatus('本機進度・未連結');
+            }else{
+                bindCloudRecord(loaded,binding);
+            }
             setGameState(normalized.gameState);setBetaPortraitAssignments(normalized.betaPortraitAssignments||{});
             setLogs(normalized.logs);setIsGameStarted(true);setCurrentView('THRONE');
             setCurrentEvent(null);setYearReport(null);setShowVictoryModal(false);setShowHeirSelection(false);
@@ -722,32 +748,39 @@
 
         const loadCloudSlot = async slotRecord => {
             if(!cloudToken||!cloudUser||slotRecord.empty||slotRecord.status==='review'||cloudActionRef.current)return;
-            beginCloudAction(`正在讀取雲端槽位 ${slotRecord.slot}…`);
+            const recoverLocal=slotRecord.status==='recoverable';
+            const actionLabel=recoverLocal?'恢復到本機':'讀取雲端存檔';
+            beginCloudAction(`正在${actionLabel}（槽位 ${slotRecord.slot}）…`);
             try{
                 if(cloudWritingRef.current)throw new Error('同步進行中，請等候完成後再讀取。');
                 let confirmed=false;
                 if(isGameStarted&&cloudBindingMatches(cloudBindingRef.current,gameState)&&
                     (cloudDirtyRef.current||cloudBindingRef.current.dirty)){
-                    if(cloudGuard?.type==='conflict'){
+                    if(recoverLocal||cloudGuard?.type==='conflict'){
                         if(!await requestGameConfirm('目前局有未同步進度。請先下載本機備份，完成備份後可重新讀取並選擇取代。',{title:'保留未同步進度',confirmLabel:'下載本機備份'}))return;
                         handleDownloadBackup();
-                        confirmed=await requestGameConfirm('請確認備份已下載。讀取雲端存檔將取代此裝置目前未同步的進度。',{title:'讀取雲端存檔',confirmLabel:'取代並讀取'});
+                        confirmed=await requestGameConfirm(
+                            recoverLocal?'請確認備份已下載。恢復到本機會取代這台裝置的目前進度，並保留原雲端檔案。':
+                                '請確認備份已下載。讀取雲端存檔將取代這台裝置目前未同步的進度。',
+                            {title:actionLabel,confirmLabel:recoverLocal?'恢復到本機':'取代並讀取'});
                         if(!confirmed)return;
                     }else if(!await cloudSync(true)||cloudDirtyRef.current){
                         throw new Error('目前進度尚未同步，已保留原本遊戲。');
                     }
                 }
-                if(isGameStarted&&!confirmed&&!await requestGameConfirm(`讀取「${slotRecord.name}」會切換目前遊戲。是否繼續？`,{title:'讀取雲端存檔'}))return;
+                if((isGameStarted||recoverLocal)&&!confirmed&&!await requestGameConfirm(
+                    recoverLocal?`將「${slotRecord.name}」恢復成這台裝置的本機進度。原雲端存檔會保留。是否繼續？`:
+                        `讀取「${slotRecord.name}」會切換目前遊戲。是否繼續？`,{title:actionLabel}))return;
                 // 如果目前槽位在讀取前剛同步，清單上的版本可使用該次已確認的新版本。
                 const current=cloudBindingRef.current;
-                const revision=current?.slotIdentity===slotRecord.slotIdentity&&current.slot===slotRecord.slot
+                const revision=!recoverLocal&&current?.slotIdentity===slotRecord.slotIdentity&&current.slot===slotRecord.slot
                     ? Math.max(slotRecord.revision,current.revision):slotRecord.revision;
-                const loaded=await qingCloudGas('loadCloudSave',cloudToken,slotRecord.slot,revision,slotRecord.slotIdentity);
+                const loaded=await qingCloudGas('loadCloudSave',cloudToken,slotRecord.slot,revision,slotRecord.slotIdentity,recoverLocal);
                 if(loaded.slot!==slotRecord.slot||loaded.slotIdentity!==slotRecord.slotIdentity||loaded.revision!==revision){
                     throw new Error('雲端槽位已變更，未切換目前進度。');
                 }
-                applyLoadedCloudSave(loaded);
-                showMessage(`已讀取雲端槽位 ${slotRecord.slot}`,'success');
+                applyLoadedCloudSave(loaded,recoverLocal);
+                showMessage(recoverLocal?'已恢復到本機，原雲端存檔已保留。':`已讀取雲端槽位 ${slotRecord.slot}`,'success');
             }catch(error){
                 const result=await refreshCloudSlots(cloudToken).catch(()=>null);
                 if(result&&error.conflict)restoreCloudBinding(result,cloudToken);
@@ -2489,6 +2522,7 @@
                 if(!revivalAvailable)next={...next,pendingHaremNews:[...(next.pendingHaremNews||[]),{id:royalNewId('illness'),title:'後宮哀報・病逝',text:`${consortIdentity(patient)}（${patient.age}歲）${choice==='none'?'未及施救':'雖經太醫搶救'}，終因年高病重離世。已錄入歷代后妃名冊。`}]};
             }
             setGameState(normalizeRoyalState(next));
+            if(choice!=='none')playEventOutcome(saved);
         };
 
         const decideConsortCrisis=async option=>{
@@ -2513,13 +2547,20 @@
         };
         const decidePalaceEvent = async action => {
             const event=gameState.pendingPalaceEvent;
-            if (!event) return;
-            if (action==='execute' && !await requestGameConfirm(`罪證確鑿。確定下旨賜死「${event.culpritName}」？此決定不可撤銷。`,{title:'賜死裁決'})) return;
-            const next=applyPalaceDecision(gameState,action);
-            if (next===gameState){showMessage('國庫、體力不足，或尚不符合此項裁決條件');return;}
-            const energyCost=Math.max(0,(Number(gameState.energy)||0)-(Number(next.energy)||0));
-            if(!await confirmLowEnergySpend(energyCost,'處理宮廷事件'))return;
-            setGameState(next);
+            if(!event||palaceDecisionBusyRef.current)return;
+            palaceDecisionBusyRef.current=true;
+            try{
+                if(action==='execute'&&!await requestGameConfirm(`罪證確鑿。確定下旨賜死「${event.culpritName}」？此決定不可撤銷。`,{title:'賜死裁決'}))return;
+                const next=applyPalaceDecision(gameState,action);
+                if(next===gameState){showMessage('國庫、體力不足，或尚不符合此項裁決條件');return;}
+                const energyCost=Math.max(0,(Number(gameState.energy)||0)-(Number(next.energy)||0));
+                if(!await confirmLowEnergySpend(energyCost,'處理宮廷事件'))return;
+                const result=next.pendingPalaceEvent;
+                setGameState(next);
+                if(event.step!==result?.step&&['rescueResult','investigationResult'].includes(result?.step)){
+                    playEventOutcome(result.resultSuccess);
+                }
+            }finally{palaceDecisionBusyRef.current=false;}
         };
         const decideAnnualDraft=async accept=>{
             const offer=gameState.pendingAnnualDraft;
@@ -2552,7 +2593,11 @@
             if(target.lastInvestigatedYear===gameState.dynastyYear){showMessage('本案今年已經調查過了');return;}
             if(mode==='full'&&(gameState.treasury<200||gameState.energy<10)){showMessage('徹查需要200兩及10體力');return;}
             if(mode==='full'&&!await confirmLowEnergySpend(10,'徹查內廷案件'))return;
-            setGameState(prev=>investigatePalaceCase(prev,caseId,mode));
+            watchInvestigationOutcome(`palace:${caseId}`,state=>{
+                const result=state.pendingPalaceEvent;
+                return String(result?.id)===String(caseId)&&result.step==='investigationResult'?result.resultSuccess:undefined;
+            });
+            setGameState(prev=>prev.pendingPalaceEvent?prev:investigatePalaceCase(prev,caseId,mode));
             setShowPalaceCases(false);
         };
 

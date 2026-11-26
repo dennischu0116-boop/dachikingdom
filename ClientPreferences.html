@@ -69,7 +69,13 @@
       };
       const PALACE_CUES = {
           enthrone:[0,62,69,74], succession:[0,59,66,71], recruit:[-1,0,76],
-          report:[67,72], win:[0,60,64,67,72], loss:[0,64,62,57], draw:[62,67,62]
+          report:[67,72], win:[0,0,60,67,72], loss:[0,50,0,43], draw:[62,65,62],
+          mixed:[0,60,67,0,55], eventSuccess:[72,76,79], eventFailure:[62,57,53]
+      };
+      const eventOutcomeCue = success => typeof success==='boolean'?(success?'eventSuccess':'eventFailure'):null;
+      const defenseOutcomeCue = outcomes => {
+          const victory=outcomes.includes('win'), defeat=outcomes.includes('loss');
+          return victory&&defeat?'mixed':victory?'win':defeat?'loss':'draw';
       };
       const createPalaceAudio = AudioContextClass => {
           const context=new AudioContextClass();
@@ -151,9 +157,11 @@
               resume:()=>context.resume(), update,
               play:name=>{
                   if(!visible||preferences.muted||!preferences.effects||!preferences.effectsVolume||context.state!=='running')return;
+                  const horn=name==='win'||name==='mixed';
                   PALACE_CUES[name]?.forEach((midi,index)=>{
+                      const voice=midi===-1||(horn&&midi>0)?'triangle':'sine';
                       const cue=note(effects,midi,context.currentTime+.025+index*.115,midi===-1?.09:.46,
-                          midi===0?.22:.13,midi===-1?'triangle':'sine',ended=>activeCues.delete(ended));
+                          midi===0?.22:.13,voice,ended=>activeCues.delete(ended));
                       activeCues.add(cue);
                   });
               },

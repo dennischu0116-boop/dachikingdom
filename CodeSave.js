@@ -296,13 +296,17 @@ function qcsName_(name) {
 function qcsRows_(sheet, userId) {
   const last = sheet.getLastRow();
   if (last < 2) return [];
-  return sheet.getRange(2, 1, last - 1, QCS_HEADERS.length).getValues().map((r, i) => ({
+  const rows = sheet.getRange(2, 1, last - 1, QCS_HEADERS.length).getValues().map((r, i) => ({
     row: i + 2, userId: String(r[0]), slot: Number(r[1]), name: String(r[2]), fileId: String(r[3]),
     revision: Number(r[4]) || 0, updatedAt: Number(r[5]) || 0, eraName: String(r[6]), year: Number(r[7]) || 0, gameId: String(r[8]),
     emperorName: String(r[9] || ''), treasury: Number(r[10]) || 0, ministerCount: Number(r[11]) || 0,
     consortCount: Number(r[12]) || 0, descendantCount: Number(r[13]) || 0,
     unified: r[14] === true || String(r[14]).toLowerCase() === 'true'
-  })).filter(r => r.userId === userId);
+  }));
+  const references = new Map();
+  rows.forEach(row => references.set(row.fileId, (references.get(row.fileId) || 0) + 1));
+  return rows.filter(row => row.userId === userId)
+    .map(row => ({...row, fileReferences:references.get(row.fileId)}));
 }
 function qcsResult_(fn) {
   try { return fn(); }
@@ -347,34 +351,93 @@ function qcsRequirePayload_(payload) {
 function qcsFilePrefix_(userId, slot) {
   return 'save_' + qcsSha256_(userId).slice(0, 12) + '_' + slot;
 }
-function qcsReadFile_(row, includePayload) {
-  if (!row.fileId || !row.gameId || row.revision < 1) throw new Error('存檔索引不完整');
-  const file = DriveApp.getFileById(row.fileId);
-  if (file.isTrashed()) throw new Error('存檔已移至垃圾桶');
-  // Drive 的檔案狀態仍須每次核對；快取只用來避免重複下載與解析 JSON。
-  const cache = CacheService.getScriptCache();
-  const key = 'cloud-summary-' + qcsSha256_(JSON.stringify([row.userId, row.slot, row.fileId, row.gameId, row.revision, row.name, row.updatedAt, file.getLastUpdated().getTime(), file.getName()]));
-  if (!includePayload) {
-    const cached = cache.get(key);
-    if (cached) return JSON.parse(cached);
+function qcsFileReview_(code, playerMessage) {
+  const error = new Error(playerMessage);
+  error.reviewCode = code;
+  return error;
+}
+function qcsInSaveFolder_(file) {
+  const folderId = qcsProperties_().getProperty(QCS_PREFIX + 'FOLDER_ID');
+  if (!folderId) return false;
+  try {
+    const parents = file.getParents();
+    while (parents.hasNext()) {
+      if (parents.next().getId() === folderId) return true;
+    }
+  } catch (error) {
+    throw qcsFileReview_('unavailable', '存檔服務目前無法核對原檔的資料夾。');
   }
-  const stored = JSON.parse(file.getBlob().getDataAsString('UTF-8'));
-  const payload = stored?.cloudSaveFormat === 1 ? stored.payload : stored;
-  const summary = qcsSummary_(qcsRequirePayload_(payload));
-  if (summary.gameId !== row.gameId) throw new Error('索引與檔案的遊戲編號不符');
+  return false;
+}
+function qcsReadFile_(row, includePayload) {
+  if (!row.fileId || !row.gameId || row.revision < 1) throw qcsFileReview_('index', '存檔索引不完整，已保留此槽位。');
+  if (row.fileReferences !== 1) throw qcsFileReview_('shared_index', '這份檔案有不止一筆槽位索引，無法確認歸屬。');
+  let file, filename, trashed;
+  try {
+    file = DriveApp.getFileById(row.fileId);
+    trashed = file.isTrashed();
+    filename = trashed ? '' : file.getName();
+  } catch (error) {
+    throw qcsFileReview_('unavailable', '找不到雲端檔案，或存檔服務目前無法讀取。');
+  }
+  if (trashed) throw qcsFileReview_('trashed', '原檔目前在 Google Drive 垃圾桶。');
+  const legacyName = filename === qcsFilePrefix_(row.userId, row.slot) + '.json';
+  // 只快取使用標準檔名的結果；舊檔改名時每次重新核對資料夾及檔案內容。
+  let cache, key;
+  if (legacyName || filename.startsWith(qcsFilePrefix_(row.userId, row.slot) + '_')) {
+    try {
+      cache = CacheService.getScriptCache();
+      key = 'cloud-v146-' + qcsSha256_(JSON.stringify([row.userId,row.slot,row.fileId,row.gameId,row.revision,
+        row.name,row.updatedAt,file.getLastUpdated().getTime(),filename]));
+      if (!includePayload) {
+        const cached = cache.get(key);
+        if (cached) return JSON.parse(cached);
+      }
+    } catch (error) { cache = null; }
+  }
+  let raw;
+  try { raw = file.getBlob().getDataAsString('UTF-8'); }
+  catch (error) { throw qcsFileReview_('unavailable', '存檔服務目前無法讀取檔案內容。'); }
+  let stored, payload, game;
+  try {
+    stored = JSON.parse(raw);
+    if (stored?.cloudSaveFormat != null && stored.cloudSaveFormat !== 1) throw new Error('unsupported version');
+    payload = stored?.cloudSaveFormat === 1 ? stored.payload : stored;
+    // 舊版匯出可能沒有起居注；遊戲原本會以空白起居注載入。
+    if (stored?.cloudSaveFormat == null && payload?.gameState && payload.logs == null) payload = {...payload, logs:[]};
+    game = qcsRequirePayload_(payload);
+  } catch (error) {
+    throw qcsFileReview_('invalid_file', '檔案內容不完整，或存檔格式無法讀取。');
+  }
+  const summary = qcsSummary_(game);
+  const sameGame = summary.gameId === row.gameId;
   let slotIdentity = row.fileId;
   let creationId = '';
   if (stored?.cloudSaveFormat === 1) {
     if (stored.userId !== row.userId || stored.slot !== row.slot || !stored.slotIdentity ||
-        stored.dynastyId !== summary.dynastyId || !Number.isInteger(stored.fileRevision) ||
-        stored.fileRevision < 1 || stored.fileRevision > row.revision) throw new Error('檔案與帳號、槽位或版本不符');
+        stored.dynastyId !== summary.dynastyId) throw qcsFileReview_('ownership', '檔案與目前帳號或槽位不符。');
+    if (!Number.isInteger(stored.fileRevision) || stored.fileRevision < 1 || stored.fileRevision > row.revision) {
+      throw qcsFileReview_('revision', '檔案版本與槽位索引不符，請保留原槽位。');
+    }
     slotIdentity = stored.slotIdentity;
     creationId = stored.creationId || '';
-  } else if (file.getName() !== qcsFilePrefix_(row.userId, row.slot) + '.json') {
-    throw new Error('無法確認舊存檔的歸屬');
+  } else if (!legacyName && (/^save_[A-Za-z0-9_-]{12}_[1-5](?:_|\.json$)/.test(filename) ||
+      !sameGame || !qcsInSaveFolder_(file))) {
+    throw qcsFileReview_('ownership', '無法確認這份舊檔屬於目前帳號與槽位。');
+  }
+  if (!sameGame && !(Array.isArray(game.emperorHistory) &&
+      game.emperorHistory.some(reign => String(reign?.gameId || '') === row.gameId &&
+        String(reign?.successorId || '') && String(game.dynastyId || '')))) {
+    throw qcsFileReview_('game_id', '檔案的遊戲編號與槽位不同，且找不到可核對的承繼紀錄。');
   }
   const record = { slot:row.slot, name:row.name, revision:row.revision, updatedAt:row.updatedAt, slotIdentity, ...summary };
-  cache.put(key, JSON.stringify({record, creationId}), 300);
+  if (!sameGame) {
+    record.status = 'recoverable';
+    record.error = '找到同一王朝的承繼進度。可以恢復到本機，雲端原檔會保留。';
+  }
+  if (cache && key) {
+    try { cache.put(key, JSON.stringify({record, creationId}), 300); } catch (error) { /* 快取非必要。 */ }
+  }
   return { record, creationId, payload };
 }
 function listCloudSaves(sessionToken) {
@@ -391,13 +454,13 @@ function listCloudSaves(sessionToken) {
           continue;
         }
         try { slots.push(qcsReadFile_(matches[0], false).record); }
-        catch (error) { slots.push(qcsNeedsReview_(slot)); }
+        catch (error) { slots.push(qcsNeedsReview_(slot, error.reviewCode ? error.message : undefined)); }
       }
       return { ok:true, user:{id:user.id, name:user.name}, slots };
     });
   });
 }
-function loadCloudSave(sessionToken, slot, expectedRevision, expectedIdentity) {
+function loadCloudSave(sessionToken, slot, expectedRevision, expectedIdentity, recoverLocal) {
   return qcsResult_(() => {
     const user = qcsUser_(sessionToken), n = qcsSlot_(slot);
     return qcsLocked_(() => {
@@ -406,8 +469,12 @@ function loadCloudSave(sessionToken, slot, expectedRevision, expectedIdentity) {
       if (expectedRevision != null && matches[0].revision !== Number(expectedRevision)) return qcsConflict_('存檔已變更，請核對清單後再讀取。');
       let current;
       try { current = qcsReadFile_(matches[0], true); }
-      catch (error) { return qcsConflict_('雲端檔案需要核對，未讀取此槽位。'); }
+      catch (error) { return qcsConflict_(error.reviewCode ? error.message : '雲端檔案需要核對，未讀取此槽位。'); }
       if (expectedIdentity && current.record.slotIdentity !== expectedIdentity) return qcsConflict_('存檔已變更，請核對清單後再讀取。');
+      if ((current.record.status === 'recoverable') !== (recoverLocal === true) ||
+          (recoverLocal === true && (!expectedIdentity || expectedRevision == null))) {
+        return qcsConflict_('槽位的復原狀態已變更，請重新整理後再操作。');
+      }
       return { ok:true, userId:user.id, ...current.record, payload:current.payload };
     });
   });
@@ -429,6 +496,7 @@ function saveCloudGame(sessionToken, slot, name, payload, expectedRevision, expe
       if (matches.length > 1) return qcsConflict_('槽位有重複索引，無法安全寫入。');
       const old = matches[0];
       const current = old ? qcsReadFile_(old, false) : null;
+      if (current?.record.status === 'recoverable') return qcsConflict_('此槽位只能恢復到本機，原檔已保留。');
       if (current && expected === 0 && current.creationId === requestId && current.record.dynastyId === summary.dynastyId) {
         return {...qcsSaveReply_(current.record, user.id), payload:qcsReadFile_(old, true).payload};
       }
@@ -492,6 +560,7 @@ function renameCloudSave(sessionToken, slot, name, expectedRevision, expectedIde
       const sheet = qcsSheet_(), matches = qcsSlotRows_(qcsRows_(sheet, user.id), n);
       if (matches.length !== 1) return qcsConflict_('槽位已變更或需要核對。');
       const row = matches[0], {record} = qcsReadFile_(row, false);
+      if (record.status === 'recoverable') return qcsConflict_('此槽位只能恢復到本機，原檔已保留。');
       if (row.revision !== Number(expectedRevision) || (expectedIdentity && record.slotIdentity !== expectedIdentity)) return qcsConflict_('雲端版本已變更，請重新整理。');
       const label = qcsName_(name), revision = row.revision + 1, updatedAt = Date.now();
       sheet.getRange(row.row, 3, 1, 4).setValues([[label, row.fileId, revision, updatedAt]]);
@@ -507,6 +576,7 @@ function deleteCloudSave(sessionToken, slot, expectedRevision, expectedIdentity)
       const sheet = qcsSheet_(), rows = qcsRows_(sheet, user.id), matches = qcsSlotRows_(rows, n);
       if (matches.length !== 1) return qcsConflict_('槽位已變更或需要核對。');
       const row = matches[0], {record} = qcsReadFile_(row, false);
+      if (record.status === 'recoverable') return qcsConflict_('此槽位只能恢復到本機，原檔已保留。');
       if (row.revision !== Number(expectedRevision) || (expectedIdentity && record.slotIdentity !== expectedIdentity)) return qcsConflict_('雲端版本已變更，請重新整理。');
       sheet.deleteRow(row.row);
       SpreadsheetApp.flush();

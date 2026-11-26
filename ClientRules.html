@@ -668,7 +668,7 @@
           let next={...state,treasury:state.treasury-cost,energy:state.energy-energy,
               palaceCases:(state.palaceCases||[]).map(c=>String(c.id)===String(id)?updated:c),
               pendingPalaceEvent:{id:item.id,type:item.type,title:item.title,tier:'major',
-                  step:'investigationResult',resultText:updated.notes,
+                  step:'investigationResult',resultText:updated.notes,resultSuccess:success,
                   culpritId:item.culpritId,culpritName:item.culpritName,
                   victimId:item.victimId,victimName:item.victimName}};
           return palaceNote(next,`【內廷調查】${item.title}：${updated.notes}`);
@@ -773,7 +773,7 @@
               if (event.type==='pregnancy' && success) next.consorts=next.consorts.map(c=>String(c.id)===String(event.victimId)&&c.pregnancy?
                   {...c,pregnancy:{...c.pregnancy,hazardCheckedYear:next.dynastyYear}}:c);
               const lastNote=(next.palaceChronicle||[]).slice(-1)[0]?.text||'太醫已完成救治。';
-              next.pendingPalaceEvent={...event,step:'rescueResult',resultText:lastNote};
+              next.pendingPalaceEvent={...event,step:'rescueResult',resultText:lastNote,resultSuccess:success};
               markKnown([String(event.attackerId),String(event.victimId)]);
           } else if (event.step==='investigation') {
               if (action==='postpone') {
