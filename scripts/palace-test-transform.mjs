@@ -8,7 +8,7 @@ export function palaceTestTransform(name, source) {
 {version:'宮廷地圖測試版',title:'全景宮廷・固定資源與待辦',details:['新增原創宮廷全景、建築牌匾與快捷導覽。拖曳地圖或使用方向鍵探索，以右上角按鈕縮放。','頂部資源與御前待辦保持固定；點擊待辦前往任命、戰線或生死裁決，手機可收合面板。','點擊宮殿開啟既有功能，戶部與朝政入口保留完整政務操作；返回地圖保留原本視角。結束本年仍遵守原有條件。','測試版免登入，沿用獨立本機存檔，排行榜為固定假資料；減少動畫設定會關閉落花。玩法、數值與存檔格式不變。']},`);
   if(name==='Styles.html')text+='\n'+fs.readFileSync('scripts/fixtures/palace-map.css','utf8');
   if(name==='AppState.html') {
-    swap("const [currentView, setCurrentView] = useState('THRONE');", "const [currentView, setCurrentView] = useState('THRONE');\nconst [palacePanel,setPalacePanel]=useState(false);\nuseEffect(()=>{setPalacePanel(false);},[currentView]);");
+    swap("const [currentView, setCurrentView] = useState('THRONE');", "const [currentView, setPalaceCurrentView] = useState('THRONE');\nconst [palacePanel,setPalacePanel]=useState(false);\nconst setCurrentView=value=>{setPalacePanel(false);setPalaceCurrentView(value);};");
   }
   if(name==='AppWarAndMain.html') {
     swap('className="min-h-screen bg-[#fdfbf7]', 'className="palace-shell min-h-screen bg-[#fdfbf7]');
