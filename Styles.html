@@ -34,10 +34,13 @@
           border:0; border-radius:12px; background:transparent; perspective:1100px;
           color:inherit; cursor:default;
         }
+        .recruit-reveal-grid.is-ten { grid-template-columns:repeat(5,minmax(0,1fr)); }
+        .recruit-reveal-grid.is-single-grid { grid-template-columns:minmax(0,1fr); }
         .recruit-flip-card.is-single { max-width:270px; }
         .recruit-flip-inner {
           position:relative; display:block; width:100%; height:100%; min-height:255px;
           transform-style:preserve-3d; transition:transform .68s cubic-bezier(.2,.75,.25,1);
+          will-change:transform; isolation:isolate;
         }
         .recruit-flip-card.is-single .recruit-flip-inner { min-height:360px; }
         .recruit-flip-card.is-revealed .recruit-flip-inner { transform:rotateY(180deg); }
@@ -45,9 +48,12 @@
           position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
           padding:10px; border-radius:12px; overflow:hidden; backface-visibility:hidden; -webkit-backface-visibility:hidden;
           box-shadow:0 10px 24px rgba(0,0,0,.42);
+          transform-style:preserve-3d; -webkit-transform-style:preserve-3d;
+          transition:visibility 0s .34s;
         }
         .recruit-flip-back {
           color:#ffedb5; border:3px double #d69e2e;
+          z-index:2; transform:rotateY(0deg) translateZ(1px); -webkit-transform:rotateY(0deg) translateZ(1px);
           background:
             linear-gradient(45deg,transparent 46%,rgba(251,191,36,.16) 48% 52%,transparent 54%),
             radial-gradient(circle,#7f1d1d,#450a0a 72%);
@@ -58,7 +64,9 @@
         .recruit-flip-back::after { inset:14px; border-style:dotted; }
         .recruit-flip-back b { position:relative; z-index:1; font-family:serif; font-size:1.15rem; letter-spacing:.12em; }
         .recruit-flip-back span,.recruit-flip-back small { position:relative; z-index:1; margin-top:6px; font-size:.7rem; opacity:.82; }
-        .recruit-flip-front { transform:rotateY(180deg); justify-content:flex-start; border:3px double #a16207; color:#292524; }
+        .recruit-flip-front { z-index:1; visibility:hidden; transform:rotateY(180deg) translateZ(1px); -webkit-transform:rotateY(180deg) translateZ(1px); justify-content:flex-start; border:3px double #a16207; color:#292524; }
+        .recruit-flip-card.is-revealed .recruit-flip-back { visibility:hidden; }
+        .recruit-flip-card.is-revealed .recruit-flip-front { visibility:visible; }
         .recruit-flip-front.rarity-common { background:linear-gradient(145deg,#fffdf3,#f5e6be); }
         .recruit-flip-front.rarity-historical { background:linear-gradient(145deg,#eff6ff,#dbeafe 55%,#fef3c7); border-color:#2563eb; box-shadow:0 0 24px rgba(59,130,246,.6),0 10px 24px rgba(0,0,0,.42); }
         .recruit-flip-front.rarity-legendary { background:linear-gradient(145deg,#fff7ed,#fde68a 52%,#fecaca); border-color:#dc2626; box-shadow:0 0 32px rgba(250,204,21,.85),0 10px 24px rgba(0,0,0,.42); }
@@ -225,6 +233,17 @@
           .recruit-card-headshot { width:96px; height:96px; }
           .consort-lantern { top:4%; font-size:3rem; }
         }
+        @media(max-width:899px) {
+          .recruit-reveal-grid.is-ten { grid-template-columns:repeat(3,minmax(0,1fr)); }
+        }
+        @media(max-width:639px) {
+          .recruit-reveal-grid.is-ten { grid-template-columns:repeat(2,minmax(0,1fr)); }
+          .recruit-flip-card { max-width:180px; }
+        }
+        @media(max-width:359px) {
+          .recruit-reveal-grid.is-ten { grid-template-columns:minmax(0,1fr); }
+          .recruit-flip-card { max-width:190px; }
+        }
         @media(max-width:720px) {
           .minister-list-headshot { width:80px; height:80px; }
           .minister-detail-shell { width:96vw; max-height:94dvh; }
@@ -257,6 +276,7 @@
         }
         @media(prefers-reduced-motion:reduce) {
           .recruit-flip-inner { transition-duration:.01ms; }
+          .recruit-flip-face { transition-delay:0s; }
           .consort-intimacy-heart { animation:none; }
           .consort-lantern { animation:none; }
           .consort-visit-panel { animation-duration:.01ms; }

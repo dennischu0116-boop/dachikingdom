@@ -160,6 +160,8 @@
         const cloudSyncBlockedRef = useRef(false);
         const cloudSessionCheckRef=useRef(null);
         const cloudSessionCheckBusyRef=useRef(false);
+        const cloudLoginPollBusyRef=useRef(false);
+        const cloudLoginPopupRef=useRef(null);
         const saveCloudBinding=binding=>{setCloudBinding(binding);writeCloudBinding(binding);};
         const clearCloudBinding=()=>{setCloudBinding(null);writeCloudBinding(null);};
         const pauseForCloudError=error=>{
@@ -518,37 +520,81 @@
             return ()=>{window.removeEventListener('focus',check);document.removeEventListener('visibilitychange',check);};
         },[]);
 
-        const beginCloudLogin = async () => {
-            const popup=window.open('about:blank','qing_google_login','popup,width=520,height=720');
+        const beginCloudLogin = async (mode='popup') => {
+            const sameTab=mode==='same_tab';
+            const popup=sameTab?null:window.open('about:blank','qing_google_login','popup,width=520,height=720');
             setCloudBusy(true);
             setCloudStatus('正在建立 Google 授權…');
             try{
-                const result=await qingCloudGas('getGoogleAuthUrl');
+                const result=await qingCloudGas('getGoogleAuthUrl',sameTab?'same_tab':'popup');
                 setCloudLoginState(result.state);
                 setCloudAuthUrl(result.url);
                 try{sessionStorage.setItem('qing_cloud_oauth_state',result.state);}catch(error){}
-                if(popup)popup.location.href=result.url;
-                else showMessage('瀏覽器阻擋了登入視窗，請按面板中的「重新開啟 Google 授權」','error');
-                setCloudStatus('等待 Google 授權完成');
+                if(sameTab){
+                    setCloudStatus('正在前往 Google 登入…');
+                    window.location.assign(result.url);
+                    return;
+                }
+                if(popup){cloudLoginPopupRef.current=popup;popup.location.href=result.url;}
+                else showMessage('瀏覽器阻擋了登入視窗，可重新開啟授權或改在目前頁面登入。','error');
+                setCloudStatus('等待 Google 授權完成・完成後將自動登入');
             }catch(error){
                 if(popup)popup.close();
                 setCloudStatus('登入啟動失敗');showMessage(error.message||'無法開啟 Google 登入','error');
             }finally{setCloudBusy(false);}
         };
 
-        const completeCloudLogin = async () => {
-            if(!cloudLoginState){showMessage('請先按「使用 Google 帳號登入」完成授權','error');return;}
-            setCloudBusy(true);setCloudStatus('正在完成 Google 登入…');
+        const finishCloudLogin = async state => {
+            if(!state||cloudLoginPollBusyRef.current||cloudToken)return 'pending';
+            cloudLoginPollBusyRef.current=true;
             try{
-                const handoff=await qingCloudGas('consumeCloudLoginHandoff',cloudLoginState);
+                const handoff=await qingCloudGas('consumeCloudLoginHandoff',state);
+                if(handoff?.pending)return 'pending';
                 const result=await refreshCloudSlots(handoff.sessionToken);
                 setCloudToken(handoff.sessionToken);setCloudUser(result.user||null);setCloudLoginState('');setCloudAuthUrl('');
                 try{sessionStorage.setItem('qing_cloud_session',handoff.sessionToken);sessionStorage.removeItem('qing_cloud_oauth_state');}catch(error){}
                 if(!restoreCloudBinding(result,handoff.sessionToken))setCloudStatus(`已登入：${result.user?.name||'Google 玩家'}`);
+                if(cloudLoginPopupRef.current&&!cloudLoginPopupRef.current.closed)cloudLoginPopupRef.current.close();
+                cloudLoginPopupRef.current=null;
                 showMessage('Google 帳號登入成功','success');
-            }catch(error){setCloudStatus('尚未取得登入結果');showMessage(error.message||'Google 登入尚未完成','error');}
-            finally{setCloudBusy(false);}
+                return 'success';
+            }catch(error){
+                setCloudLoginState('');setCloudAuthUrl('');setCloudStatus('Google 登入未完成');
+                try{sessionStorage.removeItem('qing_cloud_oauth_state');}catch(ignore){}
+                showMessage(error.message||'Google 登入未完成','error');
+                return 'error';
+            }finally{cloudLoginPollBusyRef.current=false;}
         };
+
+        useEffect(()=>{
+            if(!cloudLoginState)return;
+            if(cloudToken){
+                setCloudLoginState('');setCloudAuthUrl('');
+                try{sessionStorage.removeItem('qing_cloud_oauth_state');}catch(ignore){}
+                return;
+            }
+            let active=true,timer=null,attempts=0;
+            const deadline=Date.now()+QING_CLOUD_LOGIN_TIMEOUT_MS;
+            const poll=async()=>{
+                if(!active)return;
+                if(timer){clearTimeout(timer);timer=null;}
+                const result=await finishCloudLogin(cloudLoginState);
+                if(!active||result!=='pending')return;
+                if(Date.now()>=deadline){
+                    setCloudLoginState('');setCloudAuthUrl('');setCloudStatus('Google 登入已逾時');
+                    try{sessionStorage.removeItem('qing_cloud_oauth_state');}catch(ignore){}
+                    showMessage('Google 登入已逾時，請重新登入。','error');
+                    return;
+                }
+                attempts+=1;
+                timer=setTimeout(poll,attempts<20?1500:5000);
+            };
+            const resume=()=>{if(document.visibilityState==='visible')poll();};
+            poll();
+            window.addEventListener('focus',resume);
+            document.addEventListener('visibilitychange',resume);
+            return ()=>{active=false;if(timer)clearTimeout(timer);window.removeEventListener('focus',resume);document.removeEventListener('visibilitychange',resume);};
+        },[cloudLoginState,cloudToken]);
 
         const cloudLogout = async () => {
             const storedBinding=readCloudBinding();

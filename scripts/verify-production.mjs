@@ -12,9 +12,9 @@ const assert = (condition, message) => { if (!condition) throw new Error(message
 
 const packageJson = JSON.parse(read('package.json'));
 const manifest = JSON.parse(read('assets/characters/manifest.json'));
-assert(packageJson.version === '1.4.2', 'package.json must be v1.4.2');
+assert(packageJson.version === '1.4.3', 'package.json must be v1.4.3');
 assert(manifest.version === 'v1.4.2' && manifest.status === 'PRODUCTION', 'character manifest is not production v1.4.2');
-assert(read('ClientCore.html').includes('const APP_VERSION = "v1.4.2"'), 'ClientCore version mismatch');
+assert(read('ClientCore.html').includes('const APP_VERSION = "v1.4.3"'), 'ClientCore version mismatch');
 assert(/const QING_SAVE_KEY\s*=\s*'qing_saveData'/.test(read('ClientShell.html')), 'production save key is missing');
 assert(read('Index.html').includes('https://unpkg.com/@babel/standalone@7.28.5/babel.min.js'), 'browser Babel version must stay pinned to 7.28.5');
 assert(read('ImageBeta.html').includes('const BETA_IMAGE_BASE=String(globalThis.QING_IMAGE_BETA_ASSET_BASE || "https://'), 'production image base must use the GAS-safe single-line literal');
@@ -23,6 +23,17 @@ assert(read('AppWarAndMain.html').includes('className="game-main-surface ') && r
 assert(read('AppWarAndMain.html').includes("onClick={()=>setShowCloudPanel(true)}") && read('AppWarAndMain.html').includes("cloudSlot?`槽位 ${cloudSlot}`:'雲端已登入'"), 'in-game cloud slot button is missing');
 assert(read('AppWarAndMain.html').includes('appBooting&&<AppLoadingScreen/>') && !read('AppWarAndMain.html').includes('appBooting||cloudSessionChecking'), 'cloud session checks must not trigger the full-screen loader');
 assert(read('AppWarAndMain.html').includes("cloudSessionChecking?'雲端核對中…'"), 'cloud session check needs a non-blocking status indicator');
+const modalSource=read('AppModals.html');
+assert(modalSource.includes("!event.nativeEvent?.isComposing&&event.keyCode!==229"), 'text prompts must not submit while a Chinese IME is composing');
+assert(!modalSource.includes('完成 Google 登入'), 'manual cloud-login completion button remains');
+assert(modalSource.includes("beginCloudLogin('same_tab')")&&modalSource.includes('改在目前頁面登入'), 'same-tab OAuth fallback is missing');
+const cloudServer=read('CodeSave.js');
+assert(cloudServer.includes("mode === 'same_tab'")&&cloudServer.includes('window.location.replace('), 'same-tab OAuth return is missing');
+assert(cloudServer.includes('setTimeout(function(){window.close();},700)')&&cloudServer.includes('pending: true'), 'automatic popup close or pending handoff response is missing');
+assert(read('AppState.html').includes("setTimeout(poll,attempts<20?1500:5000)")&&read('AppState.html').includes("consumeCloudLoginHandoff")&&read('AppState.html').includes('visibilitychange'), 'automatic OAuth handoff polling is missing');
+const styleSource=read('Styles.html');
+assert(styleSource.includes('.recruit-flip-card.is-revealed .recruit-flip-back { visibility:hidden; }'), 'revealed recruit cards do not hide the exam-card back');
+assert(styleSource.includes('@media(max-width:899px)')&&styleSource.includes('@media(max-width:359px)'), 'responsive recruit-card breakpoints are missing');
 assert(read('ClientContent.html').includes('const enemyHomelandOccupation = (state, enemyName) =>'), 'foreign occupation resolver is missing');
 assert(read('AppWarAndMain.html').includes('displacedHomeland=enemyHomelandOccupation(gameState,target.name)') && read('AppWarAndMain.html').includes('請改為攻打${displacedHomeland.occupier}收復失土'), 'foreign-occupied homeland attack guard is missing');
 assert(read('AppWarAndMain.html').includes('舊地遭${displacedHomeland.occupier}佔領'), 'foreign occupation target status is missing');
@@ -42,6 +53,23 @@ assert(!fs.existsSync(path.join(root, 'BetaServer.js')), 'BetaServer.js must not
 for (const required of ['程式碼.js', 'CodeSave.js', 'Index.html']) {
   assert(fs.existsSync(path.join(root, required)), `missing production source: ${required}`);
 }
+
+const handoffValues=new Map();
+const handoffProperties={
+  getProperty:key=>handoffValues.has(key)?handoffValues.get(key):null,
+  setProperty:(key,value)=>handoffValues.set(key,value),
+  deleteProperty:key=>handoffValues.delete(key)
+};
+const cloudSaveContext={console:{error(){},warn(){},log(){}},PropertiesService:{getScriptProperties:()=>handoffProperties}};
+cloudSaveContext.globalThis=cloudSaveContext;
+vm.runInNewContext(`${read('CodeSave.js')}\nglobalThis.__consumeCloudLoginHandoff=consumeCloudLoginHandoff;`,cloudSaveContext);
+const handoffState='a'.repeat(64),handoffKey=`QING_OAUTH_HANDOFF_${handoffState}`;
+assert(cloudSaveContext.__consumeCloudLoginHandoff(handoffState).pending===true,'unfinished OAuth handoff must remain pending');
+handoffValues.set(handoffKey,JSON.stringify({sessionToken:'session-token',createdAt:Date.now()}));
+assert(cloudSaveContext.__consumeCloudLoginHandoff(handoffState).sessionToken==='session-token','completed OAuth handoff was not consumed');
+handoffValues.set(handoffKey,JSON.stringify({error:'玩家取消授權',createdAt:Date.now()}));
+const failedHandoff=cloudSaveContext.__consumeCloudLoginHandoff(handoffState);
+assert(failedHandoff.ok===false&&failedHandoff.error.includes('玩家取消授權'),'OAuth callback failure was not returned to the game');
 
 const includePattern = /<\?!=\s*include\(['"]([^'"]+)['"]\);\s*\?>/g;
 const compiled = read('Index.html').replace(includePattern, (_, name) => read(`${name}.html`));
@@ -174,4 +202,4 @@ const customState=portraits.normalizeEmperorAvatarState({gameId:'run-avatar',cur
 assert(customState.emperorAvatar.kind==='custom'&&Object.keys(customState.emperorAvatarAssets).length===1,'custom emperor avatar deduplication/pruning failed');
 assert(portraits.emperorLeaderboardAvatarPayload(customState).avatarValue===customAsset.leaderboard,'leaderboard thumbnail selection failed');
 
-console.log('Production verification passed: v1.4.2, Babel syntax, GAS target, 173 character IDs, 4 emperor avatars and 523 WebP assets.');
+console.log('Production verification passed: v1.4.3, Babel syntax, automatic OAuth handoff, IME-safe prompts, responsive recruit cards, 173 character IDs and 523 WebP assets.');

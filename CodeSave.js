@@ -57,13 +57,14 @@ function getCloudPublicConfig() {
 }
 
 /** 建立一次性 OAuth state，支援多個玩家同時開啟登入流程。 */
-function getGoogleAuthUrl() {
+function getGoogleAuthUrl(mode) {
   try {
     const clientId = qcsClientId_();
     if (!clientId || !qcsClientSecret_()) throw new Error('管理員尚未設定 QING_CLOUD_CLIENT_ID／QING_OAUTH_CLIENT_SECRET');
     const state = qcsRandom_();
     const nonce = qcsRandom_();
-    qcsProperties_().setProperty(QCS_OAUTH_STATE_PREFIX + state, JSON.stringify({ nonce, createdAt: Date.now() }));
+    const loginMode = mode === 'same_tab' ? 'same_tab' : 'popup';
+    qcsProperties_().setProperty(QCS_OAUTH_STATE_PREFIX + state, JSON.stringify({ nonce, loginMode, createdAt: Date.now() }));
     const params = {
       client_id: clientId,
       redirect_uri: qcsRedirectUri_(),
@@ -75,7 +76,7 @@ function getGoogleAuthUrl() {
       prompt: 'select_account'
     };
     const query = Object.keys(params).map(k => encodeURIComponent(k) + '=' + encodeURIComponent(params[k])).join('&');
-    return { ok: true, url: 'https://accounts.google.com/o/oauth2/v2/auth?' + query, state };
+    return { ok: true, url: 'https://accounts.google.com/o/oauth2/v2/auth?' + query, state, loginMode };
   } catch (e) {
     console.error('getGoogleAuthUrl: ' + e);
     return { ok: false, error: String(e.message || e) };
@@ -85,27 +86,31 @@ function getGoogleAuthUrl() {
 /**
  * OAuth 回呼：使用一次性 handoff，不依賴 window.opener / postMessage。
  * Google 登入頁可能因 Cross-Origin-Opener-Policy 切斷 popup opener，
- * 因此回呼只把短效 handoff 寫入 Script Properties，玩家再回原遊戲分頁兌換。
+ * 因此回呼只把短效 handoff 寫入 Script Properties，原遊戲分頁會自動輪詢兌換。
  */
 function qcsOAuthCallback_(e) {
   const p = (e && e.parameter) || {};
   const state = String(p.state || '');
   let message = '';
   let success = false;
+  let props = null;
+  let stateData = null;
+  let loginMode = 'popup';
   try {
-    if (p.error) throw new Error('Google 授權未完成：' + String(p.error).slice(0, 120));
-    const code = String(p.code || '');
-    if (!code || !/^[a-f0-9]{64}$/.test(state)) throw new Error('OAuth 回呼資料不完整，請重新登入');
-
-    const props = qcsProperties_();
+    if (!/^[a-f0-9]{64}$/.test(state)) throw new Error('OAuth 回呼資料不完整，請重新登入');
+    props = qcsProperties_();
     const stateKey = QCS_OAUTH_STATE_PREFIX + state;
     const rawState = props.getProperty(stateKey);
     if (!rawState) throw new Error('登入驗證已逾時或已使用，請重新登入');
     props.deleteProperty(stateKey);
-    const stateData = JSON.parse(rawState);
+    stateData = JSON.parse(rawState);
+    loginMode = stateData.loginMode === 'same_tab' ? 'same_tab' : 'popup';
     if (!stateData.createdAt || Date.now() - Number(stateData.createdAt) > QCS_OAUTH_STATE_TTL_MS) {
       throw new Error('登入驗證已逾時，請重新登入');
     }
+    if (p.error) throw new Error('Google 授權未完成：' + String(p.error).slice(0, 120));
+    const code = String(p.code || '');
+    if (!code) throw new Error('OAuth 回呼資料不完整，請重新登入');
 
     const tokenResponse = UrlFetchApp.fetch('https://oauth2.googleapis.com/token', {
       method: 'post',
@@ -146,14 +151,25 @@ function qcsOAuthCallback_(e) {
       sessionToken, createdAt: Date.now()
     }));
     success = true;
-    message = 'Google 帳號授權成功！請回到原本的大清帝國遊戲分頁，按下「完成 Google 登入」按鈕。';
+    message = loginMode === 'same_tab'
+      ? 'Google 帳號授權成功，正在自動返回大清帝國。'
+      : 'Google 帳號授權成功，原本的遊戲分頁將自動完成登入。';
   } catch (err) {
     console.error('OAuth callback: ' + err);
     message = '登入未完成：' + String(err.message || err);
+    if (props && stateData && /^[a-f0-9]{64}$/.test(state)) {
+      props.setProperty(QCS_HANDOFF_PREFIX + state, JSON.stringify({
+        error: String(err.message || err), createdAt: Date.now()
+      }));
+    }
   }
 
   const safeMessage = qcsHtmlEscape_(message);
   const closeButton = '<button onclick="window.close()" style="margin-top:14px;padding:10px 18px;border:0;border-radius:8px;background:#e7e5e4;color:#292524;font-weight:bold">關閉此登入視窗</button>';
+  const returnUrl = qcsSafeJsonForHtml_(qcsRedirectUri_());
+  const automaticAction = loginMode === 'same_tab'
+    ? '<script>setTimeout(function(){window.location.replace(' + returnUrl + ');},900);</script>'
+    : success ? '<script>setTimeout(function(){window.close();},700);</script>' : '';
   return HtmlService.createHtmlOutput(
     '<!doctype html><html><head><meta charset="utf-8">' +
     '<meta name="viewport" content="width=device-width,initial-scale=1">' +
@@ -161,7 +177,8 @@ function qcsOAuthCallback_(e) {
     '<body style="font-family:Arial,sans-serif;padding:28px;text-align:center;background:#fffdf5;color:#292524">' +
     '<h2>' + (success ? 'Google 授權成功' : 'Google 登入未完成') + '</h2>' +
     '<p style="line-height:1.8">' + safeMessage + '</p>' + closeButton +
-    '<p style="font-size:12px;color:#78716c;margin-top:22px">請不要關閉原本的遊戲分頁；完成登入請回到遊戲操作。</p>' +
+    '<p style="font-size:12px;color:#78716c;margin-top:22px">若瀏覽器未自動關閉或返回，可使用上方按鈕後回到遊戲。</p>' +
+    automaticAction +
     '</body></html>'
   );
 }
@@ -179,9 +196,10 @@ function consumeCloudLoginHandoff(state) {
     const props = qcsProperties_();
     const key = QCS_HANDOFF_PREFIX + keyState;
     const raw = props.getProperty(key);
-    if (!raw) throw new Error('登入結果尚未完成或已使用，請重新登入');
+    if (!raw) return { ok: true, pending: true };
     props.deleteProperty(key);
     const handoff = JSON.parse(raw);
+    if (handoff.error) throw new Error(String(handoff.error));
     if (!handoff.sessionToken || !handoff.createdAt ||
         Date.now() - Number(handoff.createdAt) > QCS_HANDOFF_TTL_MS) {
       throw new Error('登入結果已逾時，請重新登入');

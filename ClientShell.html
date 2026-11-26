@@ -14,7 +14,7 @@
               .withFailureHandler(error => reject(new Error(error?.message || String(error || '雲端服務連線失敗'))));
           try {
               if (method === 'getCloudPublicConfig') runner.getCloudPublicConfig();
-              else if (method === 'getGoogleAuthUrl') runner.getGoogleAuthUrl();
+              else if (method === 'getGoogleAuthUrl') runner.getGoogleAuthUrl(...args);
               else if (method === 'consumeCloudLoginHandoff') runner.consumeCloudLoginHandoff(...args);
               else if (method === 'logoutCloudSession') runner.logoutCloudSession(...args);
               else if (method === 'listCloudSaves') runner.listCloudSaves(...args);
