@@ -32,4 +32,8 @@ jobs:
           chmod 600 "$HOME/.clasprc.json"
       - name: Push only to test GAS
         working-directory: .gas-test
-        run: npx --yes @google/clasp@3.4.1 push
+        shell: bash
+        run: |
+          set -o pipefail
+          npx --yes @google/clasp@3.4.1 push --force 2>&1 | tee /tmp/gas-test-push.log
+          grep -Eq 'Pushed 16 files' /tmp/gas-test-push.log
