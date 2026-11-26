@@ -119,7 +119,7 @@
         const RecruitRevealModal = () => {
             const results=Array.isArray(recruitReveal?.results)?recruitReveal.results:[];
             const hasResults=results.length>0;
-            const [phase,setPhase]=useState(()=>window.matchMedia?.('(prefers-reduced-motion: reduce)').matches?'revealed':'covered');
+            const [phase,setPhase]=useState(()=>reduceMotion?'revealed':'covered');
             const flipHalfMs=340;
             const revealed=phase==='revealed';
             useEffect(()=>{
@@ -129,6 +129,8 @@
                 const timer=setTimeout(()=>setPhase(current=>current===phase?nextPhase:current),isCovered?450:2*flipHalfMs);
                 return ()=>clearTimeout(timer);
             },[hasResults,phase]);
+            useEffect(()=>{if(hasResults&&revealed)cueRecruitReveal();},[hasResults,revealed]);
+            useEffect(()=>{if(reduceMotion)setPhase('revealed');},[reduceMotion]);
             if(!hasResults)return null;
             const finish=()=>{
                 const isTen=results.length>1;
@@ -430,17 +432,58 @@
             );
         };
 
+        const DeathRescueModal = () => {
+            const candidates=showFullRescue?rescueCandidates:popupRescues;
+            const pillCount=Number(gameState.inventory?.revival_pill)||0;
+            const hiddenCount=rescueCandidates.length-candidates.length;
+            return <div className="fixed inset-0 z-[190] bg-black/80 flex items-center justify-center p-3" role="dialog" aria-modal="true" aria-label="九轉還魂救治">
+                <div className="bg-white border-4 border-amber-500 rounded-xl max-w-2xl w-full max-h-full flex flex-col overflow-hidden">
+                    <div className="screen-modal-header shrink-0 p-4 border-b bg-amber-50">
+                        <h2 className="text-2xl font-serif font-bold text-red-900">☯ 生死待決・九轉還魂</h2>
+                        <p className="text-sm">還魂丹 {pillCount} 顆・已勾選 {deathRescueSelection.length} 人。每救一人消耗一顆。</p>
+                    </div>
+                    <div className="flex-1 overflow-y-auto p-4 space-y-2">
+                        {candidates.map(candidate=>{
+                            const checked=deathRescueSelection.includes(candidate.id);
+                            return <label key={candidate.id} className={`block border rounded p-3 ${checked?'bg-emerald-50 border-emerald-500':'bg-white'}`}>
+                                <input type="checkbox" checked={checked} disabled={!checked&&deathRescueSelection.length>=pillCount}
+                                    onChange={event=>{
+                                        const rescue=event.target.checked;
+                                        setDeathRescueSelection(list=>rescue
+                                            ? (list.includes(candidate.id)||list.length>=pillCount?list:[...list,candidate.id])
+                                            : list.filter(id=>id!==candidate.id));
+                                    }}/> <b>{candidate.name}</b>
+                                <span className="block text-sm text-stone-600 ml-5">{candidate.cause}・{RESCUE_GROUPS[candidate.kind]||'皇帝'}</span>
+                            </label>;
+                        })}
+                    </div>
+                    <div className="shrink-0 border-t bg-white p-3">
+                        {hiddenCount>0
+                            ? <button onClick={()=>setFullRescueBatch(rescueBatch)} className="w-full bg-indigo-800 text-white rounded p-3 font-bold">
+                                查看完整名單（另有 {hiddenCount} 人）
+                            </button>
+                            : <button onClick={resolvePendingDeaths} className="w-full bg-red-900 text-white rounded p-3 font-bold">確認救治名單並裁定生死</button>}
+                    </div>
+                </div>
+            </div>;
+        };
+
         const YearReportModal = () => {
             if (!yearReport) return null;
             return (
               <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 animate-in zoom-in duration-300">
                   <div className="bg-[#fffdf5] rounded-lg max-w-md w-full border-2 border-stone-400 shadow-2xl relative max-h-[92dvh] flex flex-col overflow-hidden">
                       <div className="shrink-0 flex items-center gap-2 border-b bg-[#fffdf5] px-5 py-4">
-                          <h3 className="text-2xl font-serif font-bold text-center text-stone-800 flex-1">戶部奏摺 - {gameState.year}年財報</h3>
+                          <h3 className="text-2xl font-serif font-bold text-center text-stone-800 flex-1">{yearReport.schoolNames?'本年摘要・':'戶部奏摺・'}{yearReport.eraName||gameState.eraName}{yearReport.year||gameState.year}年</h3>
                           <button onClick={() => setYearReport(null)} className="text-gray-500 hover:text-gray-800 p-1 rounded-full bg-white shadow" aria-label="關閉年度財報"><XCircle/></button>
                       </div>
                       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-5">
                       <div className="space-y-4 text-sm">
+                          {!!yearReport.schoolNames?.length&&<section className="rounded border border-sky-200 bg-sky-50 p-3">
+                              <h4 className="font-bold">皇嗣入學</h4>
+                              <p>{yearReport.schoolNames.join('、')}本年已滿 6 歲，可入皇家書院。</p>
+                              <button onClick={()=>{setYearReport(null);setCurrentView('SCHOOL');}} className="mt-2 rounded bg-blue-800 px-3 py-2 text-white">前往上書房</button>
+                          </section>}
                           <div className="bg-green-50 p-3 rounded border border-green-100">
                               <h4 className="font-bold text-green-800 mb-2 flex items-center gap-2"><TrendingUp/> 歲入總計: +{yearReport.income.total}</h4>
                               <div className="grid grid-cols-2 gap-2 text-gray-600 pl-2">

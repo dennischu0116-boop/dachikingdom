@@ -99,7 +99,7 @@
           </div>;
       };
 
-      const StartScreen = ({ onStart, onSettings, onHelp, onUpdates, onCloud, cloudStatus, pendingCloudSlot, onCancelCloud, cloudBusy, cloudDraft, cloudOperation }) => {
+      const StartScreen = ({ onStart, onSettings, onHelp, onUpdates, onCloud, cloudStatus, pendingCloudSlot, onCancelCloud, cloudBusy, cloudDraft, cloudOperation, audioMuted, onToggleAudio }) => {
           const [era, setEra] = useState(() => cloudDraft?.payload.gameState.eraName||generateRandomEraName());
           const [name, setName] = useState(() => cloudDraft?.payload.gameState.playerName||generateRandomEmperorName());
           const [avatar,setAvatar]=useState(()=>cloudDraft?.payload.gameState.emperorAvatar||emperorBuiltinAvatar(EMPEROR_AVATAR_IDS[0]));
@@ -118,6 +118,7 @@
                           <button onClick={onHelp} className="bg-amber-600/60 text-white text-sm px-3 py-2 rounded">❓ 玩法說明</button>
                           <button onClick={onSettings} className="bg-stone-700 text-white text-sm px-3 py-2 rounded">⚙ 系統設定／存檔</button>
                           <button onClick={onCloud} className="bg-blue-700 text-white text-sm px-3 py-2 rounded">☁️ {cloudStatus || 'Google 登入／雲端存檔'}</button>
+                          <button onClick={onToggleAudio} aria-pressed={!audioMuted} className="bg-stone-700 text-white text-sm px-3 py-2 rounded">{audioMuted?'🔇 開啟音訊':'🔊 靜音'}</button>
                       </div>
                       {pendingCloudSlot&&<div className="mb-4 rounded border border-sky-400 bg-sky-950/60 p-3 text-sm text-sky-100">☁️ 新遊戲目標為雲端槽位 {pendingCloudSlot}。成功建立後才會切換目前遊戲。</div>}
                       <fieldset disabled={cloudBusy||!!cloudDraft} className="space-y-4 mb-6 text-left">
@@ -145,7 +146,7 @@
           );
       };
 
-      const SystemSettingsModal = ({ onClose, onSave, onLoad, onExport, onDownload, onImport, onRestart, onAvatarChange, emperorAvatar, emperorAvatarAssets, autoSaveStatus, isGameStarted }) => (
+      const SystemSettingsModal = ({ onClose, onSave, onLoad, onExport, onDownload, onImport, onRestart, onAvatarChange, emperorAvatar, emperorAvatarAssets, autoSaveStatus, isGameStarted, preferences, setPreferences, preferenceGame }) => (
           <div className="fixed inset-0 bg-black/75 flex items-center justify-center z-[85] p-4 animate-in fade-in">
               <div className="bg-stone-100 rounded-xl border-4 border-amber-600 shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-5">
                   <div className="screen-modal-header flex items-center justify-between gap-3 mb-2">
@@ -156,6 +157,7 @@
                       <b>即時存檔：{autoSaveStatus}</b>
                       <div className="text-xs mt-1">遊戲進度會自動保存在目前瀏覽器；下載備份可另存到電腦或雲端。</div>
                   </div>
+                  <PlayerPreferenceControls preferences={preferences} setPreferences={setPreferences} gameState={preferenceGame}/>
                   {isGameStarted&&<div className="mb-4"><EmperorAvatarSelector avatar={emperorAvatar} assets={emperorAvatarAssets} onChange={onAvatarChange}/></div>}
                   <div className="grid grid-cols-2 gap-2">
                       <button disabled={!isGameStarted} onClick={onSave} className="p-3 rounded bg-stone-700 text-white font-bold disabled:opacity-40">💾 立即存檔</button>

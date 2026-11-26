@@ -13,11 +13,23 @@
                 return keys.length===Object.keys(previous).length&&keys.every(key=>next[key]===previous[key])?previous:next;
             });
         },[gameState.gameId,gameState.ministers,gameState.consorts,gameState.retiredMinisters,gameState.deceasedConsorts,gameState.historicalConsorts,gameState.childrenList,gameState.royalFamily,gameState.pendingRecruitDraw,gameState.pendingAnnualDraft]);
-        const [currentView, setCurrentView] = useState('THRONE'); 
+        const [currentView, setCurrentView] = useState('THRONE');
+        const [initialCloudDraft]=useState(readCloudNewGameDraft);
+        const [pendingCloudNewGameSlot, setPendingCloudNewGameSlot] = useState(initialCloudDraft?.slot||null);
+        const scene=!isGameStarted||pendingCloudNewGameSlot?'title':['WAR','DEFEND'].includes(currentView)?'war':'court';
+        const {preferences,change:changePreferences,reduceMotion,play:playPalaceCue}=usePlayerPreferences(scene);
+        const togglePalaceAudio=()=>changePreferences({muted:!preferences.muted});
         const [treasuryTab,setTreasuryTab]=useState('BAG');
         const [inventoryFilter,setInventoryFilter]=useState('全部');
         const [selectedUseItemId,setSelectedUseItemId]=useState(null);
         const [deathRescueSelection,setDeathRescueSelection]=useState([]);
+        const [fullRescueBatch,setFullRescueBatch]=useState('');
+        const deathDecisionRef=useRef(false);
+        const rescueCandidates=gameState.pendingDeathCandidates||[];
+        const rescueBatch=rescueCandidates.map(candidate=>candidate.id).join('|');
+        const popupRescues=rescueCandidates.filter(candidate=>rescueNeedsPopup(gameState,candidate,preferences));
+        const showFullRescue=fullRescueBatch===rescueBatch||popupRescues.length===rescueCandidates.length;
+        useEffect(()=>{setDeathRescueSelection([]);},[rescueBatch]);
         const scrollPositionsRef = useRef({});
         const getScrollMemoryKey = element => {
             if (!(element instanceof HTMLElement) || !element.classList.contains('overflow-y-auto')) return null;
@@ -75,7 +87,18 @@
 
         const [examResult, setExamResult] = useState(null);
         const [recruitReveal, setRecruitReveal] = useState(null);
-        const [yearReport, setYearReport] = useState(null); 
+        const playedRecruitReveal=useRef(null);
+        const cueRecruitReveal=()=>{
+            if(!recruitReveal||playedRecruitReveal.current===recruitReveal)return;
+            playedRecruitReveal.current=recruitReveal;
+            playPalaceCue('recruit');
+        };
+        const [yearReport, setYearReport] = useState(null);
+        const openAnnualSummary=()=>{
+            if(!gameState.annualSummary?.report)return;
+            setYearReport({...gameState.annualSummary.report,schoolNames:gameState.annualSummary.schoolNames||[]});
+            playPalaceCue('report');
+        };
         const [deathEvent, setDeathEvent] = useState(null); 
         const [retireEvent, setRetireEvent] = useState(null); 
         const [isTransitioning, setIsTransitioning] = useState(false); 
@@ -143,8 +166,6 @@
         const [cloudBusy, setCloudBusy] = useState(false);
         const [cloudStatus, setCloudStatus] = useState('遊客模式');
         const [cloudSavedAt, setCloudSavedAt] = useState('');
-        const [initialCloudDraft]=useState(readCloudNewGameDraft);
-        const [pendingCloudNewGameSlot, setPendingCloudNewGameSlot] = useState(initialCloudDraft?.slot||null);
         const [cloudOperation, setCloudOperation] = useState('');
         const cloudActionRef=useRef(false);
         const cloudDraftRef=useRef(initialCloudDraft);
@@ -354,6 +375,7 @@
                     const saved=await qingCloudGas('saveCloudGame',cloudToken,targetSlot,draft.name,draft.payload,0,'','',id);
                     if(saved.slot!==targetSlot||saved.dynastyId!==cloudDynastyId(draft.payload.gameState))throw new Error('雲端回覆與開局草稿不符。');
                     applyLoadedCloudSave({...saved,payload:saved.payload||draft.payload});
+                    playPalaceCue('enthrone');
                     showMessage(`新遊戲已建立於雲端槽位 ${targetSlot}`,'success');
                 }catch(error){
                     if(error.conflict){
@@ -371,6 +393,7 @@
             setCloudStatus(cloudUser?'本機進度・未連結':'遊客模式');
             setBetaPortraitAssignments(betaAllocatePortraits(betaStateWithPortraitCandidates(fresh.state),{}));
             setGameState(fresh.state);setLogs(fresh.logs);setCurrentView('THRONE');setShowSystemSettings(false);setIsGameStarted(true);
+            playPalaceCue('enthrone');
             setTimeout(()=>{cloudPauseRef.current=false;},100);
         };
 
@@ -1199,7 +1222,14 @@
 
         useEffect(() => { successionInProgressRef.current = false; }, [gameState.gameId]);
         useEffect(() => {
-          if (gameState.gameOver || successionInProgressRef.current) return;
+          if (!isGameStarted || gameState.gameOver || successionInProgressRef.current) return;
+          const emperorId=rulerIdOf(gameState);
+          if(gameState.health<=0&&Number(gameState.inventory?.revival_pill)>0&&
+              gameState.declinedRevivalForEmperor!==emperorId&&!(gameState.pendingDeathCandidates||[]).some(candidate=>candidate.kind==='emperor')){
+              const candidate={id:royalNewId('death'),kind:'emperor',personId:emperorId,name:gameState.playerName,cause:'龍體衰竭'};
+              setGameState(previous=>({...previous,pendingDeathCandidates:[...(previous.pendingDeathCandidates||[]),candidate]}));
+              return;
+          }
           // 年度宮鬥與生產必須結算完畢，才可觸發駕崩、繼位或終局，避免案件人物跨皇帝錯置。
           if ((gameState.pendingDeathCandidates||[]).length || gameState.pendingPalaceEvent || gameState.pendingBirthSettlement || gameState.pendingAnnualDraft ||
               (gameState.pendingBabyNames||[]).length || (gameState.pendingHaremNews||[]).length || (gameState.pendingConsortCrises||[]).length || (gameState.pendingConsortIllnesses||[]).length || getPendingRetirementMinisters(gameState).length ||
@@ -1211,11 +1241,6 @@
               setShowVictoryModal(true); return;
           }
           if (gameState.health <= 0) {
-              if((Number(gameState.inventory?.revival_pill)||0)>0){
-                  setGameState(previous=>({...previous,pendingDeathCandidates:[...(previous.pendingDeathCandidates||[]),{
-                      id:royalNewId('death'),kind:'emperor',personId:previous.currentEmperorId,name:previous.playerName,cause:'龍體衰竭'
-                  }]}));return;
-              }
               const candidates = getSuccessionCandidates(gameState);
               if (candidates.length) {
                   const designated = candidates.find(c => c.relationship === 'son' && String(c.id) === String(gameState.crownPrinceId));
@@ -1226,7 +1251,7 @@
           else if (gameState.treasury < 0) endGame('破產', '國庫耗盡，無力支付軍餉俸祿，大清亡了。');
           else if (gameState.population <= 0) endGame('人口耗盡', '百姓流離、戶口斷絕，國家失去維繫根基而崩潰。');
           else if (gameState.provinces.length === 0) endGame('亡國', '我大清疆土盡失。');
-        }, [gameState.health, gameState.stability, gameState.treasury, gameState.population, gameState.provinces, gameState.gameOver,
+        }, [isGameStarted, gameState.health, gameState.stability, gameState.treasury, gameState.population, gameState.provinces, gameState.gameOver,
             gameState.gameWon, gameState.unificationGameId, gameState.lostProvinces, gameState.childrenList, gameState.royalFamily, gameState.conqueredEnemies,
             gameState.pendingPalaceEvent, gameState.pendingBirthSettlement, gameState.pendingAnnualDraft,
             gameState.pendingDeathCandidates,gameState.inventory,
@@ -1440,6 +1465,7 @@
 
         
         const handleSuccession = (heir, voluntary = false) => {
+            if(rescueCandidates.length){showMessage('請先處理生死待決名單。');return;}
             if ((gameState.pendingBabyNames||[]).length) { showMessage('請先為新生皇子、公主賜名'); return; }
             if (gameState.pendingRetirementPlan||getPendingRetirementMinisters(gameState).length) { showMessage('請先裁決老臣告老與慰留奏請'); return; }
             if (successionInProgressRef.current) return;
@@ -1538,6 +1564,7 @@
             setCurrentEvent(null); setYearReport(null); setShowVictoryModal(false);
             setLogs([`${voluntary?'禪讓':'駕崩'}後，${candidate.relationshipLabel} ${candidate.name} 繼位，改元${newEra}。先帝后妃封存於歷史紀錄，先帝子女移入宗人府，原國土與官職保留；百官忠誠下降${loyaltyLoss}。`]);
             setShowHeirSelection(false); setCurrentView('THRONE');
+            playPalaceCue('succession');
         };
 
         const restartGame = () => {
@@ -1708,6 +1735,7 @@
         );
 
         const nextYear = () => {
+          if(rescueCandidates.length){setFullRescueBatch(rescueBatch);return;}
           if((gameState.pendingBattleLines||[]).length){showMessage('請先完成兵部多線防守部署與結算');setCurrentView('DEFEND');return;}
           if(gameState.pendingRetirementPlan){showMessage('請先完成老臣告老總覽裁決');return;}
           if (gameState.pendingPalaceEvent || gameState.pendingBirthSettlement || gameState.pendingAnnualDraft ||
@@ -1853,7 +1881,7 @@
                   const child=childrenAgeMap.get(String(r.id));
                   const nextAge=child?Number(child.age):r.age==null?null:Number(r.age)+1;
                   if(nextAge!=null&&Math.random()<royalDeathChance(nextAge)){
-                      if(canOfferRevival&&child)pendingNaturalDeaths.push({id:royalNewId('death'),kind:'royal',personId:child.id,name:r.name,cause:`年高壽終（${nextAge}歲）`});
+                      if(canOfferRevival&&child)pendingNaturalDeaths.push({id:royalNewId('death'),kind:'royal',personId:child.id,noticePersonId:royalIdOf(child,gameState),name:r.name,cause:`年高壽終（${nextAge}歲）`});
                       else deceasedRoyalIds.add(String(r.id));
                   }
               });
@@ -1896,7 +1924,8 @@
                       diedEraName:gameState.eraName,deathReason:'退休後壽終正寢'};
               });
 
-              setYearReport({
+              const annualReport={
+                  eraName:gameState.eraName,year:gameState.year+1,
                   income: incomeData,
                   expense: { army: armyCost, palace: palaceCost, salary: salaryCost, corruption: corruptionCost, corruptionRate, tech: 0, total: totalExpenses }, 
                   net: incomeData.total - totalExpenses, academy:academy.summary,
@@ -1905,7 +1934,11 @@
                   population:{start:populationStart,end:populationEnd,change:Math.round((populationEnd-populationStart)*10)/10,
                       baseGrowthRate:populationBaseGrowthRate,taxGrowthAdjustment:taxPolicy.populationGrowth,
                       totalGrowthRate:populationTotalGrowthRate,provinceCount:(gameState.provinces||[]).length}
-              });
+              };
+              if(preferences.report==='popup'){
+                  setYearReport(annualReport);
+                  playPalaceCue('report');
+              }
 
               // 選秀與戰爭、宮鬥共用年度佇列。選秀資料可存入 localStorage，重新整理不會消失。
               const draftCandidate=(gameState.year+1)%3===0?drawConsortCandidate(gameState,'selection'):null;
@@ -2022,9 +2055,10 @@
                   nextState=palaceNote(nextState,`【宮女密報】${oldCase.eraName}${oldCase.year}年的「${oldCase.title}」出現可靠的新線索，下次調查成功率+20個百分點。可於內廷案件簿重新調查。`);
               }
               // 只有上一年受傷的人會在這一年康復；當年新重傷不得立刻康復。
-              setGameState(nextState);
               const sixYearOldNames=(academy.summary.newEligible||[]).filter(name=>(nextState.childrenList||[]).some(child=>child.alive!==false&&Number(child.age)===6&&child.name===name));
-              if(sixYearOldNames.length) setNotifications(queue=>[...queue,{
+              nextState={...nextState,annualSummary:{report:annualReport,schoolNames:sixYearOldNames}};
+              setGameState(nextState);
+              if(sixYearOldNames.length&&preferences.school==='popup') setNotifications(queue=>[...queue,{
                   title:'🏫 皇嗣年滿6歲・可以入學',
                   text:`${sixYearOldNames.join('、')}本年已滿6歲，可以進入皇家書院。書院會依天生傾向自動安排課程，請前往上書房辦理入學。`,
                   actionView:'SCHOOL',actionLabel:'前往上書房'
@@ -2049,7 +2083,7 @@
                       ? generateDynamicEvent(nextState) : null;
                   if (nationalEvent) { setCurrentEvent(nationalEvent); setCurrentView('MEMORIAL'); }
               }
-          }, 1500);
+          }, reduceMotion?100:1500);
         };
 
         useEffect(()=>{
@@ -2136,34 +2170,41 @@
         };
 
         const resolvePendingDeaths = async () => {
-            const candidates=gameState.pendingDeathCandidates||[],selected=new Set(deathRescueSelection.map(String));
+            if(!showFullRescue||deathDecisionRef.current)return;
+            const candidates=rescueCandidates;
+            const selected=new Set(deathRescueSelection.filter(id=>candidates.some(candidate=>candidate.id===id)).map(String));
             const pillCount=Number(gameState.inventory?.revival_pill)||0;
             if(selected.size>pillCount){showMessage(`九轉還魂丹不足，目前只有${pillCount}顆`,'error');return;}
-            if(!await requestGameConfirm(`確定使用${selected.size}顆九轉還魂丹救治所選人物，其餘人物將正式死亡？`,{title:'裁定生死'}))return;
-            setGameState(previous=>{
-                let next={...previous,pendingDeathCandidates:[]},used=0;
-                for(const candidate of candidates){
-                    if(selected.has(String(candidate.id))){
-                        used++;
-                        if(candidate.kind==='emperor')next={...next,health:30};
-                        next=appendStateLog(next,`【九轉還魂】${candidate.name}在${candidate.cause}之際獲救。`);
-                        continue;
+            deathDecisionRef.current=true;
+            try{
+                if(!await requestGameConfirm(`確定使用 ${selected.size} 顆九轉還魂丹？未勾選的 ${candidates.length-selected.size} 人將正式死亡。`,{title:'裁定生死'}))return;
+                setGameState(previous=>{
+                    const latest=previous.pendingDeathCandidates||[];
+                    if(latest.map(candidate=>candidate.id).join('|')!==rescueBatch||selected.size>Number(previous.inventory?.revival_pill||0))return previous;
+                    let next={...previous,pendingDeathCandidates:[]},used=0;
+                    for(const candidate of candidates){
+                        if(selected.has(String(candidate.id))){
+                            used++;
+                            if(candidate.kind==='emperor')next={...next,health:30};
+                            next=appendStateLog(next,`【九轉還魂】${candidate.name}在${candidate.cause}之際獲救。`);
+                            continue;
+                        }
+                        if(candidate.kind==='emperor')next={...next,health:0,declinedRevivalForEmperor:rulerIdOf(next)};
+                        else if(candidate.kind==='consort')next=palaceKillPerson(next,{victimKind:'consort',victimId:candidate.personId},candidate.cause,true);
+                        else if(candidate.kind==='royal')next=palaceKillPerson(next,{victimKind:'child',victimId:candidate.personId},candidate.cause,true);
+                        else if(candidate.kind==='retired'){
+                            next={...next,retiredMinisters:(next.retiredMinisters||[]).map(person=>String(person.id)===String(candidate.personId)?
+                                {...person,alive:false,diedAtYear:next.year,diedAtDynastyYear:next.dynastyYear,diedEraName:next.eraName,deathReason:candidate.cause}:person),
+                                recruitableSpecialIds:candidate.specialId?[...new Set([...(next.recruitableSpecialIds||[]),candidate.specialId])]:(next.recruitableSpecialIds||[])};
+                            next=appendStateLog(next,`【名人堂哀報】退休官員${candidate.name}${candidate.cause}。${candidate.specialId?'其名望重歸招賢名錄。':''}`);
+                        }
                     }
-                    if(candidate.kind==='emperor')next={...next,health:0};
-                    else if(candidate.kind==='consort')next=palaceKillPerson(next,{victimKind:'consort',victimId:candidate.personId},candidate.cause,true);
-                    else if(candidate.kind==='royal')next=palaceKillPerson(next,{victimKind:'child',victimId:candidate.personId},candidate.cause,true);
-                    else if(candidate.kind==='retired'){
-                        next={...next,retiredMinisters:(next.retiredMinisters||[]).map(person=>String(person.id)===String(candidate.personId)?
-                            {...person,alive:false,diedAtYear:next.year,diedAtDynastyYear:next.dynastyYear,diedEraName:next.eraName,deathReason:candidate.cause}:person),
-                            recruitableSpecialIds:candidate.specialId?[...new Set([...(next.recruitableSpecialIds||[]),candidate.specialId])]:(next.recruitableSpecialIds||[])};
-                        next=appendStateLog(next,`【名人堂哀報】退休官員${candidate.name}${candidate.cause}。${candidate.specialId?'其名望重歸招賢名錄。':''}`);
-                    }
-                }
-                if(used){const bag={...(next.inventory||{})},left=(Number(bag.revival_pill)||0)-used;if(left>0)bag.revival_pill=left;else delete bag.revival_pill;
-                    next={...next,inventory:bag,rescuedThisDynastyYear:[...(next.rescuedThisDynastyYear||[]),...candidates.filter(candidate=>selected.has(String(candidate.id))).map(candidate=>String(candidate.personId))]};}
-                return normalizeRoyalState(next);
-            });
-            setDeathRescueSelection([]);
+                    if(used){const bag={...(next.inventory||{})},left=(Number(bag.revival_pill)||0)-used;if(left>0)bag.revival_pill=left;else delete bag.revival_pill;
+                        next={...next,inventory:bag,rescuedThisDynastyYear:[...(next.rescuedThisDynastyYear||[]),...candidates.filter(candidate=>selected.has(String(candidate.id))).map(candidate=>String(candidate.personId))]};}
+                    return normalizeRoyalState(next);
+                });
+                setDeathRescueSelection([]);
+            }finally{deathDecisionRef.current=false;}
         };
 
         const handleAdventure = async () => {

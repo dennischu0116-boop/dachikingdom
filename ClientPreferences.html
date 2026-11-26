@@ -1,0 +1,285 @@
+      const PREFERENCES_KEY = 'qing_player_preferences_v1';
+      const DEFAULT_PREFERENCES = Object.freeze({
+          theme:'paper', textScale:100, layout:'auto', motion:'system',
+          muted:true, music:true, effects:true, musicVolume:30, effectsVolume:45,
+          report:'popup', school:'popup', rescueGroups:{}, rescuePeople:{}
+      });
+      const RESCUE_GROUPS = {royal:'皇室子女',consort:'妃嬪',retired:'退休官員'};
+      const noticeMode = value => value==='tasks'?'tasks':'popup';
+      const preferenceVolume = (value,fallback) => typeof value==='number'&&Number.isFinite(value)
+          ?Math.max(0,Math.min(100,Math.round(value))):fallback;
+      const normalizePreferences = value => {
+          const input=value&&typeof value==='object'?value:{};
+          return {
+              theme:['paper','dark','system'].includes(input.theme)?input.theme:'paper',
+              textScale:[100,115,130].includes(input.textScale)?input.textScale:100,
+              layout:input.layout==='single'?'single':'auto', motion:input.motion==='reduced'?'reduced':'system',
+              muted:input.muted!==false, music:input.music!==false, effects:input.effects!==false,
+              musicVolume:preferenceVolume(input.musicVolume,30),effectsVolume:preferenceVolume(input.effectsVolume,45),
+              report:noticeMode(input.report),school:noticeMode(input.school),
+              rescueGroups:Object.fromEntries(Object.keys(RESCUE_GROUPS).map(kind=>[kind,noticeMode(input.rescueGroups?.[kind])])),
+              rescuePeople:Object.fromEntries(Object.entries(input.rescuePeople||{}).filter(([key,mode])=>
+                  key.length<400&&(mode==='popup'||mode==='tasks')))
+          };
+      };
+      const readPlayerPreferences = () => {
+          try { return normalizePreferences(JSON.parse(localStorage.getItem(PREFERENCES_KEY)||'null')); }
+          catch (error) { return normalizePreferences(null); }
+      };
+      const rescuePersonKey = (state,kind,id) => JSON.stringify([cloudDynastyId(state),kind,String(id)]);
+      const rescueCandidateKey = (state,candidate) => {
+          const id=String(candidate.personId);
+          if(candidate.noticePersonId)return rescuePersonKey(state,candidate.kind,candidate.noticePersonId);
+          if(candidate.kind==='royal'){
+              const child=(state.childrenList||[]).find(person=>String(person.id)===id||String(person.royalId)===id);
+              if(child)return rescuePersonKey(state,'royal',royalIdOf(child,state));
+          }
+          if(candidate.kind==='consort'){
+              const consort=(state.consorts||[]).find(person=>String(person.id)===id||String(person.royalConsortId)===id);
+              if(consort)return rescuePersonKey(state,'consort',royalConsortIdOf(consort,rulerIdOf(state)));
+          }
+          return rescuePersonKey(state,candidate.kind,id);
+      };
+      const rescueNeedsPopup = (state,candidate,preferences) =>
+          candidate.kind==='emperor'||(preferences.rescuePeople[rescueCandidateKey(state,candidate)]||
+              preferences.rescueGroups[candidate.kind])!=='tasks';
+      const rescuePreferenceRoster = state => [
+          ...(state.childrenList||[]).filter(person=>person.alive!==false&&!person.expelled).map(person=>
+              ({kind:'royal',name:person.name,id:royalIdOf(person,state)})),
+          ...(state.consorts||[]).filter(person=>person.alive!==false).map(person=>
+              ({kind:'consort',name:person.name,id:royalConsortIdOf(person,rulerIdOf(state))})),
+          ...(state.retiredMinisters||[]).filter(person=>person.alive!==false).map(person=>
+              ({kind:'retired',name:person.name,id:person.id}))
+      ].map(person=>({...person,key:rescuePersonKey(state,person.kind,person.id)}));
+
+      // Original court-inspired motifs. Each row is a measure of MIDI notes; 0 is a rest.
+      const PALACE_SCORES = {
+          title:{beat:.70,root:50,voice:'sine',bars:[
+              [62,69,71,0,74,71,69,0],[67,66,62,0,66,69,71,0],[74,78,76,74,71,0,69,0],
+              [66,69,67,64,62,0,0,0],[69,71,74,0,76,74,71,0],[67,69,66,0,62,64,66,0],
+              [71,74,78,0,76,74,69,0],[66,64,62,0,59,0,62,0]]},
+          court:{beat:.58,root:48,voice:'triangle',bars:[
+              [60,64,67,0,69,67,64,0],[62,64,67,69,72,0,67,0],[69,72,76,72,69,67,64,0],
+              [62,0,64,67,60,0,62,0],[64,67,69,0,74,72,69,0],[67,64,62,64,67,0,72,0],
+              [76,74,72,69,67,0,64,0],[62,64,67,64,60,0,0,0]]},
+          war:{beat:.43,root:45,voice:'triangle',bars:[
+              [57,0,60,62,64,0,62,0],[57,57,60,0,67,64,60,0],[62,0,64,67,69,0,67,64],
+              [60,62,64,60,57,0,57,0],[57,0,64,0,67,69,72,0],[69,67,64,62,60,0,62,0],
+              [64,0,67,69,74,72,69,0],[67,64,60,62,57,57,0,0]]}
+      };
+      const PALACE_CUES = {
+          enthrone:[0,62,69,74], succession:[0,59,66,71], recruit:[-1,0,76],
+          report:[67,72], win:[0,60,64,67,72], loss:[0,64,62,57], draw:[62,67,62]
+      };
+      const createPalaceAudio = AudioContextClass => {
+          const context=new AudioContextClass();
+          const music=context.createGain(),effects=context.createGain();
+          music.gain.value=0;effects.gain.value=0;
+          music.connect(context.destination);effects.connect(context.destination);
+          let interval=null,track=null,visible=true,preferences=DEFAULT_PREFERENCES;
+          const activeCues=new Set();
+          const ramp=(param,value,seconds=.35)=>{
+              const time=context.currentTime;
+              param.cancelScheduledValues(time);
+              param.setTargetAtTime(value,time,seconds/4);
+          };
+          const note=(output,midi,time,length,level,voice='sine',onEnd)=>{
+              const oscillator=context.createOscillator(), envelope=context.createGain();
+              oscillator.type=voice;
+              oscillator.frequency.setValueAtTime(midi>0?440*2**((midi-69)/12):midi===0?83:480,time);
+              if(midi<=0)oscillator.frequency.exponentialRampToValueAtTime(midi===0?40:120,time+length*.65);
+              envelope.gain.setValueAtTime(.0001,time);
+              envelope.gain.exponentialRampToValueAtTime(level,time+.015);
+              envelope.gain.exponentialRampToValueAtTime(.0001,time+length);
+              oscillator.connect(envelope);envelope.connect(output);
+              oscillator.onended=()=>{oscillator.disconnect();envelope.disconnect();onEnd?.(oscillator);};
+              oscillator.start(time);oscillator.stop(time+length+.02);
+              return oscillator;
+          };
+          const tick=()=>{
+              if(!track||context.state!=='running')return;
+              const {score,output}=track;
+              const stepTime=score.beat/2;
+              const now=context.currentTime;
+              if(track.time<now-.25)track.time=now+.03;
+              while(track.time<now+.16){
+                  const position=track.step%8,bar=Math.floor(track.step/8)%score.bars.length;
+                  const midi=score.bars[bar][position], time=track.time;
+                  if(midi)note(output,midi,time,stepTime*2.4,.105,score.voice);
+                  if(position===0||position===4){
+                      const chordRoot=score.root+(bar%4===2?7:0)+(position===4?12:0);
+                      note(output,chordRoot,time,score.beat*1.9,.063,'triangle');
+                      if(position===0&&score!==PALACE_SCORES.war)note(output,chordRoot+19,time,score.beat*2.6,.028);
+                  }
+                  if(score===PALACE_SCORES.war&&(position===0||position===3||position===4||position===6))note(output,0,time,.27,.11);
+                  track.step+=1;track.time+=stepTime;
+              }
+          };
+          const stopTrack=()=>{
+              clearInterval(interval);interval=null;
+              if(!track)return;
+              const outgoing=track.output;
+              ramp(outgoing.gain,0,.36);
+              setTimeout(()=>outgoing.disconnect(),450);
+              track=null;
+          };
+          const update=(next,scene,isVisible)=>{
+              preferences=next;visible=isVisible;
+              ramp(music.gain,!next.muted&&next.music?next.musicVolume/100:0,.16);
+              ramp(effects.gain,!next.muted&&next.effects?next.effectsVolume/100:0,.12);
+              if(!visible||next.muted||!next.effects||!next.effectsVolume){
+                  activeCues.forEach(cue=>cue.stop(context.currentTime));
+                  activeCues.clear();
+              }
+              if(!visible||next.muted){
+                  clearInterval(interval);interval=null;
+                  if(context.state==='running')context.suspend().catch(()=>{});
+                  return;
+              }
+              if(context.state!=='running')return;
+              if(!next.music||!next.musicVolume){stopTrack();return;}
+              if(track?.scene!==scene){
+                  stopTrack();
+                  const output=context.createGain();
+                  output.gain.value=0;output.connect(music);ramp(output.gain,1,.42);
+                  track={scene,score:PALACE_SCORES[scene],output,time:context.currentTime+.05,step:0};
+              }
+              if(interval===null){tick();interval=setInterval(tick,75);}
+          };
+          return {
+              get running(){return context.state==='running';},
+              resume:()=>context.resume(), update,
+              play:name=>{
+                  if(!visible||preferences.muted||!preferences.effects||!preferences.effectsVolume||context.state!=='running')return;
+                  PALACE_CUES[name]?.forEach((midi,index)=>{
+                      const cue=note(effects,midi,context.currentTime+.025+index*.115,midi===-1?.09:.46,
+                          midi===0?.22:.13,midi===-1?'triangle':'sine',ended=>activeCues.delete(ended));
+                      activeCues.add(cue);
+                  });
+              },
+              dispose:()=>{stopTrack();context.close().catch(()=>{});}
+          };
+      };
+
+      const usePlayerPreferences = scene => {
+          const [preferences,setPreferences]=useState(readPlayerPreferences);
+          const [systemDark,setSystemDark]=useState(()=>!!window.matchMedia?.('(prefers-color-scheme: dark)').matches);
+          const [systemReduced,setSystemReduced]=useState(()=>!!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
+          const engine=useRef(null);
+          const latest=useRef({preferences,scene});
+          const reduceMotion=preferences.motion==='reduced'||systemReduced;
+          latest.current={preferences,scene};
+          const sync=()=>{
+              const current=latest.current;
+              engine.current?.update(current.preferences,current.scene,!document.hidden);
+          };
+          const unlock=()=>{
+              if(latest.current.preferences.muted||document.hidden)return;
+              try{
+                  const Audio=window.AudioContext||window.webkitAudioContext;
+                  if(!Audio)return;
+                  engine.current=engine.current||createPalaceAudio(Audio);
+                  engine.current.resume().then(sync).catch(()=>{});
+              }catch(error){ /* 受限的瀏覽器仍可使用遊戲。 */ }
+          };
+          const change=patch=>{
+              const next=normalizePreferences({...latest.current.preferences,...patch});
+              latest.current={...latest.current,preferences:next};
+              setPreferences(next);
+              if(next.muted)sync();else unlock();
+          };
+          useEffect(()=>{
+              try{localStorage.setItem(PREFERENCES_KEY,JSON.stringify(preferences));}catch(error){}
+              sync();
+          },[preferences,scene]);
+          useEffect(()=>{
+              const motion=window.matchMedia?.('(prefers-reduced-motion: reduce)');
+              const color=window.matchMedia?.('(prefers-color-scheme: dark)');
+              const motionChanged=event=>setSystemReduced(event.matches);
+              const colorChanged=event=>setSystemDark(event.matches);
+              const visibilityChanged=()=>{if(document.hidden)sync();else if(engine.current)unlock();};
+              const userGesture=()=>{if(!engine.current?.running)unlock();};
+              motion?.addEventListener?.('change',motionChanged);
+              color?.addEventListener?.('change',colorChanged);
+              document.addEventListener('visibilitychange',visibilityChanged);
+              window.addEventListener('pointerdown',userGesture);
+              window.addEventListener('keydown',userGesture);
+              return ()=>{
+                  motion?.removeEventListener?.('change',motionChanged);
+                  color?.removeEventListener?.('change',colorChanged);
+                  document.removeEventListener('visibilitychange',visibilityChanged);
+                  window.removeEventListener('pointerdown',userGesture);
+                  window.removeEventListener('keydown',userGesture);
+                  engine.current?.dispose();engine.current=null;
+              };
+          },[]);
+          useLayoutEffect(()=>{
+              const root=document.documentElement;
+              root.dataset.palaceTheme=preferences.theme==='system'?(systemDark?'dark':'paper'):preferences.theme;
+              root.dataset.palaceLayout=preferences.layout;
+              root.dataset.palaceMotion=reduceMotion?'reduced':'system';
+              root.style.setProperty('--palace-text-scale',String(preferences.textScale/100));
+          },[preferences.theme,preferences.layout,preferences.textScale,reduceMotion,systemDark]);
+          return {preferences,change,reduceMotion,play:name=>engine.current?.play(name)};
+      };
+
+      const PreferenceSelect = ({label,value,options,onChange}) => (
+          <label className="flex items-center justify-between gap-2">
+              <span>{label}</span>
+              <select value={value} onChange={event=>onChange(event.target.value)} className="max-w-[62%] rounded border border-stone-300 bg-white p-2 text-stone-900">
+                  {options.map(([key,name])=><option key={key} value={key}>{name}</option>)}
+              </select>
+          </label>
+      );
+      const NOTICE_OPTIONS = [['popup','跳窗提醒'],['tasks','只列待辦']];
+      const PlayerPreferenceControls = ({preferences,setPreferences,gameState}) => {
+          const [nameQuery,setNameQuery]=useState('');
+          const [kindFilter,setKindFilter]=useState('all');
+          const query=nameQuery.trim();
+          const people=rescuePreferenceRoster(gameState).filter(person=>
+              (!query||person.name?.includes(query))&&(kindFilter==='all'||person.kind===kindFilter));
+          const setPerson=(key,value)=>{
+              const rescuePeople={...preferences.rescuePeople};
+              if(value==='default')delete rescuePeople[key];else rescuePeople[key]=value;
+              setPreferences({rescuePeople});
+          };
+          const notificationSelect=(key,label)=><PreferenceSelect key={key} label={label} value={preferences[key]}
+              options={[['popup','跳窗提醒'],['tasks','本年摘要']]} onChange={value=>setPreferences({[key]:value})} />;
+          return <section className="space-y-4 mb-4 text-sm">
+              <fieldset className="rounded-lg border border-stone-300 p-3 space-y-2">
+                  <legend className="font-bold px-2">顯示</legend>
+                  <PreferenceSelect label="外觀" value={preferences.theme} options={[[ 'paper','宣紙淺色'],['dark','宮廷深色'],['system','跟隨系統']]} onChange={theme=>setPreferences({theme})}/>
+                  <PreferenceSelect label="文字大小" value={preferences.textScale} options={[[100,'標準 100%'],[115,'放大 115%'],[130,'特大 130%']]} onChange={value=>setPreferences({textScale:Number(value)})}/>
+                  <PreferenceSelect label="朝堂版面" value={preferences.layout} options={[[ 'auto','自動排列'],['single','單欄閱讀']]} onChange={layout=>setPreferences({layout})}/>
+                  <PreferenceSelect label="動態效果" value={preferences.motion} options={[[ 'system','跟隨系統'],['reduced','減少動態效果']]} onChange={motion=>setPreferences({motion})}/>
+              </fieldset>
+              <fieldset className="rounded-lg border border-stone-300 p-3 space-y-2">
+                  <legend className="font-bold px-2">音訊</legend>
+                  <label className="flex gap-2 items-center"><input type="checkbox" checked={!preferences.muted} onChange={event=>setPreferences({muted:!event.target.checked})}/>開啟音訊</label>
+                  {[['music','背景音樂'],['effects','事件音效']].map(([key,label])=><div key={key} className="space-y-1">
+                      <label className="flex gap-2 items-center"><input type="checkbox" checked={preferences[key]} onChange={event=>setPreferences({[key]:event.target.checked})}/>{label}</label>
+                      <label className="flex gap-2 items-center"><span>{label}音量 {preferences[key+'Volume']}%</span><input type="range" min="0" max="100" value={preferences[key+'Volume']} onChange={event=>setPreferences({[key+'Volume']:Number(event.target.value)})} className="min-w-0 flex-1"/></label>
+                  </div>)}
+              </fieldset>
+              <fieldset className="rounded-lg border border-stone-300 p-3 space-y-2">
+                  <legend className="font-bold px-2">年結通知</legend>
+                  {notificationSelect('report','年度財報')}{notificationSelect('school','皇嗣入學')}
+                  <div className="border-t border-stone-300 pt-2 font-bold">生死待決提醒</div>
+                  {Object.entries(RESCUE_GROUPS).map(([kind,label])=><PreferenceSelect key={kind} label={label} value={noticeMode(preferences.rescueGroups[kind])}
+                      options={NOTICE_OPTIONS} onChange={value=>setPreferences({rescueGroups:{...preferences.rescueGroups,[kind]:value}})} />)}
+                  <p>皇帝瀕死必定提醒。只列待辦者仍可救治，須裁定後才能進入下一年。</p>
+                  {gameState.gameId&&<>
+                      <PreferenceSelect label="人物身分" value={kindFilter} options={[[ 'all','所有身分'],...Object.entries(RESCUE_GROUPS)]} onChange={setKindFilter}/>
+                      <label className="block">搜尋人物
+                          <input type="search" value={nameQuery} onChange={event=>setNameQuery(event.target.value)} className="block w-full rounded border border-stone-300 bg-white p-2 text-stone-900" />
+                      </label>
+                      <div className="max-h-56 space-y-2 overflow-y-auto" aria-label="個人提醒設定">
+                          {people.length?people.map(person=><PreferenceSelect key={person.key} label={person.name+'・'+RESCUE_GROUPS[person.kind]}
+                              value={preferences.rescuePeople[person.key]||'default'} options={[[ 'default','依身分設定'],...NOTICE_OPTIONS]}
+                              onChange={value=>setPerson(person.key,value)} />):<p>沒有符合條件的人物。</p>}
+                      </div>
+                  </>}
+              </fieldset>
+              <button type="button" onClick={()=>setPreferences(DEFAULT_PREFERENCES)} className="rounded border border-stone-300 px-3 py-2 font-bold">恢復預設偏好</button>
+          </section>;
+      };

@@ -488,12 +488,14 @@
           let next = {...state};
           const execution=/奉旨|賜死|處死|行刑/.test(String(cause||''));
           if(!forceDeath&&!execution&&(Number(next.inventory?.revival_pill)||0)>0){
-              const existing=(next.pendingDeathCandidates||[]).some(candidate=>candidate.kind===event.victimKind&&String(candidate.personId)===String(event.victimId));
+              const kind=event.victimKind==='child'?'royal':'consort';
+              const existing=(next.pendingDeathCandidates||[]).some(candidate=>candidate.kind===kind&&String(candidate.personId)===String(event.victimId));
               if(!existing){
                   const person=event.victimKind==='child'?(next.childrenList||[]).find(item=>String(item.id)===String(event.victimId)):
                       locatePalaceCulprit(next,String(event.victimId))?.person;
                   if(person)return appendStateLog({...next,pendingDeathCandidates:[...(next.pendingDeathCandidates||[]),{
-                      id:royalNewId('death'),kind:event.victimKind==='child'?'royal':'consort',personId:person.id,name:person.name,cause
+                      id:royalNewId('death'),kind,personId:person.id,name:person.name,cause,
+                      noticePersonId:kind==='royal'?royalIdOf(person,next):royalConsortIdOf(person,rulerIdOf(next))
                   }]},`【生死待決】${person.name}因${cause}命懸一線，可使用九轉還魂丹救治。`);
               }
               return next;

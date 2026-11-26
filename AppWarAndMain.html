@@ -92,6 +92,9 @@
                    return `${result.line.provinceName}｜${result.line.attackers.map(a=>a.name).join('、')}\n聯軍：${coalition}（合計${result.line.coalitionStrength}）\n我軍${battleTroops(result.line)}千・主將${result.info.cmd.name}／副將${result.info.vice.name}／軍師${result.info.strat.name}\n守城+${Math.round(result.info.defenseBonus*1000)/10}%・我軍戰力${result.info.finalPower}／敵軍有效戰力${Math.round(result.info.enemyPower)}・勝率${result.info.winRate}%\n${result.outcome.label}・損兵${result.damage}千・民心${result.morale>=0?'+':''}${result.morale}${result.outcome.kind==='loss'?'・省份失守':'・省份保全'}`;
                }).join('\n\n');
               const totalDamage=results.reduce((sum,r)=>sum+r.damage,0),totalMorale=results.reduce((sum,r)=>sum+r.morale,0),paid=Math.min(Math.max(0,Number(gameState.treasury)||0),results.reduce((sum,r)=>sum+r.cost,0));
+              const battleCue=results.some(result=>result.outcome.kind==='loss')?'loss':
+                  results.some(result=>result.outcome.kind==='win')?'win':'draw';
+              playPalaceCue(battleCue);
               setCurrentEvent({id:'MULTI_WAR_REPORT',title:singleFront?'年度防守戰報':'年度多線防守總戰報',description:`${report}\n\n全國總計：損兵${totalDamage}千、民心${totalMorale>=0?'+':''}${totalMorale}、防守支出${paid}兩。`,options:[{text:'朕知道了',effect:s=>s}]});setCurrentView('MEMORIAL');
               setTimeout(()=>{battleSettlementRef.current=false;},500);
           };
@@ -209,6 +212,7 @@
                           }
                           const outcome=battleOutcome(winRate);
                           const isWin=outcome.kind==='win',isDraw=outcome.kind==='draw';
+                          playPalaceCue(outcome.kind);
                           let damage = Math.floor(gameState.army * outcome.casualty);
                           const lossMultiplier=cmd.specialId==='yue_fei'?0.8:mode==='ATTACK'&&cmd.specialId==='wei_qing'?0.85:mode==='DEFEND'&&cmd.specialId==='qi_jiguang'?0.8:1;
                           damage=Math.floor(damage*lossMultiplier);
@@ -410,7 +414,7 @@
                         if(!await confirmLowEnergySpend(cost,c.pregnancy?'探望孕妃':'翻牌子'))return;
                         consortVisitProcessingRef.current=true;
                         setConsortVisitTransition({mode:c.pregnancy?'visit':'flip',consortId:c.id,name:c.name,title:c.title,rank:c.rank,avatar:c.avatar});
-                        const transitionDelay=window.matchMedia?.('(prefers-reduced-motion: reduce)').matches?180:(c.pregnancy?900:600);
+                        const transitionDelay=reduceMotion?150:(c.pregnancy?900:600);
                         setTimeout(()=>{
                             setGameState(prev=>{
                                 const current=prev.consorts.find(con=>String(con.id)===String(c.id));
@@ -811,7 +815,7 @@
           </div>
       </div>}
       {appBooting&&<AppLoadingScreen/>}
-      {(!isGameStarted||pendingCloudNewGameSlot) && <StartScreen onStart={handleStartGame} onSettings={()=>setShowSystemSettings(true)} onHelp={()=>{setManualTab('PALACE');setShowGameManual(true);}} onUpdates={()=>setShowReleaseNotes(true)} onCloud={()=>setShowCloudPanel(true)} cloudStatus={cloudUser?'管理雲端存檔':'Google 登入／雲端存檔'} pendingCloudSlot={pendingCloudNewGameSlot} onCancelCloud={cancelCloudNewGame} cloudBusy={!!cloudOperation} cloudDraft={cloudDraftRef.current} cloudOperation={cloudOperation} />}
+      {(!isGameStarted||pendingCloudNewGameSlot) && <StartScreen onStart={handleStartGame} onSettings={()=>setShowSystemSettings(true)} onHelp={()=>{setManualTab('PALACE');setShowGameManual(true);}} onUpdates={()=>setShowReleaseNotes(true)} onCloud={()=>setShowCloudPanel(true)} cloudStatus={cloudUser?'管理雲端存檔':'Google 登入／雲端存檔'} pendingCloudSlot={pendingCloudNewGameSlot} onCancelCloud={cancelCloudNewGame} cloudBusy={!!cloudOperation} cloudDraft={cloudDraftRef.current} cloudOperation={cloudOperation} audioMuted={preferences.muted} onToggleAudio={togglePalaceAudio} />}
       {activeTutorial && <TutorialModal />}
       {isTransitioning && <TransitionScreen />}
       {consortVisitTransition && <ConsortVisitTransition />}
@@ -823,7 +827,7 @@
       {isGameStarted && !isTransitioning && !!gameState.pendingRetirementPlan && <RetentionPetitionModal />}
       
       {showVictoryModal && <VictoryModal />}
-      {(gameState.pendingDeathCandidates||[]).length>0&&<div className="fixed inset-0 z-[190] bg-black/80 flex items-center justify-center p-3" role="dialog" aria-modal="true" aria-label="九轉還魂救治"><div className="bg-white border-4 border-amber-500 rounded-xl max-w-2xl w-full max-h-full flex flex-col overflow-hidden"><div className="screen-modal-header shrink-0 p-4 border-b bg-amber-50"><h2 className="text-2xl font-serif font-bold text-red-900">☯ 生死待決・九轉還魂</h2><p className="text-sm">現有九轉還魂丹：{Number(gameState.inventory?.revival_pill)||0}顆。每救一人消耗一顆；未選者將正式死亡。</p></div><div className="flex-1 overflow-y-auto p-4 space-y-2">{(gameState.pendingDeathCandidates||[]).map(candidate=>{const checked=deathRescueSelection.includes(candidate.id);return <label key={candidate.id} className={`block border rounded p-3 ${checked?'bg-emerald-50 border-emerald-500':'bg-white'}`}><input type="checkbox" checked={checked} onChange={event=>{if(event.target.checked&&deathRescueSelection.length>=(Number(gameState.inventory?.revival_pill)||0)){showMessage('九轉還魂丹數量不足','error');return;}setDeathRescueSelection(list=>event.target.checked?[...list,candidate.id]:list.filter(id=>id!==candidate.id));}} /> <b>{candidate.name}</b><span className="block text-sm text-stone-600 ml-5">{candidate.cause}・{candidate.kind==='emperor'?'皇帝':candidate.kind==='consort'?'妃嬪':candidate.kind==='royal'?'皇室子女':'退休官員'}</span></label>})}</div><div className="shrink-0 border-t bg-white p-3"><button onClick={resolvePendingDeaths} className="w-full bg-red-900 text-white rounded p-3 font-bold">確認救治名單並裁定生死</button></div></div></div>}
+      {isGameStarted&&rescueCandidates.length>0&&(showFullRescue||popupRescues.length>0)&&<DeathRescueModal /> }
       {!(gameState.pendingDeathCandidates||[]).length&&(gameState.pendingItemRewards||[]).length>0&&currentView!=='TREASURY'&&<div className="fixed inset-0 z-[185] bg-black/75 flex items-center justify-center p-3" role="dialog" aria-modal="true" aria-label="背包已滿"><div className="bg-white border-4 border-red-600 rounded-xl max-w-md w-full p-5"><h2 className="text-xl font-bold text-red-900">🎒 背包已滿・獎勵待領</h2><p className="my-3">抽中{IMPERIAL_ITEM_MAP[gameState.pendingItemRewards[0].itemId]?.name}，原物品已固定保存，不會重新抽取。請前往皇家寶庫整理或放棄。</p><button onClick={()=>setCurrentView('TREASURY')} className="w-full bg-red-900 text-white rounded p-3 font-bold">前往皇家寶庫整理</button></div></div>}
       {!(gameState.pendingDeathCandidates||[]).length&&!(gameState.pendingItemRewards||[]).length&&(gameState.pendingItemNotices||[]).length>0&&<div className="fixed inset-0 z-[180] bg-black/70 flex items-center justify-center p-3" role="dialog" aria-modal="true" aria-label="獲得物品"><div className="bg-amber-50 border-4 border-amber-500 rounded-xl max-w-sm w-full p-5 text-center"><h2 className="text-2xl font-bold text-red-900">🎁 獲得物品</h2><p className="text-xl font-bold my-3">{IMPERIAL_ITEM_MAP[gameState.pendingItemNotices[0].itemId]?.name} ×{gameState.pendingItemNotices[0].quantity}</p><p className="text-sm text-stone-600 mb-4">{gameState.pendingItemNotices[0].source}</p><button onClick={()=>setGameState(previous=>({...previous,pendingItemNotices:(previous.pendingItemNotices||[]).slice(1)}))} className="w-full bg-amber-700 text-white rounded p-3 font-bold">收入皇家寶庫</button></div></div>}
       {showHeirSelection && !(gameState.pendingDeathCandidates||[]).length && <HeirSelectionModal />}
@@ -834,7 +838,8 @@
       {showSystemSettings && <SystemSettingsModal onClose={()=>setShowSystemSettings(false)} onSave={handleSave} onLoad={handleLoad}
           onExport={handleExportSave} onDownload={handleDownloadBackup} onImport={()=>{setShowSystemSettings(false);setShowImportModal(true);}}
           onRestart={restartGame} onAvatarChange={handleEmperorAvatarChange} emperorAvatar={gameState.emperorAvatar}
-          emperorAvatarAssets={gameState.emperorAvatarAssets} autoSaveStatus={autoSaveStatus} isGameStarted={isGameStarted} />}
+          emperorAvatarAssets={gameState.emperorAvatarAssets} autoSaveStatus={autoSaveStatus} isGameStarted={isGameStarted}
+          preferences={preferences} setPreferences={changePreferences} preferenceGame={gameState} />}
       {betaConsortDetailId!=null&&(()=>{
           const person=(gameState.consorts||[]).find(c=>String(c.id)===String(betaConsortDetailId));
           if(!person)return null;
@@ -894,13 +899,14 @@
       
       <div className="bg-stone-900 text-amber-50 p-2 shadow-md sticky top-0 z-40">
          <div className="max-w-6xl mx-auto flex flex-wrap justify-between items-center gap-2">
-            <div className="flex items-center gap-2 font-serif text-lg">
+            <div className="flex min-w-0 flex-wrap items-center gap-2 font-serif text-lg">
                <EmperorAvatar avatar={gameState.emperorAvatar} assets={gameState.emperorAvatarAssets} label={`${gameState.playerName||'皇帝'}頭像`} className="w-10 h-10 rounded-full border-2 border-amber-400 shrink-0" />
                <span className="bg-red-800 px-2 rounded border border-yellow-600">{gameState.eraName}{gameState.year}年</span>
                <span className="text-sm opacity-80">{gameState.age}歲</span>
                <button onClick={()=>setShowReleaseNotes(true)} className="text-[11px] text-amber-200 underline whitespace-nowrap" title="查看更新說明">{APP_VERSION} 更新</button>
                <button onClick={()=>{setManualTab('PALACE');setShowGameManual(true);}} className="text-[11px] bg-amber-800 rounded px-2 py-1 whitespace-nowrap">❓ 玩法</button>
                <button onClick={()=>setShowSystemSettings(true)} className="text-[11px] bg-stone-700 rounded px-2 py-1 whitespace-nowrap">⚙ 系統設定</button>
+               <button onClick={togglePalaceAudio} aria-pressed={!preferences.muted} className="text-[11px] bg-stone-700 rounded px-2 py-1 whitespace-nowrap">{preferences.muted?'🔇 開啟音訊':'🔊 靜音'}</button>
                <button onClick={()=>setShowCloudPanel(true)} aria-busy={cloudSessionChecking} className={`text-[11px] bg-sky-700 rounded px-2 py-1 whitespace-nowrap ${cloudSessionChecking?'animate-pulse':''}`}>☁ {cloudSessionChecking?'雲端核對中…':currentSaveLocation}</button>
                {(gameState.pendingPalaceEvent||gameState.pendingAnnualDraft||getPendingRetirementMinisters(gameState).length>0) && !['THRONE','MEMORIAL','DEFEND'].includes(currentView) && <button onClick={()=>setCurrentView('THRONE')} className="bg-red-700 text-xs font-bold px-2 py-1 rounded">⚠️ 待決宮廷事件</button>}
                {gameState.activeTitle && <span className="bg-yellow-500 text-stone-900 text-xs px-2 py-0.5 rounded-full font-bold flex items-center gap-1 animate-pulse"><Award/> {gameState.activeTitle}</span>}
@@ -926,6 +932,10 @@
         <main className="game-main-surface flex-1 relative bg-amber-50 border-4 border-double border-stone-300 rounded-xl shadow-xl overflow-hidden">
            {currentView === 'THRONE' && (
              <div className="throne-columns grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-3 md:p-4 h-full overflow-y-auto">
+                {(rescueCandidates.length>0||gameState.annualSummary?.report)&&<div className="col-span-full flex flex-wrap gap-2">
+                    {rescueCandidates.length>0&&<button onClick={()=>setFullRescueBatch(rescueBatch)} className="rounded bg-red-900 px-3 py-2 text-sm font-bold text-white">生死待決（{rescueCandidates.length}）</button>}
+                    {gameState.annualSummary?.report&&<button onClick={openAnnualSummary} className="rounded bg-stone-700 px-3 py-2 text-sm font-bold text-white">本年摘要</button>}
+                </div>}
                 {getOpenGovernmentPosts(gameState).length > 0 && <div className="col-span-1 md:col-span-2 lg:col-span-3"><VacantPostsBanner /></div>}
                 {(gameState.pendingBattleLines||[]).length > 0 && <div className="col-span-1 md:col-span-2 lg:col-span-3 bg-red-100 border-l-4 border-red-700 p-4 rounded shadow-sm">
                     <div className="flex flex-wrap items-center justify-between gap-3"><div><b className="text-red-900">⚔️ 邊疆有 {(gameState.pendingBattleLines||[]).length} 條戰線待部署</b><p className="text-xs text-red-800 mt-1">必須完成分兵、指派將領或明確棄守，才能繼續下一年。</p></div><button onClick={()=>setCurrentView('DEFEND')} className="bg-red-900 text-white rounded px-4 py-2 font-bold">前往兵部部署</button></div>

@@ -13,9 +13,9 @@ const assert = (condition, message) => { if (!condition) throw new Error(message
 
 const packageJson = JSON.parse(read('package.json'));
 const manifest = JSON.parse(read('assets/characters/manifest.json'));
-assert(packageJson.version === '1.4.4', 'package.json must be v1.4.4');
+assert(packageJson.version === '1.4.5', 'package.json must be v1.4.5');
 assert(manifest.version === 'v1.4.2' && manifest.status === 'PRODUCTION', 'character manifest is not production v1.4.2');
-assert(read('ClientCore.html').includes('const APP_VERSION = "v1.4.4"'), 'ClientCore version mismatch');
+assert(read('ClientCore.html').includes('const APP_VERSION = "v1.4.5"'), 'ClientCore version mismatch');
 assert(/const QING_SAVE_KEY\s*=\s*'qing_saveData'/.test(read('ClientShell.html')), 'production save key is missing');
 assert(read('Index.html').includes('https://unpkg.com/@babel/standalone@7.28.5/babel.min.js'), 'browser Babel version must stay pinned to 7.28.5');
 assert(read('ImageBeta.html').includes('const BETA_IMAGE_BASE=String(globalThis.QING_IMAGE_BETA_ASSET_BASE || "https://'), 'production image base must use the GAS-safe single-line literal');
@@ -201,6 +201,100 @@ const migratedBinding=clientWrites.find(([kind])=>kind==='binding')?.[1];
 assert(migratedBinding?.dynastyId==='dynasty_old'&&migratedBinding.gameId==='run_old'&&migratedBinding.dirty,
   'an unsynced legacy succession must keep its original slot and expected remote reign');
 
+const preferenceSource=read('ClientPreferences.html');
+const audioContextMarker=preferenceSource.indexOf('      const usePlayerPreferences');
+assert(audioContextMarker>0,'missing player preferences hook');
+let intervalId=0,testsAudioContext;
+const liveAudioIntervals=new Set();
+const storageForPreferences=new Map();
+const preferencesContext={
+  localStorage:{getItem:key=>storageForPreferences.get(key)},
+  cloudDynastyId:state=>state.dynastyId,
+  rulerIdOf:state=>state.currentEmperorId,
+  royalIdOf:person=>person.royalId||person.id,
+  royalConsortIdOf:(person,ruler)=>person.royalConsortId||ruler+'_'+person.id,
+  setInterval:()=>{liveAudioIntervals.add(++intervalId);return intervalId;},
+  clearInterval:id=>liveAudioIntervals.delete(id),
+  setTimeout:callback=>callback()
+};
+vm.createContext(preferencesContext);
+vm.runInContext(`${preferenceSource.slice(0,audioContextMarker)}
+Object.assign(globalThis,{normalizePreferences,readPlayerPreferences,rescuePersonKey,rescueNeedsPopup,createPalaceAudio});
+`,preferencesContext);
+const {normalizePreferences,readPlayerPreferences,rescuePersonKey,rescueNeedsPopup,createPalaceAudio}=preferencesContext;
+const settingsDefault=readPlayerPreferences();
+assert(settingsDefault.muted&&settingsDefault.musicVolume===30&&settingsDefault.effectsVolume===45&&settingsDefault.report==='popup','old browser should retain visible notices and start muted');
+const dynasty={dynastyId:'dynasty_a',gameId:'run_old',childrenList:[{id:7,royalId:'royal_7',name:'幼名'}]};
+const scopedRoyal=rescuePersonKey(dynasty,'royal','royal_7');
+const settings=normalizePreferences({theme:'dark',layout:'single',textScale:130,musicVolume:105,effectsVolume:-4,muted:false,
+  rescueGroups:{royal:'tasks',consort:'tasks',emperor:'tasks'},rescuePeople:{[scopedRoyal]:'popup'}});
+storageForPreferences.set('qing_player_preferences_v1',JSON.stringify(settings));
+assert(readPlayerPreferences().theme==='dark'&&settings.musicVolume===100&&settings.effectsVolume===0,'display, sound and stored settings must normalize');
+const heir={...dynasty,gameId:'run_heir',childrenList:[{id:7,royalId:'royal_7',name:'新名'}]};
+assert(rescueNeedsPopup(heir,{kind:'royal',personId:7},settings),'person exception must survive renaming and changing the reigning emperor');
+assert(!rescueNeedsPopup({...heir,dynastyId:'dynasty_b'},{kind:'royal',personId:7},settings),'person exception must belong to its dynasty');
+assert(!rescueNeedsPopup(heir,{kind:'consort',personId:8},settings)&&
+  rescueNeedsPopup(heir,{kind:'emperor',personId:1},settings),'quiet candidates must be filtered, but emperor always announces');
+class TestAudioContext {
+  constructor(){this.state='suspended';this.currentTime=0;this.destination={};this.oscillators=[];testsAudioContext=this;}
+  parameter(){return {value:0,setValueAtTime(){},exponentialRampToValueAtTime(){},cancelScheduledValues(){},setTargetAtTime(){}};}
+  createGain(){return {gain:this.parameter(),connect(){},disconnect(){}};}
+  createOscillator(){
+    const node={frequency:this.parameter(),connect(){},disconnect(){},start(){},stops:[],stop(time){this.stops.push(time);}};
+    this.oscillators.push(node);
+    return node;
+  }
+  async resume(){this.state='running';}
+  async suspend(){this.state='suspended';}
+  async close(){this.state='closed';}
+}
+const playerAudio=createPalaceAudio(TestAudioContext);
+playerAudio.update(settingsDefault,'title',true);
+assert(testsAudioContext.oscillators.length===0,'muted audio must not schedule any notes');
+await playerAudio.resume();
+playerAudio.update({...settingsDefault,muted:false},'title',true);
+assert(liveAudioIntervals.size===1&&testsAudioContext.oscillators.length>0,'enabled score must start a single music scheduler');
+const titleNoteCount=testsAudioContext.oscillators.length;
+playerAudio.update({...settingsDefault,muted:false},'war',true);
+const warNoteCount=testsAudioContext.oscillators.length;
+assert(liveAudioIntervals.size===1&&warNoteCount>titleNoteCount,'scene change must replace the score scheduler');
+playerAudio.play('recruit');
+assert(testsAudioContext.oscillators.length===warNoteCount+3,'recruit should schedule one complete event cue');
+playerAudio.update({...settingsDefault,muted:false},'war',false);
+playerAudio.play('win');
+assert(liveAudioIntervals.size===0&&testsAudioContext.state==='suspended'&&testsAudioContext.oscillators.length===warNoteCount+3,
+  'background tab must stop scheduling score and event cues');
+await playerAudio.resume();
+playerAudio.update({...settingsDefault,muted:false,music:false,effects:true},'court',true);
+playerAudio.play('report');
+assert(liveAudioIntervals.size===0&&testsAudioContext.oscillators.length===warNoteCount+5,'event cues must work with background music disabled');
+playerAudio.dispose();
+
+const deathSource=cloudClient.slice(cloudClient.indexOf('        const resolvePendingDeaths ='),cloudClient.indexOf('        const handleAdventure ='));
+const deaths=[{id:'death_1',kind:'emperor',personId:'emperor_a',name:'皇帝'},
+  {id:'death_2',kind:'retired',personId:22,name:'退休官員'}];
+const decisionContext={
+  showFullRescue:false,deathDecisionRef:{current:false},rescueCandidates:deaths,rescueBatch:'death_1|death_2',
+  deathRescueSelection:['death_2'],gameState:{pendingDeathCandidates:deaths,inventory:{revival_pill:2}},decisionCount:0,
+  requestGameConfirm:async()=>{decisionContext.decisionCount+=1;return true;},showMessage(){},
+  setGameState:update=>{decisionContext.gameState=update(decisionContext.gameState);},setDeathRescueSelection(){},
+  rulerIdOf:()=> 'emperor_a',appendStateLog:state=>state,normalizeRoyalState:state=>state
+};
+vm.createContext(decisionContext);
+vm.runInContext(`${deathSource}
+globalThis.resolvePendingDeaths=resolvePendingDeaths;`,decisionContext);
+await decisionContext.resolvePendingDeaths();
+assert(decisionContext.decisionCount===0&&decisionContext.gameState.pendingDeathCandidates.length===2,
+  'a filtered list must not adjudicate any unreviewed candidates');
+decisionContext.showFullRescue=true;
+await decisionContext.resolvePendingDeaths();
+assert(decisionContext.decisionCount===1&&decisionContext.gameState.pendingDeathCandidates.length===0&&
+  decisionContext.gameState.inventory.revival_pill===1&&decisionContext.gameState.declinedRevivalForEmperor==='emperor_a',
+  'the complete list requires one decision and must consume exactly one pill for a selected candidate');
+assert(cloudClient.includes('annualSummary:{report:annualReport,schoolNames:sixYearOldNames}')&&
+  cloudClient.includes("sixYearOldNames.length&&preferences.school==='popup'")&&cloudClient.includes("preferences.report==='popup'"),
+  'annual data must remain available independently of notification preferences');
+
 const clasp = JSON.parse(read('.clasp.json'));
 assert(clasp.scriptId === '1XgG3H6UsAsOkhYWEMnkf8svciGRGrXqcwQYzJtrEhABvrrfCfo0K9C0t', 'unexpected production GAS script ID');
 assert(!fs.existsSync(path.join(root, 'BetaServer.js')), 'BetaServer.js must not be shipped to production');
@@ -356,4 +450,4 @@ const customState=portraits.normalizeEmperorAvatarState({gameId:'run-avatar',cur
 assert(customState.emperorAvatar.kind==='custom'&&Object.keys(customState.emperorAvatarAssets).length===1,'custom emperor avatar deduplication/pruning failed');
 assert(portraits.emperorLeaderboardAvatarPayload(customState).avatarValue===customAsset.leaderboard,'leaderboard thumbnail selection failed');
 
-console.log('Production verification passed: v1.4.4, Babel syntax, automatic OAuth handoff, cloud save integrity, IME-safe prompts, responsive recruit cards, 173 character IDs and 523 WebP assets.');
+console.log('Production verification passed: v1.4.5, Babel syntax, automatic OAuth handoff, cloud save integrity, IME-safe prompts, responsive recruit cards, player preferences and annual notices, 173 character IDs and 523 WebP assets.');

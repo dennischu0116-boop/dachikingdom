@@ -1,7 +1,7 @@
 {
   "name": "dachikingdom-tools",
   "private": true,
-  "version": "1.4.4",
+  "version": "1.4.5",
   "scripts": {
     "build:beta-preview": "node scripts/build-beta-preview.mjs && tailwindcss -i scripts/beta-preview-tailwind.css -o .beta-preview/tailwind.css --content .beta-preview/index.html --minify",
     "verify:production": "node scripts/verify-production.mjs"
