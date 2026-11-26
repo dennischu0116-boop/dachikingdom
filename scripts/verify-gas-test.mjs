@@ -38,3 +38,28 @@ assert.equal(submitContext.calls,1);
 assert(app.includes('const initialCloudBinding=null;'));
 assert(app.includes('const config={oauthReady:false,maxSlots:0};'));
 console.log('Test isolation passed: JSX, local storage separation, no login or persistence APIs, fixed rankings, disabled uploads with callback completion.');
+// Test map destinations and callbacks without creating or modifying a game.
+let states=[],cursor=0;
+const createElement=(type,props,...children)=>({type,props:{...props,children:children.flat(Infinity)}});
+const mapContext=vm.createContext({React:{createElement},PALACE_MAP_IMAGE:'test.webp',
+  useState(initial){const i=cursor++;if(!(i in states))states[i]=initial;return [states[i],v=>{states[i]=typeof v==='function'?v(states[i]):v;}];},
+  useRef:()=>({current:null}),useEffect(){},requestAnimationFrame:fn=>fn()});
+vm.runInContext(babel.transformSync(fs.readFileSync('scripts/fixtures/palace-map.jsx','utf8'),{presets:['@babel/preset-react'],configFile:false,babelrc:false}).code,mapContext);
+const called=[];
+const props={onNavigate:v=>called.push(v),onAction:v=>called.push(v),onNextYear:()=>called.push('year'),onRankings:()=>called.push('rankings'),tasks:null,taskCount:7,yearLabel:'結束本年',reduceMotion:true};
+const render=()=>{cursor=0;return mapContext.PalaceMap(props);};
+const flatten=node=>!node||typeof node!=='object'?[]:[node,...(node.props?.children||[]).flatMap(flatten)];
+let nodes=flatten(render());
+const buildings=nodes.filter(n=>n.props?.className==='palace-building');
+assert.equal(buildings.length,9);for(const b of buildings)b.props.onClick();
+for(const route of ['court','settings','HAREM','MINISTERS','SCHOOL','government','WAR','WORKS','adventure'])assert(called.includes(route));
+assert(!nodes.some(n=>n.props?.className==='palace-petals'));
+nodes.find(n=>n.props?.['aria-label']==='放大地圖').props.onClick();
+assert.equal(states[0],1.1);
+for(let i=0;i<20;i++)flatten(render()).find(n=>n.props?.['aria-label']==='放大地圖').props.onClick();
+assert.equal(states[0],1.6);
+flatten(render()).find(n=>n.props?.className==='palace-tasks-heading').props.onClick();
+assert(!flatten(render()).some(n=>n.props?.className==='palace-task-list'));
+assert(read('AppWarAndMain.html').includes('palace-resources'));
+assert(read('AppWarAndMain.html').includes('hidden={currentView===\'THRONE\'&&!palacePanel}'));
+console.log('Palace map passed: nine destinations, zoom bounds, collapsible tasks, reduced motion, fixed resource and panel integration.');

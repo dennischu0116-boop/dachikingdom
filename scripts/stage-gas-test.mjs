@@ -1,3 +1,4 @@
+import { palaceTestTransform } from './palace-test-transform.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import assert from 'node:assert/strict';
@@ -39,6 +40,7 @@ for (const name of files) {
     replaceOnce('所有玩家共用 · 七榜各取前20名；點擊詳情可查看同一局保存的全部成績', '固定假資料 · 僅供版面測試，不會上傳遊戲成績');
   }
   if (name === 'Index.html') text = text.replace('<body>', '<body>\n<div role="note" style="position:fixed;bottom:0;right:0;z-index:2147483647;background:#7f1d1d;color:white;padding:4px 12px;font-size:12px;pointer-events:none">前端測試版・獨立存檔</div>');
+  text = palaceTestTransform(name,text);
   fs.writeFileSync(path.join(out,name),text);
 }
 fs.writeFileSync(path.join(out,'.clasp.json'),JSON.stringify({scriptId,rootDir:'.'},null,2)+'\n');
