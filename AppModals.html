@@ -111,35 +111,23 @@
         };
 
         const RecruitRevealModal = () => {
-            if(!recruitReveal)return null;
-            const results=Array.isArray(recruitReveal.results)?recruitReveal.results:[];
-            if(!results.length)return null;
-            const [revealedIds,setRevealedIds]=useState([]);
-            const [sequenceActive,setSequenceActive]=useState(false);
-            const revealTimersRef=useRef([]);
-            const personId=(person,index)=>String(person.id??`${person.name}-${index}`);
-            const allRevealed=results.every((person,index)=>revealedIds.includes(personId(person,index)));
-            const clearRevealTimers=()=>{
-                revealTimersRef.current.forEach(timer=>clearTimeout(timer));
-                revealTimersRef.current=[];
-            };
+            const results=Array.isArray(recruitReveal?.results)?recruitReveal.results:[];
+            const hasResults=results.length>0;
+            const [phase,setPhase]=useState(()=>window.matchMedia?.('(prefers-reduced-motion: reduce)').matches?'revealed':'covered');
+            const flipHalfMs=340;
+            const revealed=phase==='revealed';
             useEffect(()=>{
-                if(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches){setRevealedIds(results.map(personId));return clearRevealTimers;}
-                setSequenceActive(true);
-                const startDelay=450;
-                revealTimersRef.current.push(setTimeout(()=>setRevealedIds(results.map(personId)),startDelay));
-                revealTimersRef.current.push(setTimeout(()=>setSequenceActive(false),startDelay+700));
-                return clearRevealTimers;
-            },[]);
+                if(!hasResults||phase==='revealed')return;
+                const isCovered=phase==='covered';
+                const nextPhase=isCovered?'flipping':'revealed';
+                const timer=setTimeout(()=>setPhase(current=>current===phase?nextPhase:current),isCovered?450:2*flipHalfMs);
+                return ()=>clearTimeout(timer);
+            },[hasResults,phase]);
+            if(!hasResults)return null;
             const finish=()=>{
                 const isTen=results.length>1;
                 setRecruitReveal(null);
                 if(isTen)setCurrentView('RECRUIT');
-            };
-            const skip=()=>{
-                clearRevealTimers();
-                setRevealedIds(results.map(personId));
-                setSequenceActive(false);
             };
             return <div className="fixed inset-0 z-[215] bg-stone-950/90 flex items-center justify-center p-2 sm:p-4" role="dialog" aria-modal="true" aria-label={recruitReveal.title||'金榜揭曉'}>
                 <div className="recruit-reveal-shell w-full max-w-5xl max-h-[96dvh] flex flex-col overflow-hidden rounded-xl border-4 border-double border-amber-500 shadow-2xl">
@@ -148,28 +136,27 @@
                         <h2 className="font-serif text-2xl sm:text-3xl font-bold text-amber-50 mt-1">{recruitReveal.title||'金榜揭曉'}</h2>
                         <p className="text-sm text-amber-100/75 mt-1">{results.length>1?'十張殿試名帖將同時自動揭曉':'殿試名帖將自動揭曉本次錄取人才'}</p>
                     </div>
-                    <div className={`recruit-reveal-grid min-h-0 flex-1 overflow-y-auto p-3 sm:p-5 grid gap-3 ${results.length>1?'is-ten':'is-single-grid place-items-center'}`}>
+                    <div className={`recruit-reveal-grid min-h-0 flex-1 overflow-y-auto p-3 sm:p-5 grid gap-3 ${results.length>1?'is-ten':'is-single-grid place-items-center'} ${phase==='flipping'?'is-flipping':''}`} style={{'--recruit-flip-half':`${flipHalfMs}ms`}}>
                         {results.map((person,index)=>{
-                            const id=personId(person,index),revealed=revealedIds.includes(id);
+                            const id=person.id??`${person.name}-${index}`;
                             const rarity=person.rarity==='legendary'?'legendary':person.specialId?'historical':'common';
-                            return <div key={id} className={`recruit-flip-card ${results.length===1?'is-single':''} ${revealed?'is-revealed':''} ${revealed&&!sequenceActive?'is-settled':''}`} aria-label={revealed?`${person.name}已揭曉`:`第${index+1}張名帖等待揭曉`} aria-live="polite">
-                                <span className="recruit-flip-inner">
-                                    <span className="recruit-flip-face recruit-flip-back"><b>殿試名帖</b><span>第 {index+1} 名</span><small>即將揭曉</small></span>
-                                    <span className={`recruit-flip-face recruit-flip-front rarity-${rarity}`}>
+                            return <div key={id} className={`recruit-flip-card ${results.length===1?'is-single':''}`} aria-label={revealed?`${person.name}已揭曉`:`第${index+1}張名帖等待揭曉`} aria-live="polite">
+                                {!revealed&&<span className="recruit-flip-face recruit-flip-back"><b>殿試名帖</b><span>第 {index+1} 名</span><small>即將揭曉</small></span>}
+                                {phase!=='covered'&&<span className={`recruit-flip-face recruit-flip-front rarity-${rarity}`} aria-hidden={!revealed}>
                                         <BetaPortrait detail={results.length===1} variant={results.length===1?'thumbnail':'headshot'} portraitId={betaPortraitIdForCandidate(gameState,betaPortraitAssignments,'minister',person)} label={person.name} className={`${results.length===1?'w-36 h-48 rounded-lg border border-amber-300':'recruit-card-headshot'} shrink-0`} />
                                         <b className="text-lg leading-tight mt-1">{person.name}</b>
                                         <span className="text-[11px] font-bold">{person.rarityLabel||'普通人才'}・{person.recruitType||'人才'}</span>
                                         <span className="text-xs mt-1"><em className="text-blue-700 not-italic font-bold">文 {Math.round(Number(person.civil)||0)}</em>　<em className="text-red-700 not-italic font-bold">武 {Math.round(Number(person.military)||0)}</em></span>
                                         <span className="text-[11px]">忠 {Math.round(Number(person.loyalty)||0)}・資 {Math.round(Number(person.aptitude)||0)}・{person.age}歲</span>
                                         {person.specialId&&<small className="mt-1 line-clamp-2">★ {getMinisterSkillText(person)}</small>}
-                                    </span>
-                                </span>
+                                </span>}
                             </div>;
                         })}
                     </div>
                     <div className="shrink-0 border-t border-amber-500/40 bg-stone-950/95 p-3 flex flex-wrap justify-center gap-2">
-                        {!allRevealed&&<button onClick={skip} className="px-4 py-2 rounded bg-stone-700 text-white">跳過動畫</button>}
-                        {allRevealed&&<button onClick={finish} disabled={sequenceActive} className="px-6 py-2 rounded bg-red-900 text-amber-50 font-bold disabled:opacity-40">{results.length>1?'前往挑選人才':'收入朝中'}</button>}
+                        {revealed
+                            ? <button onClick={finish} className="px-6 py-2 rounded bg-red-900 text-amber-50 font-bold">{results.length>1?'前往挑選人才':'收入朝中'}</button>
+                            : <button onClick={()=>setPhase('revealed')} className="px-4 py-2 rounded bg-stone-700 text-white">跳過動畫</button>}
                     </div>
                 </div>
             </div>;

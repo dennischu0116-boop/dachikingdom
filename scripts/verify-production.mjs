@@ -32,9 +32,11 @@ assert(cloudServer.includes("mode === 'same_tab'")&&cloudServer.includes('window
 assert(cloudServer.includes('setTimeout(function(){window.close();},700)')&&cloudServer.includes('pending: true'), 'automatic popup close or pending handoff response is missing');
 assert(read('AppState.html').includes("setTimeout(poll,attempts<20?1500:5000)")&&read('AppState.html').includes("consumeCloudLoginHandoff")&&read('AppState.html').includes('visibilitychange'), 'automatic OAuth handoff polling is missing');
 const styleSource=read('Styles.html');
-assert(styleSource.includes('.recruit-flip-card.is-settled .recruit-flip-back { display:none; }'), 'settled recruit cards do not remove the exam-card back');
-assert(!/\.recruit-flip-front\s*\{[^}]*visibility\s*:\s*hidden/.test(styleSource), 'recruit-card front must remain renderable throughout the flip');
-assert(modalSource.includes("revealed&&!sequenceActive?'is-settled':''"), 'recruit cards never enter the settled display phase');
+const recruitStyle=styleSource.slice(styleSource.indexOf('.recruit-reveal-shell {'),styleSource.indexOf('/* v1.4.1：'));
+assert(recruitStyle.includes('transform:scaleX(0)')&&!/rotateY|translateZ|perspective|preserve-3d|backface-visibility/.test(recruitStyle), 'recruit animation must use only flat transforms');
+const recruitFrontRule=recruitStyle.match(/^\s*\.recruit-flip-front\s*\{([^}]+)\}/m)?.[1];
+assert(recruitFrontRule&&!/\b(?:transform|animation|visibility|opacity)\s*:/.test(recruitFrontRule), 'settled recruit-card front must render without animation styles');
+assert(modalSource.includes('{!revealed&&<span className="recruit-flip-face recruit-flip-back"')&&modalSource.includes("{phase!=='covered'&&<span"), 'recruit-card faces must match the reveal phase');
 assert(styleSource.includes('@media(max-width:899px)')&&styleSource.includes('@media(max-width:359px)'), 'responsive recruit-card breakpoints are missing');
 assert(read('ClientContent.html').includes('const enemyHomelandOccupation = (state, enemyName) =>'), 'foreign occupation resolver is missing');
 assert(read('AppWarAndMain.html').includes('displacedHomeland=enemyHomelandOccupation(gameState,target.name)') && read('AppWarAndMain.html').includes('請改為攻打${displacedHomeland.occupier}收復失土'), 'foreign-occupied homeland attack guard is missing');
