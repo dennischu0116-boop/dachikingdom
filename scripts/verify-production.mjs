@@ -13,9 +13,9 @@ const assert = (condition, message) => { if (!condition) throw new Error(message
 
 const packageJson = JSON.parse(read('package.json'));
 const manifest = JSON.parse(read('assets/characters/manifest.json'));
-assert(packageJson.version === '1.4.6', 'package.json must be v1.4.6');
+assert(packageJson.version === '1.4.4', 'package.json must be v1.4.4');
 assert(manifest.version === 'v1.4.2' && manifest.status === 'PRODUCTION', 'character manifest is not production v1.4.2');
-assert(read('ClientCore.html').includes('const APP_VERSION = "v1.4.6"'), 'ClientCore version mismatch');
+assert(read('ClientCore.html').includes('const APP_VERSION = "v1.4.4"'), 'ClientCore version mismatch');
 assert(/const QING_SAVE_KEY\s*=\s*'qing_saveData'/.test(read('ClientShell.html')), 'production save key is missing');
 assert(read('Index.html').includes('https://unpkg.com/@babel/standalone@7.28.5/babel.min.js'), 'browser Babel version must stay pinned to 7.28.5');
 assert(read('ImageBeta.html').includes('const BETA_IMAGE_BASE=String(globalThis.QING_IMAGE_BETA_ASSET_BASE || "https://'), 'production image base must use the GAS-safe single-line literal');
@@ -522,4 +522,4 @@ const customState=portraits.normalizeEmperorAvatarState({gameId:'run-avatar',cur
 assert(customState.emperorAvatar.kind==='custom'&&Object.keys(customState.emperorAvatarAssets).length===1,'custom emperor avatar deduplication/pruning failed');
 assert(portraits.emperorLeaderboardAvatarPayload(customState).avatarValue===customAsset.leaderboard,'leaderboard thumbnail selection failed');
 
-console.log('Production verification passed: v1.4.6, Babel syntax, automatic OAuth handoff, cloud save integrity, IME-safe prompts, legacy cloud recovery, event and battle cues, responsive recruit cards, player preferences and annual notices, 173 character IDs and 523 WebP assets.');
+console.log('Production verification passed: v1.4.4, Babel syntax, automatic OAuth handoff, cloud save integrity, IME-safe prompts, legacy cloud recovery, event and battle cues, responsive recruit cards, player preferences and annual notices, 173 character IDs and 523 WebP assets.');
