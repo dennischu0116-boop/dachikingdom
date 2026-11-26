@@ -1,0 +1,132 @@
+{
+  "generated": "2026-11-27",
+  "origin": "OpenAI image generation tool, generated for this experiment; no third-party game assets",
+  "note": "AI art: approximate perspective and Qing details; guard walk frames have limited pose variation.",
+  "assets": [
+    {
+      "name": "taihe",
+      "file": "assets/taihe.webp",
+      "source": "source-art/taihe.png",
+      "width": 1280,
+      "height": 778,
+      "bytes": 409322,
+      "alpha": true,
+      "sha256": "7241e836aa1ac4ec0c4dfb2ccc126bf516a04deb1181c9e5a88fddfcffa9e132"
+    },
+    {
+      "name": "east-hall",
+      "file": "assets/east-hall.webp",
+      "source": "source-art/architecture.png",
+      "width": 500,
+      "height": 254,
+      "bytes": 55980,
+      "alpha": true,
+      "sha256": "ab04a8ae598788272c96886b807196d0a642e582865af92c355ea379498b8e23"
+    },
+    {
+      "name": "west-pavilion",
+      "file": "assets/west-pavilion.webp",
+      "source": "source-art/architecture.png",
+      "width": 370,
+      "height": 328,
+      "bytes": 47008,
+      "alpha": true,
+      "sha256": "b7974feaf8b7af93ea025aa8ffa98c0c4e3d8bd8ce415b998cb8fab10d8e2eb2"
+    },
+    {
+      "name": "terrace",
+      "file": "assets/terrace.webp",
+      "source": "source-art/architecture.png",
+      "width": 631,
+      "height": 317,
+      "bytes": 72490,
+      "alpha": true,
+      "sha256": "25a8155fe6a50f77dd7c5ff1b90c592b617128cfddcaf45afe56111216bcd25d"
+    },
+    {
+      "name": "pine",
+      "file": "assets/pine.webp",
+      "source": "source-art/architecture.png",
+      "width": 475,
+      "height": 429,
+      "bytes": 92060,
+      "alpha": true,
+      "sha256": "af5520e340207932cb601fdab6a6f2d5559ef4f2cc3313b0a89d3481e4302698"
+    },
+    {
+      "name": "cypress",
+      "file": "assets/cypress.webp",
+      "source": "source-art/architecture.png",
+      "width": 355,
+      "height": 480,
+      "bytes": 75986,
+      "alpha": true,
+      "sha256": "0ff90dbf67a57e75d7250cfe807304ba07a16eb79985e0d9aa358f617442e1d7"
+    },
+    {
+      "name": "courtyard",
+      "file": "assets/courtyard.webp",
+      "source": "source-art/courtyard.png",
+      "width": 1536,
+      "height": 1024,
+      "bytes": 425394,
+      "alpha": false,
+      "sha256": "75368a8864867d7edc5716b02868f94a1ca21bba8973370db0495dfb4857b8e9"
+    },
+    {
+      "name": "flagpole",
+      "file": "assets/flagpole.webp",
+      "source": "source-art/props.png",
+      "width": 111,
+      "height": 612,
+      "bytes": 19518,
+      "alpha": true,
+      "sha256": "11c4628806005ed638680ec9c692e35ddca7d89936f43d3f9d97759f9fe56639"
+    },
+    {
+      "name": "banner",
+      "file": "assets/banner.webp",
+      "source": "source-art/props.png",
+      "width": 256,
+      "height": 450,
+      "bytes": 55568,
+      "alpha": true,
+      "sha256": "65ef955295064bb179006a4301395c29d53391cc293d8820b603e7a35127a6b2"
+    },
+    {
+      "name": "lantern",
+      "file": "assets/lantern.webp",
+      "source": "source-art/props.png",
+      "width": 192,
+      "height": 470,
+      "bytes": 33346,
+      "alpha": true,
+      "sha256": "a7d7167b26b5715937c1ff50a03e392944667dff973efba89b7e738fe7228599"
+    },
+    {
+      "name": "brazier",
+      "file": "assets/brazier.webp",
+      "source": "source-art/props.png",
+      "width": 256,
+      "height": 281,
+      "bytes": 30854,
+      "alpha": true,
+      "sha256": "b03e8c1a9a2ed7de5e981a6350347686b3e451ea73d812f17e09162897890d9f"
+    },
+    {
+      "name": "guards",
+      "file": "assets/guards.webp",
+      "source": "source-art/guards.png",
+      "width": 768,
+      "height": 512,
+      "bytes": 105520,
+      "alpha": true,
+      "columns": 6,
+      "rows": 4,
+      "frameWidth": 128,
+      "frameHeight": 128,
+      "sha256": "d876b384a69f70ffc5c5dbde22173dca0b597ae78362bd56fe14c1e3ebc8e14f"
+    }
+  ],
+  "totalBytes": 1423046
+}
