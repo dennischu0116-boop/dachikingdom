@@ -152,7 +152,7 @@
                         {results.map((person,index)=>{
                             const id=personId(person,index),revealed=revealedIds.includes(id);
                             const rarity=person.rarity==='legendary'?'legendary':person.specialId?'historical':'common';
-                            return <div key={id} className={`recruit-flip-card ${results.length===1?'is-single':''} ${revealed?'is-revealed':''}`} aria-label={revealed?`${person.name}已揭曉`:`第${index+1}張名帖等待揭曉`} aria-live="polite">
+                            return <div key={id} className={`recruit-flip-card ${results.length===1?'is-single':''} ${revealed?'is-revealed':''} ${revealed&&!sequenceActive?'is-settled':''}`} aria-label={revealed?`${person.name}已揭曉`:`第${index+1}張名帖等待揭曉`} aria-live="polite">
                                 <span className="recruit-flip-inner">
                                     <span className="recruit-flip-face recruit-flip-back"><b>殿試名帖</b><span>第 {index+1} 名</span><small>即將揭曉</small></span>
                                     <span className={`recruit-flip-face recruit-flip-front rarity-${rarity}`}>
