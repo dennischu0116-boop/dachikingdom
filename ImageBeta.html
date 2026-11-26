@@ -8,6 +8,7 @@
           consort:{count:30,ages:[13,12,5]}
       };
       const BETA_SPECIAL_IDS=['diao_chan','wang_zhaojun','xi_shi','yang_yuhuan','zhen_mi','yu_ji','zhao_feiyan','zhangsun','xiaozhuang','wei_zifu'];
+      const BETA_SPECIAL_TALENT_IDS=['guan_yu','lu_bu','yue_fei','sun_wu','bai_qi','xiang_yu','li_jing','wu_qi','zhao_yun','zhang_fei','han_xin','huo_qubing','wei_qing','xu_da','qi_jiguang','zhou_yu','guo_ziyi','zhuge_liang','zhang_liang','xiao_he','wei_zheng','di_renjie','bao_zheng','fan_zhongyan','wang_an_shi'];
       const BETA_ROYAL_COUNT=16;
       const BETA_IMAGE_META=(()=>{
           const entries={};
@@ -23,6 +24,7 @@
               });
           }
           BETA_SPECIAL_IDS.forEach(id=>{const key='special_'+id;entries[key]={id:key,kind:'special',age:'fixed',thumbnail:'thumbs/'+key+'.webp',portrait:'portraits/'+key+'.webp',headshot:'headshots/'+key+'.webp'};});
+          BETA_SPECIAL_TALENT_IDS.forEach(id=>{const key='special_talent_'+id;entries[key]={id:key,kind:'special_talent',age:'fixed',thumbnail:'thumbs/'+key+'.webp',portrait:'portraits/'+key+'.webp',headshot:'headshots/'+key+'.webp'};});
           ['prince','princess'].forEach(role=>{
               for(let n=1;n<=BETA_ROYAL_COUNT;n++)['child','adult'].forEach(stage=>{
                   const id=`royal_${role}_${String(n).padStart(3,'0')}_${stage}`;
@@ -130,7 +132,8 @@
           const used=new Map();
           for(const {person} of live){
               const key=betaPortraitKey(person.specialConsortId||Object.prototype.hasOwnProperty.call(person,'rank')?'consort':'minister',person.id);
-              const assigned=next[key];
+              const fixedTalent=person.specialId&&BETA_IMAGE_META['special_talent_'+person.specialId]?'special_talent_'+person.specialId:null;
+              const assigned=fixedTalent||next[key];
               if(assigned&&!String(assigned).startsWith('royal_'))used.set(assigned,(used.get(assigned)||0)+1);
           }
           for(const {person,kind,age} of live){
@@ -138,6 +141,8 @@
               const key=betaPortraitKey(kind==='consort'?'consort':'minister',person.id);
               const royal=kind!=='consort'?betaRoyalPersonForMinister(state,person):null;
               if(royal){next[key]=betaRoyalPortraitId(state,next,royal,true);continue;}
+              const fixedTalent=kind!=='consort'&&person.specialId?'special_talent_'+person.specialId:null;
+              if(fixedTalent&&BETA_IMAGE_META[fixedTalent]){next[key]=fixedTalent;continue;}
               if(next[key])continue;
               const special=kind==='consort'&&person.specialConsortId?'special_'+person.specialConsortId:null;
               if(special&&BETA_IMAGE_META[special]){next[key]=special;used.set(special,(used.get(special)||0)+1);continue;}
@@ -159,6 +164,8 @@
               const key=betaPortraitKey(type,person.id);
               const royal=type==='minister'?betaRoyalPersonForMinister(state,person):null;
               if(royal){next[key]=betaRoyalPortraitId(state,next,royal,true);continue;}
+              const fixedTalent=type==='minister'&&person.specialId?'special_talent_'+person.specialId:null;
+              if(fixedTalent&&BETA_IMAGE_META[fixedTalent]){next[key]=fixedTalent;continue;}
               if(next[key])continue;
               const special=type==='consort'&&person.specialConsortId?'special_'+person.specialConsortId:null;
               if(special&&BETA_IMAGE_META[special]){next[key]=special;continue;}
@@ -173,6 +180,8 @@
           if(type==='minister'){
               const royal=betaRoyalPersonForMinister(state,person);
               if(royal)return betaRoyalPortraitId(state,assignments,royal,true);
+              const fixedTalent=person?.specialId?'special_talent_'+person.specialId:null;
+              if(fixedTalent&&BETA_IMAGE_META[fixedTalent])return fixedTalent;
           }
           return person?.id===undefined||person?.id===null?null:assignments?.[betaPortraitKey(type,person.id)]||null;
       };

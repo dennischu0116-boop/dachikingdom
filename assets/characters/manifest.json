@@ -6,6 +6,8 @@
     "military": 20,
     "consort": 30,
     "special": 10,
+    "special_military": 17,
+    "special_civil": 8,
     "royal_prince": 32,
     "royal_princess": 32,
     "emperor": 4
@@ -756,6 +758,131 @@
       "thumb": "thumbs/special_zhen_mi.webp",
       "headshot": "headshots/special_zhen_mi.webp",
       "full": "portraits/special_zhen_mi.webp"
+    },
+    "special_talent_bai_qi": {
+      "thumb": "thumbs/special_talent_bai_qi.webp",
+      "headshot": "headshots/special_talent_bai_qi.webp",
+      "full": "portraits/special_talent_bai_qi.webp"
+    },
+    "special_talent_bao_zheng": {
+      "thumb": "thumbs/special_talent_bao_zheng.webp",
+      "headshot": "headshots/special_talent_bao_zheng.webp",
+      "full": "portraits/special_talent_bao_zheng.webp"
+    },
+    "special_talent_di_renjie": {
+      "thumb": "thumbs/special_talent_di_renjie.webp",
+      "headshot": "headshots/special_talent_di_renjie.webp",
+      "full": "portraits/special_talent_di_renjie.webp"
+    },
+    "special_talent_fan_zhongyan": {
+      "thumb": "thumbs/special_talent_fan_zhongyan.webp",
+      "headshot": "headshots/special_talent_fan_zhongyan.webp",
+      "full": "portraits/special_talent_fan_zhongyan.webp"
+    },
+    "special_talent_guan_yu": {
+      "thumb": "thumbs/special_talent_guan_yu.webp",
+      "headshot": "headshots/special_talent_guan_yu.webp",
+      "full": "portraits/special_talent_guan_yu.webp"
+    },
+    "special_talent_guo_ziyi": {
+      "thumb": "thumbs/special_talent_guo_ziyi.webp",
+      "headshot": "headshots/special_talent_guo_ziyi.webp",
+      "full": "portraits/special_talent_guo_ziyi.webp"
+    },
+    "special_talent_han_xin": {
+      "thumb": "thumbs/special_talent_han_xin.webp",
+      "headshot": "headshots/special_talent_han_xin.webp",
+      "full": "portraits/special_talent_han_xin.webp"
+    },
+    "special_talent_huo_qubing": {
+      "thumb": "thumbs/special_talent_huo_qubing.webp",
+      "headshot": "headshots/special_talent_huo_qubing.webp",
+      "full": "portraits/special_talent_huo_qubing.webp"
+    },
+    "special_talent_li_jing": {
+      "thumb": "thumbs/special_talent_li_jing.webp",
+      "headshot": "headshots/special_talent_li_jing.webp",
+      "full": "portraits/special_talent_li_jing.webp"
+    },
+    "special_talent_lu_bu": {
+      "thumb": "thumbs/special_talent_lu_bu.webp",
+      "headshot": "headshots/special_talent_lu_bu.webp",
+      "full": "portraits/special_talent_lu_bu.webp"
+    },
+    "special_talent_qi_jiguang": {
+      "thumb": "thumbs/special_talent_qi_jiguang.webp",
+      "headshot": "headshots/special_talent_qi_jiguang.webp",
+      "full": "portraits/special_talent_qi_jiguang.webp"
+    },
+    "special_talent_sun_wu": {
+      "thumb": "thumbs/special_talent_sun_wu.webp",
+      "headshot": "headshots/special_talent_sun_wu.webp",
+      "full": "portraits/special_talent_sun_wu.webp"
+    },
+    "special_talent_wang_an_shi": {
+      "thumb": "thumbs/special_talent_wang_an_shi.webp",
+      "headshot": "headshots/special_talent_wang_an_shi.webp",
+      "full": "portraits/special_talent_wang_an_shi.webp"
+    },
+    "special_talent_wei_qing": {
+      "thumb": "thumbs/special_talent_wei_qing.webp",
+      "headshot": "headshots/special_talent_wei_qing.webp",
+      "full": "portraits/special_talent_wei_qing.webp"
+    },
+    "special_talent_wei_zheng": {
+      "thumb": "thumbs/special_talent_wei_zheng.webp",
+      "headshot": "headshots/special_talent_wei_zheng.webp",
+      "full": "portraits/special_talent_wei_zheng.webp"
+    },
+    "special_talent_wu_qi": {
+      "thumb": "thumbs/special_talent_wu_qi.webp",
+      "headshot": "headshots/special_talent_wu_qi.webp",
+      "full": "portraits/special_talent_wu_qi.webp"
+    },
+    "special_talent_xiang_yu": {
+      "thumb": "thumbs/special_talent_xiang_yu.webp",
+      "headshot": "headshots/special_talent_xiang_yu.webp",
+      "full": "portraits/special_talent_xiang_yu.webp"
+    },
+    "special_talent_xiao_he": {
+      "thumb": "thumbs/special_talent_xiao_he.webp",
+      "headshot": "headshots/special_talent_xiao_he.webp",
+      "full": "portraits/special_talent_xiao_he.webp"
+    },
+    "special_talent_xu_da": {
+      "thumb": "thumbs/special_talent_xu_da.webp",
+      "headshot": "headshots/special_talent_xu_da.webp",
+      "full": "portraits/special_talent_xu_da.webp"
+    },
+    "special_talent_yue_fei": {
+      "thumb": "thumbs/special_talent_yue_fei.webp",
+      "headshot": "headshots/special_talent_yue_fei.webp",
+      "full": "portraits/special_talent_yue_fei.webp"
+    },
+    "special_talent_zhang_fei": {
+      "thumb": "thumbs/special_talent_zhang_fei.webp",
+      "headshot": "headshots/special_talent_zhang_fei.webp",
+      "full": "portraits/special_talent_zhang_fei.webp"
+    },
+    "special_talent_zhang_liang": {
+      "thumb": "thumbs/special_talent_zhang_liang.webp",
+      "headshot": "headshots/special_talent_zhang_liang.webp",
+      "full": "portraits/special_talent_zhang_liang.webp"
+    },
+    "special_talent_zhao_yun": {
+      "thumb": "thumbs/special_talent_zhao_yun.webp",
+      "headshot": "headshots/special_talent_zhao_yun.webp",
+      "full": "portraits/special_talent_zhao_yun.webp"
+    },
+    "special_talent_zhou_yu": {
+      "thumb": "thumbs/special_talent_zhou_yu.webp",
+      "headshot": "headshots/special_talent_zhou_yu.webp",
+      "full": "portraits/special_talent_zhou_yu.webp"
+    },
+    "special_talent_zhuge_liang": {
+      "thumb": "thumbs/special_talent_zhuge_liang.webp",
+      "headshot": "headshots/special_talent_zhuge_liang.webp",
+      "full": "portraits/special_talent_zhuge_liang.webp"
     }
   }
 }

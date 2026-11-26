@@ -51,10 +51,10 @@ assert(babelSource, 'could not find the Babel application script');
 transformSync(babelSource, { presets: [[presetReact, { runtime: 'classic' }]], babelrc: false, configFile: false });
 BabelStandalone.transform(babelSource, { presets: ['react'], sourceType: 'script' });
 
-const expectedCounts = { civil: 24, military: 20, consort: 30, special: 10, royal_prince: 32, royal_princess: 32, emperor: 4 };
+const expectedCounts = { civil: 24, military: 20, consort: 30, special: 10, special_military: 17, special_civil: 8, royal_prince: 32, royal_princess: 32, emperor: 4 };
 assert(JSON.stringify(manifest.counts) === JSON.stringify(expectedCounts), 'character category counts changed unexpectedly');
 const entries = Object.entries(manifest.portraits || {});
-assert(entries.length === 148, `expected 148 character IDs, found ${entries.length}`);
+assert(entries.length === 173, `expected 173 character IDs, found ${entries.length}`);
 const dimensions = { thumbs: [128, 128, 64 * 1024], headshots: [256, 256, 96 * 1024], portraits: [768, 1152, 384 * 1024] };
 
 const webpSize = buffer => {
@@ -90,7 +90,7 @@ for (const directory of Object.keys(dimensions)) {
     if (file.endsWith('.webp')) actualFiles.push(`${directory}/${file}`);
   }
 }
-assert(actualFiles.length === 444, `expected 444 WebP files, found ${actualFiles.length}`);
+assert(actualFiles.length === 519, `expected 519 WebP files, found ${actualFiles.length}`);
 assert(actualFiles.every(file => expectedFiles.has(file)), 'unlisted WebP file found');
 const emperorEntries=Object.entries(manifest.emperorAvatars||{});
 assert(emperorEntries.length===4,'expected four emperor avatar entries');
@@ -117,7 +117,7 @@ assert(leaderboardServer.includes('function getLeaderboardAvatar(gameId)'), 'on-
 assert(read('ClientShell.html').includes('fullCanvas.width=256')&&read('ClientShell.html').includes('boardCanvas.width=96'), 'avatar upload resize rules are missing');
 
 const portraitSource = read('ImageBeta.html').split('      const BetaPortrait =')[0] + `
-globalThis.__portraits={BETA_IMAGE_META,betaAllocatePortraits,betaPortraitKey,betaRoyalPortraitId,betaPortraitIdForPerson,normalizeEmperorAvatarState,emperorLeaderboardAvatarPayload};`;
+globalThis.__portraits={BETA_IMAGE_META,betaAllocatePortraits,betaPortraitKey,betaRoyalPortraitId,betaPortraitIdForPerson,betaPortraitIdForCandidate,normalizeEmperorAvatarState,emperorLeaderboardAvatarPayload};`;
 const portraitContext = {
   globalThis: {},
   getConsortAge: person => Number(person.age) || 20,
@@ -136,10 +136,21 @@ const sampleState = {
   childrenList: [royalChild], royalFamily: []
 };
 const firstAssignments = portraits.betaAllocatePortraits(sampleState, {});
-assert(Object.keys(portraits.BETA_IMAGE_META).length===148,'expanded portrait metadata count is incorrect');
+assert(Object.keys(portraits.BETA_IMAGE_META).length===173,'expanded portrait metadata count is incorrect');
 assert(portraits.BETA_IMAGE_META.civil_young_008&&portraits.BETA_IMAGE_META.military_senior_004&&portraits.BETA_IMAGE_META.consort_senior_005&&portraits.BETA_IMAGE_META.royal_princess_016_adult,'expanded portrait IDs are missing');
+const specialTalentIds=['guan_yu','lu_bu','yue_fei','sun_wu','bai_qi','xiang_yu','li_jing','wu_qi','zhao_yun','zhang_fei','han_xin','huo_qubing','wei_qing','xu_da','qi_jiguang','zhou_yu','guo_ziyi','zhuge_liang','zhang_liang','xiao_he','wei_zheng','di_renjie','bao_zheng','fan_zhongyan','wang_an_shi'];
+assert(specialTalentIds.every(id=>portraits.BETA_IMAGE_META[`special_talent_${id}`]),'dedicated special-talent portrait IDs are missing');
+assert(specialTalentIds.every(id=>read('ClientCore.html').includes(`key:'${id}'`)),'portrait list and special-person roster are out of sync');
 const preservedAssignments=portraits.betaAllocatePortraits(sampleState,{'minister:minister-1':'civil_young_001','consort:consort-1':'consort_young_001'});
 assert(preservedAssignments['minister:minister-1']==='civil_young_001'&&preservedAssignments['consort:consort-1']==='consort_young_001','existing portrait assignments changed after pool expansion');
+const specialMinister={id:'special-guan',name:'關羽',age:38,civil:75,military:110,specialId:'guan_yu'};
+const specialAssignments=portraits.betaAllocatePortraits({...sampleState,ministers:[specialMinister]}, {'minister:special-guan':'military_middle_001'});
+assert(specialAssignments['minister:special-guan']==='special_talent_guan_yu','old generic assignment did not migrate to the dedicated special-talent portrait');
+assert(portraits.betaPortraitIdForPerson(sampleState,{'minister:special-guan':'military_middle_001'},'minister',specialMinister)==='special_talent_guan_yu','special-talent detail view did not immediately override an old generic assignment');
+const archivedSpecialAssignments=portraits.betaAllocatePortraits({...sampleState,ministers:[],retiredMinisters:[specialMinister]}, {'minister:special-guan':'military_middle_001'});
+assert(archivedSpecialAssignments['minister:special-guan']==='special_talent_guan_yu','archived special talent did not retain the dedicated portrait');
+const specialCandidate={id:'candidate-zhuge',name:'諸葛亮',age:35,civil:115,military:72,specialId:'zhuge_liang'};
+assert(portraits.betaPortraitIdForCandidate(sampleState,{},'minister',specialCandidate)==='special_talent_zhuge_liang','special recruit candidate did not receive its dedicated portrait');
 const expandedPoolState={...sampleState,gameId:'expanded-pool-check',childrenList:[],
   ministers:[...[...Array(8)].map((_,index)=>({id:`civil-${index}`,name:`文官${index}`,age:25,civil:80,military:20})),
     ...[...Array(8)].map((_,index)=>({id:`military-${index}`,name:`武將${index}`,age:25,civil:20,military:80}))],
@@ -163,4 +174,4 @@ const customState=portraits.normalizeEmperorAvatarState({gameId:'run-avatar',cur
 assert(customState.emperorAvatar.kind==='custom'&&Object.keys(customState.emperorAvatarAssets).length===1,'custom emperor avatar deduplication/pruning failed');
 assert(portraits.emperorLeaderboardAvatarPayload(customState).avatarValue===customAsset.leaderboard,'leaderboard thumbnail selection failed');
 
-console.log('Production verification passed: v1.4.2, Babel syntax, GAS target, 148 character IDs, 4 emperor avatars and 448 WebP assets.');
+console.log('Production verification passed: v1.4.2, Babel syntax, GAS target, 173 character IDs, 4 emperor avatars and 523 WebP assets.');
