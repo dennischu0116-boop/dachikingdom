@@ -10,67 +10,33 @@ assert.equal(files.length,16);
 for (const name of files) {
   let text = fs.readFileSync(name,'utf8');
   if (name.endsWith('.html') || name === 'CodeSave.js') text = text.replaceAll('qing_', 'qing_redesign_test_');
-  if (name === '程式碼.js') {
-    assert(text.includes("const QING_SPREADSHEET_ID = '1-4Jbgl5C7_HoJj7VNY2E4GyVm5h1AIWSBxyufWgwKPE';"));
-    text = text.replace("const QING_SPREADSHEET_ID = '1-4Jbgl5C7_HoJj7VNY2E4GyVm5h1AIWSBxyufWgwKPE';", "const QING_SPREADSHEET_ID = PropertiesService.getScriptProperties().getProperty('QING_TEST_SPREADSHEET_ID') || '';" );
-    text = text.replace(".setTitle('大清帝國模擬器')", ".setTitle('大清帝國模擬器・前端測試版')");
-    text += `
-// Test infrastructure only. Run manually as the new project's owner.
-function qingAssertTestProject_() {
-  if (ScriptApp.getScriptId() !== '${scriptId}') throw new Error('測試程式只能在指定測試 GAS 執行');
-}
-function qingTestBook_() {
-  qingAssertTestProject_();
-  if (!QING_SPREADSHEET_ID || QING_SPREADSHEET_ID === '1-4Jbgl5C7_HoJj7VNY2E4GyVm5h1AIWSBxyufWgwKPE') throw new Error('請先執行 setupTestEnvironment，禁止使用正式試算表');
-  return SpreadsheetApp.openById(QING_SPREADSHEET_ID);
-}
-function qingTestFolder_(id) {
-  qingAssertTestProject_();
-  const expected = PropertiesService.getScriptProperties().getProperty('QING_TEST_FOLDER_ID');
-  if (!id || id !== expected || id === '16SqJuP8tp6hofGfdJ3P8-RVSE18Vuhmq') throw new Error('測試存檔資料夾尚未初始化或設定不符');
-  return DriveApp.getFolderById(id);
-}
-function qingTestFile_(id) {
-  qingAssertTestProject_();
-  const folderId = PropertiesService.getScriptProperties().getProperty('QING_TEST_FOLDER_ID');
-  qingTestFolder_(folderId);
-  const file = DriveApp.getFileById(id);
-  const parents = file.getParents();
-  while (parents.hasNext()) if (parents.next().getId() === folderId) return file;
-  throw new Error('檔案不屬於測試資料夾，已停止操作');
-}
-function setupTestEnvironment() {
-  qingAssertTestProject_();
-  const lock = LockService.getScriptLock();
-  lock.waitLock(30000);
-  try {
-    const p = PropertiesService.getScriptProperties();
-    let bookId = p.getProperty('QING_TEST_SPREADSHEET_ID');
-    if (!bookId) {
-      bookId = SpreadsheetApp.create('大清帝國_前端測試_排行榜與存檔索引').getId();
-      p.setProperty('QING_TEST_SPREADSHEET_ID', bookId);
-    }
-    if (bookId === '1-4Jbgl5C7_HoJj7VNY2E4GyVm5h1AIWSBxyufWgwKPE') throw new Error('禁止使用正式試算表');
-    let folderId = p.getProperty('QING_TEST_FOLDER_ID');
-    if (!folderId) {
-      folderId = DriveApp.createFolder('大清帝國_前端測試_雲端存檔').getId();
-      p.setProperty('QING_TEST_FOLDER_ID', folderId);
-    }
-    qingTestFolder_(folderId);
-    p.setProperty('QING_CLOUD_FOLDER_ID', folderId);
-    console.log('測試資料建立完成，請接著執行 setupLeaderboard。試算表 ID：' + bookId);
-    return {spreadsheetId:bookId,folderId};
-  } finally { lock.releaseLock(); }
-}
-`;
-    // Replace only application access; preserve the guarded helper's actual open.
-    text = text.replace('const book = SpreadsheetApp.openById(QING_SPREADSHEET_ID);','const book = qingTestBook_();');
+  if (name === '程式碼.js') text = fs.readFileSync('scripts/fixtures/gas-test-server.js','utf8');
+  if (name === 'CodeSave.js') text = '// Cloud saves and OAuth are disabled in the frontend-only test build.\n';
+  const replaceOnce = (from,to) => {
+    assert(text.includes(from), name + ': expected test transformation missing: ' + from);
+    text = text.replace(from,to);
+  };
+  if (name === 'ClientShell.html') {
+    replaceOnce('<button onClick={onCloud} className="bg-blue-700 text-white text-sm px-3 py-2 rounded">☁️ {cloudStatus || \'Google 登入／雲端存檔\'}</button>', '<span className="text-sm text-stone-600">免登入・僅本機存檔</span>');
   }
-  if (name === 'CodeSave.js') {
-    text = text.replaceAll('SpreadsheetApp.openById(QING_SPREADSHEET_ID)', 'qingTestBook_()');
-    text = text.replaceAll('DriveApp.getFolderById(', 'qingTestFolder_(');
-    text = text.replaceAll('DriveApp.getFileById(', 'qingTestFile_(');
-    text = text.replace("folderId = DriveApp.createFolder('大清帝國_玩家雲端存檔').getId();", "throw new Error('請先執行 setupTestEnvironment');");
+  if (name === 'ClientCore.html') {
+    replaceOnce('const readCloudNewGameDraft = () => {', 'const readCloudNewGameDraft = () => { return null;');
+    replaceOnce('const readCloudBinding = () => {', 'const readCloudBinding = () => { return null;');
+  }
+  if (name === 'AppState.html') {
+    replaceOnce('const initialCloudBinding=cloudBindingMatches(initialSave?.cloudBinding,initialSave?.gameState)?initialSave.cloudBinding:null;', 'const initialCloudBinding=null;');
+    replaceOnce("const [cloudLoginState, setCloudLoginState] = useState(()=>{try{return sessionStorage.getItem('qing_redesign_test_cloud_oauth_state')||'';}catch(error){return '';}});", "const [cloudLoginState, setCloudLoginState] = useState('');");
+    replaceOnce("const config=await qingCloudGas('getCloudPublicConfig');", 'const config={oauthReady:false,maxSlots:0};');
+    replaceOnce("try{session=sessionStorage.getItem('qing_redesign_test_cloud_session')||'';}catch(error){}", '// Login sessions are not restored in the guest-only test build.');
+    replaceOnce('const submitScore = (stateToSave = gameState, silent = false, onDone = null) => {', 'const submitScore = (stateToSave = gameState, silent = false, onDone = null) => { if(onDone)onDone(); return;');
+    replaceOnce('if (legacyImportRunningRef.current) return;', 'return; // Test fixtures never import player scores.');
+  }
+  if (name === 'AppWarAndMain.html') {
+    replaceOnce('{showCloudPanel && CloudSavePanel()}', '{false && CloudSavePanel()}');
+    replaceOnce('<button onClick={()=>setShowCloudPanel(true)} aria-busy={cloudSessionChecking} className={`text-[11px] bg-sky-700 rounded px-2 py-1 whitespace-nowrap ${cloudSessionChecking?\'animate-pulse\':\'\'}`}>☁ {cloudSessionChecking?\'雲端核對中…\':currentSaveLocation}</button>', '<span className="text-[11px] rounded px-2 py-1">本機存檔・測試版</span>');
+  }
+  if (name === 'AppModals.html') {
+    replaceOnce('所有玩家共用 · 七榜各取前20名；點擊詳情可查看同一局保存的全部成績', '固定假資料 · 僅供版面測試，不會上傳遊戲成績');
   }
   if (name === 'Index.html') text = text.replace('<body>', '<body>\n<div role="note" style="position:fixed;bottom:0;right:0;z-index:2147483647;background:#7f1d1d;color:white;padding:4px 12px;font-size:12px;pointer-events:none">前端測試版・獨立存檔</div>');
   fs.writeFileSync(path.join(out,name),text);
