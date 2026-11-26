@@ -981,7 +981,10 @@
       const readAutoSave = () => {
           try {
               const text = localStorage.getItem(QING_SAVE_KEY);
-              return text ? normalizeLoadedGame(JSON.parse(text)) : null;
+              if (!text) return null;
+              const raw=JSON.parse(text), saved=normalizeLoadedGame(raw);
+              if (!saved) return null;
+              return {...saved, cloudBinding:Object.prototype.hasOwnProperty.call(raw,'cloudBinding')?raw.cloudBinding:readCloudBinding()};
           } catch (error) {
               console.warn('無法讀取自動存檔：', error);
               return null;

@@ -24,7 +24,7 @@
               <div className="bg-stone-50 border-4 border-sky-700 rounded-xl shadow-2xl w-full max-w-5xl max-h-[92dvh] flex flex-col overflow-hidden">
                 <div className="screen-modal-header shrink-0 flex flex-wrap items-center gap-3 justify-between border-b bg-sky-50 p-4">
                   <div><h3 className="text-xl sm:text-2xl font-bold text-sky-950">☁️ Google 帳號與五槽雲端存檔</h3><p className="text-xs text-sky-800 mt-1">未連結槽位的遊客存檔可離線遊玩；已連結的雲端遊戲會核對帳號與版本。</p></div>
-                  <button onClick={()=>setShowCloudPanel(false)} className="rounded bg-stone-200 px-4 py-2 font-bold">關閉</button>
+                  <button disabled={!!cloudOperation} onClick={()=>setShowCloudPanel(false)} className="rounded bg-stone-200 px-4 py-2 font-bold">關閉</button>
                 </div>
                 <div className="overflow-y-auto p-4 space-y-4">
                   {cloudConfig.loading&&<div className="rounded border bg-white p-5 text-center">正在讀取雲端設定…</div>}
@@ -34,19 +34,25 @@
                     <div className="rounded-xl border border-sky-200 bg-sky-50 p-3 flex flex-wrap items-center gap-3">
                       {cloudUser.picture&&<img src={cloudUser.picture} alt="Google 帳號頭像" className="w-10 h-10 rounded-full" referrerPolicy="no-referrer"/>}
                       <div className="mr-auto"><b className="text-sky-950">{cloudUser.name||'Google 玩家'}</b><p className="text-xs text-sky-800">{cloudUser.email||''}</p><p className="text-xs text-stone-600">{cloudStatus}{cloudSavedAt?`・最後同步 ${formatTime(cloudSavedAt)}`:''}</p></div>
-                      <button disabled={cloudBusy} onClick={()=>{setCloudBusy(true);refreshCloudSlots().catch(error=>showMessage(error.message,'error')).finally(()=>setCloudBusy(false));}} className="rounded bg-white border border-sky-300 px-3 py-2 text-sm disabled:opacity-40">重新整理</button>
+                      <button disabled={cloudBusy} onClick={refreshCloudPanel} className="rounded bg-white border border-sky-300 px-3 py-2 text-sm disabled:opacity-40">重新整理</button>
                       <button disabled={cloudBusy} onClick={cloudLogout} className="rounded bg-stone-700 text-white px-3 py-2 text-sm disabled:opacity-40">登出</button>
                     </div>
-                    <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950"><b>空白槽建立新遊戲</b><p className="mt-1">點擊空白槽的「建立新遊戲」後，會回到正常開始頁面設定年號與皇帝姓名；按下登基大典後才寫入該槽位。</p></div>
+                    <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 flex flex-wrap items-center justify-between gap-2">
+                      <p>{isGameStarted?`目前遊戲：${gameState.eraName}${gameState.year}年・${gameState.playerName}｜${currentSaveLocation}`:'選擇一個存檔讀取，或使用空白槽建立新遊戲。'}</p>
+                      {isGameStarted&&<button onClick={handleDownloadBackup} className="rounded border border-amber-400 bg-white px-3 py-2 font-bold">下載本機備份</button>}
+                    </div>
+                    {cloudOperation&&<p role="status" className="rounded bg-sky-100 px-3 py-2 text-sm text-sky-950">{cloudOperation}</p>}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                       {cloudSlots.map(slot=>{
-                        const active=Number(cloudSlot)===Number(slot.slot);
+                        const needsReview=slot.status==='review';
+                        const active=isGameStarted&&!slot.empty&&!needsReview&&Number(cloudSlot)===slot.slot&&
+                            cloudBinding?.slotIdentity===slot.slotIdentity&&cloudBinding?.userId===cloudUser.id;
                         return <article key={slot.slot} className={`rounded-xl border-2 p-4 ${active?'border-emerald-600 bg-emerald-50':'border-stone-300 bg-white'}`}>
-                          <div className="flex items-start gap-3"><div className="rounded-full bg-sky-800 text-white w-9 h-9 flex items-center justify-center font-bold shrink-0">{slot.slot}</div><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><b className="text-lg truncate">{slot.empty?'空白槽位':slot.name}</b>{active&&<span className="rounded bg-emerald-700 text-white text-xs px-2 py-1">目前使用中</span>}</div>
-                          {slot.empty?<p className="text-sm text-stone-500 mt-2">尚未建立雲端存檔。</p>:<div className="text-sm text-stone-700 mt-2 space-y-1"><p><b>{slot.emperorName||'皇帝未記錄'}</b>・{slot.eraName||'年號未記錄'}{slot.year||1}年・{slot.unified?'已統一天下':'尚未統一'}</p><p>國庫 {Number(slot.treasury)||0}・官員 {Number(slot.ministerCount)||0}・后妃 {Number(slot.consortCount)||0}・後代 {Number(slot.descendantCount)||0}</p><p className="text-xs text-stone-500">更新：{formatTime(slot.updatedAt)}・遊戲編號 {String(slot.gameId||'未記錄').slice(0,16)}</p></div>}</div></div>
-                          <div className="flex flex-wrap gap-2 mt-4">
-                            {slot.empty?<><button disabled={cloudBusy} onClick={()=>createCloudGame(slot)} className="rounded bg-sky-800 text-white px-3 py-2 text-sm font-bold disabled:opacity-40">建立新遊戲</button>{isGameStarted&&String(cloudBinding?.gameId||'')!==String(gameState.gameId||'')&&<button disabled={cloudBusy} onClick={()=>saveCurrentToCloudSlot(slot)} className="rounded bg-emerald-700 text-white px-3 py-2 text-sm font-bold disabled:opacity-40">將目前進度存入</button>}</>:<><button disabled={cloudBusy} onClick={()=>loadCloudSlot(slot)} className="rounded bg-indigo-700 text-white px-3 py-2 text-sm font-bold disabled:opacity-40">讀取</button>{active&&<button disabled={cloudBusy} onClick={()=>cloudSync(true)} className="rounded bg-emerald-700 text-white px-3 py-2 text-sm font-bold disabled:opacity-40">立即同步</button>}<button disabled={cloudBusy} onClick={()=>renameCloudSlot(slot)} className="rounded bg-amber-100 border border-amber-400 px-3 py-2 text-sm disabled:opacity-40">改名</button><button disabled={cloudBusy} onClick={()=>deleteCloudSlot(slot)} className="rounded bg-red-800 text-white px-3 py-2 text-sm disabled:opacity-40">刪除</button></>}
-                          </div>
+                          <div className="flex items-start gap-3"><div className="rounded-full bg-sky-800 text-white w-9 h-9 flex items-center justify-center font-bold shrink-0">{slot.slot}</div><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><b className="text-lg truncate">{needsReview?'需核對':slot.empty?'空白槽位':slot.name}</b>{active&&<span className="rounded bg-emerald-700 text-white text-xs px-2 py-1">目前使用中</span>}</div>
+                          {needsReview?<p className="text-sm text-amber-900 mt-2">{slot.error}</p>:slot.empty?<p className="text-sm text-stone-500 mt-2">尚未建立雲端存檔。</p>:<div className="text-sm text-stone-700 mt-2 space-y-1"><p><b>{slot.emperorName||'皇帝未記錄'}</b>・{slot.eraName||'年號未記錄'}{slot.year||1}年・{slot.unified?'已統一天下':'尚未統一'}</p><p>國庫 {Number(slot.treasury)||0}・官員 {Number(slot.ministerCount)||0}・后妃 {Number(slot.consortCount)||0}・後代 {Number(slot.descendantCount)||0}</p><p className="text-xs text-stone-500">更新：{formatTime(slot.updatedAt)}・遊戲編號 {String(slot.gameId||'未記錄').slice(0,16)}</p></div>}</div></div>
+                          {!needsReview&&<div className="flex flex-wrap gap-2 mt-4">
+                            {slot.empty?<><button disabled={cloudBusy} onClick={()=>createCloudGame(slot)} className="rounded bg-sky-800 text-white px-3 py-2 text-sm font-bold disabled:opacity-40">建立新遊戲</button>{isGameStarted&&!pendingCloudNewGameSlot&&!cloudBindingMatches(cloudBinding,gameState)&&<button disabled={cloudBusy} onClick={()=>saveCurrentToCloudSlot(slot)} className="rounded bg-emerald-700 text-white px-3 py-2 text-sm font-bold disabled:opacity-40">將目前進度存入</button>}</>:<><button disabled={cloudBusy} onClick={()=>loadCloudSlot(slot)} className="rounded bg-indigo-700 text-white px-3 py-2 text-sm font-bold disabled:opacity-40">讀取</button>{active&&<button disabled={cloudBusy} onClick={()=>cloudSync(true)} className="rounded bg-emerald-700 text-white px-3 py-2 text-sm font-bold disabled:opacity-40">立即同步</button>}<button disabled={cloudBusy} onClick={()=>renameCloudSlot(slot)} className="rounded bg-amber-100 border border-amber-400 px-3 py-2 text-sm disabled:opacity-40">改名</button><button disabled={cloudBusy} onClick={()=>deleteCloudSlot(slot)} className="rounded bg-red-800 text-white px-3 py-2 text-sm disabled:opacity-40">刪除</button></>}
+                          </div>}
                         </article>;
                       })}
                     </div>

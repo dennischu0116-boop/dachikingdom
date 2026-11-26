@@ -99,11 +99,11 @@
           </div>;
       };
 
-      const StartScreen = ({ onStart, onSettings, onHelp, onUpdates, onCloud, cloudStatus, pendingCloudSlot }) => {
-          const [era, setEra] = useState(() => generateRandomEraName());
-          const [name, setName] = useState(() => generateRandomEmperorName());
-          const [avatar,setAvatar]=useState(()=>emperorBuiltinAvatar(EMPEROR_AVATAR_IDS[0]));
-          const [avatarAssets,setAvatarAssets]=useState({});
+      const StartScreen = ({ onStart, onSettings, onHelp, onUpdates, onCloud, cloudStatus, pendingCloudSlot, onCancelCloud, cloudBusy, cloudDraft, cloudOperation }) => {
+          const [era, setEra] = useState(() => cloudDraft?.payload.gameState.eraName||generateRandomEraName());
+          const [name, setName] = useState(() => cloudDraft?.payload.gameState.playerName||generateRandomEmperorName());
+          const [avatar,setAvatar]=useState(()=>cloudDraft?.payload.gameState.emperorAvatar||emperorBuiltinAvatar(EMPEROR_AVATAR_IDS[0]));
+          const [avatarAssets,setAvatarAssets]=useState(()=>cloudDraft?.payload.gameState.emperorAvatarAssets||{});
           const changeAvatar=(next,newAssets)=>{setAvatar(next);setAvatarAssets(next.kind==='custom'?{...avatarAssets,...newAssets}:{});};
           const randomizeBoth = () => { setEra(generateRandomEraName()); setName(generateRandomEmperorName()); };
           return (
@@ -119,8 +119,8 @@
                           <button onClick={onSettings} className="bg-stone-700 text-white text-sm px-3 py-2 rounded">⚙ 系統設定／存檔</button>
                           <button onClick={onCloud} className="bg-blue-700 text-white text-sm px-3 py-2 rounded">☁️ {cloudStatus || 'Google 登入／雲端存檔'}</button>
                       </div>
-                      {pendingCloudSlot&&<div className="mb-4 rounded border border-sky-400 bg-sky-950/60 p-3 text-sm text-sky-100">☁️ 這局新遊戲將建立於雲端槽位 {pendingCloudSlot}；請設定年號與皇帝姓名後開始。</div>}
-                      <div className="space-y-4 mb-6 text-left">
+                      {pendingCloudSlot&&<div className="mb-4 rounded border border-sky-400 bg-sky-950/60 p-3 text-sm text-sky-100">☁️ 新遊戲目標為雲端槽位 {pendingCloudSlot}。成功建立後才會切換目前遊戲。</div>}
+                      <fieldset disabled={cloudBusy||!!cloudDraft} className="space-y-4 mb-6 text-left">
                           <div>
                               <label className="block text-xs font-bold text-yellow-200 mb-1">擬定年號</label>
                               <div className="flex gap-2">
@@ -137,8 +137,9 @@
                           </div>
                           <button type="button" onClick={randomizeBoth} className="w-full py-2 rounded border border-amber-400/60 bg-amber-950/40 text-amber-100 text-sm hover:bg-amber-900">🎲 年號與皇帝姓名全部隨機</button>
                           <EmperorAvatarSelector avatar={avatar} assets={avatarAssets} onChange={changeAvatar} dark />
-                      </div>
-                      <button onClick={() => onStart(era,name,{avatar,assets:avatarAssets})} className="w-full bg-yellow-600 text-white py-3 rounded font-bold text-lg shadow-lg hover:bg-yellow-500 transition-transform hover:scale-105">登基大典（開始新遊戲）</button>
+                      </fieldset>
+                      <button disabled={cloudBusy} onClick={() => onStart(era,name,{avatar,assets:avatarAssets})} className="w-full bg-yellow-600 text-white py-3 rounded font-bold text-lg shadow-lg hover:bg-yellow-500 transition-transform hover:scale-105">{cloudBusy?cloudOperation:pendingCloudSlot?(cloudDraft?'重試建立雲端存檔':'登基大典（建立雲端新遊戲）'):'登基大典（開始新遊戲）'}</button>
+                      {pendingCloudSlot&&<button type="button" disabled={cloudBusy} onClick={onCancelCloud} className="mt-3 w-full rounded border border-amber-500 px-3 py-2 text-sm disabled:opacity-50">取消建立</button>}
                   </div>
               </div>
           );

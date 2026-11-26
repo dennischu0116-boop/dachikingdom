@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { createHash } from 'node:crypto';
 import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
@@ -12,15 +13,15 @@ const assert = (condition, message) => { if (!condition) throw new Error(message
 
 const packageJson = JSON.parse(read('package.json'));
 const manifest = JSON.parse(read('assets/characters/manifest.json'));
-assert(packageJson.version === '1.4.3', 'package.json must be v1.4.3');
+assert(packageJson.version === '1.4.4', 'package.json must be v1.4.4');
 assert(manifest.version === 'v1.4.2' && manifest.status === 'PRODUCTION', 'character manifest is not production v1.4.2');
-assert(read('ClientCore.html').includes('const APP_VERSION = "v1.4.3"'), 'ClientCore version mismatch');
+assert(read('ClientCore.html').includes('const APP_VERSION = "v1.4.4"'), 'ClientCore version mismatch');
 assert(/const QING_SAVE_KEY\s*=\s*'qing_saveData'/.test(read('ClientShell.html')), 'production save key is missing');
 assert(read('Index.html').includes('https://unpkg.com/@babel/standalone@7.28.5/babel.min.js'), 'browser Babel version must stay pinned to 7.28.5');
 assert(read('ImageBeta.html').includes('const BETA_IMAGE_BASE=String(globalThis.QING_IMAGE_BETA_ASSET_BASE || "https://'), 'production image base must use the GAS-safe single-line literal');
 assert(!read('AppWarAndMain.html').includes("bg-[url('https://"), 'external background URLs must not be embedded in JSX utility classes');
 assert(read('AppWarAndMain.html').includes('className="game-main-surface ') && read('Styles.html').includes('.game-main-surface {'), 'main background must use the GAS-safe CSS class');
-assert(read('AppWarAndMain.html').includes("onClick={()=>setShowCloudPanel(true)}") && read('AppWarAndMain.html').includes("cloudSlot?`槽位 ${cloudSlot}`:'雲端已登入'"), 'in-game cloud slot button is missing');
+assert(read('AppWarAndMain.html').includes("onClick={()=>setShowCloudPanel(true)}") && read('AppWarAndMain.html').includes("cloudSessionChecking?'雲端核對中…':currentSaveLocation"), 'in-game cloud slot button is missing');
 assert(read('AppWarAndMain.html').includes('appBooting&&<AppLoadingScreen/>') && !read('AppWarAndMain.html').includes('appBooting||cloudSessionChecking'), 'cloud session checks must not trigger the full-screen loader');
 assert(read('AppWarAndMain.html').includes("cloudSessionChecking?'雲端核對中…'"), 'cloud session check needs a non-blocking status indicator');
 const modalSource=read('AppModals.html');
@@ -50,6 +51,155 @@ const foreignOccupiedState={provinces:[],lostProvinces:[{id:'former-a',name:'甲
 assert(territoryRuleContext.__enemyHomelandOccupation(foreignOccupiedState,'甲國')?.occupier==='乙國', 'foreign occupier was not resolved from lost territory');
 assert(territoryRuleContext.__enemyHomelandOccupation({provinces:[{id:'owned-a',name:'甲國舊地'}],lostProvinces:[]},'甲國')===null, 'owned homeland must not be treated as foreign occupied');
 assert(territoryRuleContext.__enemyHomelandOccupation({provinces:[],lostProvinces:[{id:'former-a',name:'甲國舊地',occupier:'甲國'}]},'甲國')===null, 'enemy reclaiming its own homeland must remain an actionable occupier');
+
+// Exercise the cloud API with separate Drive and Sheets stores and injectable write failures.
+const cloudRows=[];
+const cloudFiles=new Map();
+const cloudSummaryCache=new Map();
+let failIndexWrite=false,failFlush=false,cloudUuid=0;
+const cloudSheet={
+  getLastRow:()=>cloudRows.length+1,
+  getRange:(start,column,count,width)=>({
+    getValues:()=>cloudRows.slice(start-2,start-2+count).map(row=>row.slice(column-1,column-1+width)),
+    setValues:([values])=>{
+      if(failIndexWrite)throw new Error('index write failed');
+      cloudRows[start-2].splice(column-1,values.length,...values);
+    }
+  }),
+  appendRow:values=>{
+    if(failIndexWrite)throw new Error('index write failed');
+    cloudRows.push([...values]);
+  },
+  deleteRow:row=>cloudRows.splice(row-2,1)
+};
+const cloudDriveFolder={
+  getFilesByName:name=>{
+    const matches=[...cloudFiles.values()].filter(file=>file.getName()===name);
+    return {hasNext:()=>matches.length>0,next:()=>matches.shift()};
+  },
+  createFile:({name,raw})=>{
+    const id='file-'+(cloudFiles.size+1);
+    let trashed=false;
+    const file={
+      getId:()=>id, getName:()=>name, getLastUpdated:()=>new Date(1000), isTrashed:()=>trashed,
+      setTrashed:value=>{trashed=value;}, getBlob:()=>({getDataAsString:()=>raw})
+    };
+    cloudFiles.set(id,file);
+    return file;
+  }
+};
+const cloudApiContext={
+  console:{error(){},warn(){}},
+  LockService:{getScriptLock:()=>({waitLock(){},releaseLock(){}})},
+  SpreadsheetApp:{flush:()=>{if(failFlush)throw new Error('flush reply lost');}},
+  CacheService:{getScriptCache:()=>({get:key=>cloudSummaryCache.get(key),put:(key,value)=>cloudSummaryCache.set(key,value)})},
+  DriveApp:{
+    getFolderById:()=>cloudDriveFolder,
+    getFileById:id=>{
+      const file=cloudFiles.get(id);
+      if(!file)throw new Error('missing Drive file');
+      return file;
+    }
+  },
+  Utilities:{newBlob:(raw,type,name)=>({raw,name})},
+  cloudSheet,hash:value=>createHash('sha256').update(value).digest('base64url'),
+  newId:()=>String(++cloudUuid)
+};
+vm.createContext(cloudApiContext);
+vm.runInContext(`${cloudServer}
+qcsUser_ = token => ({id: token, name: token});
+qcsSheet_ = () => cloudSheet;
+qcsProperties_ = () => ({getProperty: () => 'folder'});
+qcsSha256_ = hash;
+qcsRandom_ = newId;
+`,cloudApiContext);
+const {listCloudSaves,loadCloudSave,saveCloudGame,renameCloudSave,deleteCloudSave}=cloudApiContext;
+const cloudPayload=(gameId,dynastyId,year)=>({version:2,savedAt:1,gameState:{gameId,dynastyId,year,ministers:[],provinces:[]},logs:[]});
+const legacyPayload=cloudPayload('run_old','dynasty_old',8);
+const legacyFile=cloudDriveFolder.createFile({name:`save_${cloudApiContext.hash('player').slice(0,12)}_1.json`,raw:JSON.stringify(legacyPayload)});
+cloudRows.push(['player',1,'舊檔',legacyFile.getId(),1,1,'',2,'run_old']);
+const legacySlot=listCloudSaves('player').slots[0];
+assert(legacySlot.year===8&&legacySlot.dynastyId==='dynasty_old','legacy summary must come from the validated Drive payload');
+assert(loadCloudSave('player',1,1,legacySlot.slotIdentity).payload.gameState.gameId==='run_old','legacy raw save must remain readable');
+const successor=cloudPayload('run_heir','dynasty_old',1);
+failIndexWrite=true;
+assert(!saveCloudGame('player',1,'舊檔',successor,1,'run_old',legacySlot.slotIdentity).ok&&!legacyFile.isTrashed()&&
+  loadCloudSave('player',1,1,legacySlot.slotIdentity).payload.gameState.gameId==='run_old','failed index update changed the previous save');
+const fileCount=cloudFiles.size;
+failIndexWrite=false;
+const synced=saveCloudGame('player',1,'舊檔',successor,1,'run_old',legacySlot.slotIdentity);
+assert(synced.ok&&synced.gameId==='run_heir'&&synced.slotIdentity===legacySlot.slotIdentity&&cloudFiles.size===fileCount,'succession must reuse the pending file and preserve slot identity');
+assert(loadCloudSave('player',1,1,synced.slotIdentity).conflict,'a stale list revision must not load a different snapshot');
+assert(saveCloudGame('player',1,'舊檔',legacyPayload,1,'run_old',synced.slotIdentity).conflict,'another tab must not overwrite a newer revision');
+assert(saveCloudGame('player',2,'重複',successor,0).conflict,'the same dynasty must not acquire a second slot');
+const fresh=cloudPayload('run_fresh','dynasty_fresh',1);
+failFlush=true;
+assert(!saveCloudGame('player',2,'新檔',fresh,0,'','','request-a').ok,'flush reply failure must be reported');
+failFlush=false;
+const afterFlushSize=cloudFiles.size;
+const replayed=saveCloudGame('player',2,'新檔',fresh,0,'','','request-a');
+assert(replayed.ok&&replayed.payload.gameState.gameId==='run_fresh'&&cloudFiles.size===afterFlushSize&&cloudRows.length===2,'retry must retrieve the committed creation without duplicating it');
+assert(saveCloudGame('player',2,'新檔',fresh,0,'','','request-b').conflict,'different creation cannot take over an occupied slot');
+assert(renameCloudSave('player',2,'改名',1,replayed.slotIdentity).ok,'rename should preserve verified identity');
+assert(deleteCloudSave('player',2,2,replayed.slotIdentity).ok,'healthy file can be deleted by the requested revision');
+const replacement=saveCloudGame('player',2,'重建',fresh,0,'','','request-a');
+assert(replacement.ok&&replacement.slotIdentity!==replayed.slotIdentity&&
+  loadCloudSave('player',2,1,replayed.slotIdentity).conflict,'deleting and recreating a slot must not accept a stale identity with the same revision');
+assert(listCloudSaves('different-player').slots.length===0,'one account must not see another account’s slots');
+cloudFiles.get(cloudRows[1][3]).setTrashed(true);
+assert(listCloudSaves('player').slots[1].status==='review'&&
+  !saveCloudGame('player',2,'覆寫',fresh,0,'','','request-a').ok,'trashed file must remain protected even when its summary was cached');
+cloudRows.push([...cloudRows[0]]);
+assert(listCloudSaves('player').slots[0].status==='review'&&!loadCloudSave('player',1,2,synced.slotIdentity).ok,'duplicate index rows must not resolve to an arbitrary save');
+
+const cloudClient=read('AppState.html');
+const switchSource=cloudClient.slice(cloudClient.indexOf('        const applyLoadedCloudSave ='),cloudClient.indexOf('        const loadCloudSlot ='));
+const restoreSource=cloudClient.slice(cloudClient.indexOf('        const restoreCloudBinding='),cloudClient.indexOf('        useEffect(() => {',cloudClient.indexOf('        const restoreCloudBinding=')));
+const coreSource=read('ClientCore.html');
+const identitySource=coreSource.slice(coreSource.indexOf('      const cloudDynastyId'),coreSource.indexOf('      const ANNUAL_TAX_POLICIES'));
+const clientWrites=[];
+let rejectLocalWrite=true;
+const cloudClientContext={
+  cloudUser:{id:'player'}, QING_SAVE_KEY:'qing_saveData',
+  localStorage:{setItem:(key,value)=>{
+    if(rejectLocalWrite)throw new Error('quota exceeded');
+    clientWrites.push(['local',key,JSON.parse(value)]);
+  }},
+  normalizeLoadedGame:payload=>({...payload,betaPortraitAssignments:{}}), cleanGameStateForSave:state=>state,
+  cloudBindingFor:record=>({slot:record.slot,gameId:record.gameId,dynastyId:record.dynastyId,userId:record.userId}),
+  bindCloudRecord:(record,binding)=>clientWrites.push(['bind',binding]), clearCloudSyncTimer(){},
+  cloudPauseRef:{current:false}, setTimeout(){}, cancelCloudNewGame(){},
+  cloudBindingRef:{current:{userId:'player',slot:1,revision:1,gameId:'run_old',dirty:false}},
+  cloudLatestRef:{current:{isGameStarted:true,gameState:successor.gameState}},
+  cloudContextRef:{current:{}},cloudSyncBlockedRef:{current:false},cloudDirtyRef:{current:false},
+  saveCloudBinding:binding=>clientWrites.push(['binding',binding]),
+  setCloudSlot:slot=>clientWrites.push(['slot',slot]),setCloudGuard:guard=>clientWrites.push(['guard',guard]),
+  setGameState:state=>clientWrites.push(['game',state])
+};
+for(const name of ['BetaPortraitAssignments','Logs','IsGameStarted','CurrentView','CurrentEvent','YearReport','ShowVictoryModal',
+  'ShowHeirSelection','RecruitReveal','ExamResult','DeathEvent','RetireEvent','ShowCloudPanel','ShowSystemSettings',
+  'CloudRevision','CloudName','CloudSavedAt','CloudStatus']) cloudClientContext['set'+name]=()=>{};
+vm.createContext(cloudClientContext);
+vm.runInContext(`${identitySource}
+${restoreSource}
+${switchSource}
+globalThis.applyLoadedCloudSave=applyLoadedCloudSave;
+globalThis.restoreCloudBinding=restoreCloudBinding;`,cloudClientContext);
+const cloudLoadResponse={...synced,userId:'player',payload:successor};
+try { cloudClientContext.applyLoadedCloudSave(cloudLoadResponse); } catch(error) { assert(error.message==='quota exceeded','unexpected local write error'); }
+assert(clientWrites.length===0,'a failed local write must not replace current game or binding');
+rejectLocalWrite=false;
+try { cloudClientContext.applyLoadedCloudSave({...cloudLoadResponse,userId:'other'}); } catch(error) { assert(error.message.includes('不符'),'unexpected identity validation error'); }
+assert(clientWrites.length===0,'a response for another account must not be committed locally');
+cloudClientContext.applyLoadedCloudSave(cloudLoadResponse);
+assert(clientWrites[0][0]==='local'&&clientWrites[0][2].cloudBinding.slot===1&&clientWrites[0][2].gameState.gameId==='run_heir'&&
+  clientWrites[1][0]==='bind'&&clientWrites[2][0]==='game','load must commit the matched payload and binding before switching UI');
+clientWrites.length=0;
+cloudClientContext.cloudLatestRef.current.gameState={...successor.gameState,emperorHistory:[{gameId:'run_old'}]};
+cloudClientContext.restoreCloudBinding({user:{id:'player'},slots:[legacySlot]},'player');
+const migratedBinding=clientWrites.find(([kind])=>kind==='binding')?.[1];
+assert(migratedBinding?.dynastyId==='dynasty_old'&&migratedBinding.gameId==='run_old'&&migratedBinding.dirty,
+  'an unsynced legacy succession must keep its original slot and expected remote reign');
 
 const clasp = JSON.parse(read('.clasp.json'));
 assert(clasp.scriptId === '1XgG3H6UsAsOkhYWEMnkf8svciGRGrXqcwQYzJtrEhABvrrfCfo0K9C0t', 'unexpected production GAS script ID');
@@ -206,4 +356,4 @@ const customState=portraits.normalizeEmperorAvatarState({gameId:'run-avatar',cur
 assert(customState.emperorAvatar.kind==='custom'&&Object.keys(customState.emperorAvatarAssets).length===1,'custom emperor avatar deduplication/pruning failed');
 assert(portraits.emperorLeaderboardAvatarPayload(customState).avatarValue===customAsset.leaderboard,'leaderboard thumbnail selection failed');
 
-console.log('Production verification passed: v1.4.3, Babel syntax, automatic OAuth handoff, IME-safe prompts, responsive recruit cards, 173 character IDs and 523 WebP assets.');
+console.log('Production verification passed: v1.4.4, Babel syntax, automatic OAuth handoff, cloud save integrity, IME-safe prompts, responsive recruit cards, 173 character IDs and 523 WebP assets.');

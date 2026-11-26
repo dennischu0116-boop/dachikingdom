@@ -1,8 +1,15 @@
       const { useState, useEffect, useLayoutEffect, useRef } = React;
 
       // 遊戲對外顯示版本，未來更新只需要修改這一處。
-      const APP_VERSION = "v1.4.3";
+      const APP_VERSION = "v1.4.4";
       const QING_CLOUD_BINDING_KEY = 'qing_cloud_active_binding_v1';
+      const QING_CLOUD_DRAFT_KEY = 'qing_cloud_new_game_draft';
+      const readCloudNewGameDraft = () => {
+          try {
+              const draft=JSON.parse(sessionStorage.getItem(QING_CLOUD_DRAFT_KEY)||'null');
+              return draft?.userId&&draft.payload?.gameState?.gameId&&[1,2,3,4,5].includes(draft.slot)?draft:null;
+          } catch (error) { return null; }
+      };
       const QING_CLOUD_LOGIN_TIMEOUT_MS = 10 * 60 * 1000;
       const readCloudBinding = () => {
           try {
@@ -10,12 +17,10 @@
               return value&&value.gameId&&Number(value.slot)?value:null;
           } catch (error) { return null; }
       };
-      const writeCloudBinding = value => {
-          try {
-              if(value)localStorage.setItem(QING_CLOUD_BINDING_KEY,JSON.stringify(value));
-              else localStorage.removeItem(QING_CLOUD_BINDING_KEY);
-          } catch (error) { console.warn('無法保存雲端槽位綁定：',error); }
-      };
+      const cloudDynastyId = game => game?.gameId ? String(game.dynastyId || `dynasty_${game.gameId}`) : '';
+      const cloudBindingMatches = (binding,game) => !!binding && !!game?.gameId && (binding.dynastyId
+          ? binding.dynastyId===cloudDynastyId(game)
+          : String(binding.gameId)===String(game.gameId) || (game.emperorHistory||[]).some(reign=>String(reign.gameId)===String(binding.gameId)));
 
       const ANNUAL_TAX_POLICIES = {
           1:{incomeRate:1/3,stability:4,populationGrowth:1},

@@ -1,7 +1,7 @@
       function App() {
         // 初始化時先載入舊存檔，避免首次 render 用預設值覆蓋存檔。
         const [initialSave] = useState(readAutoSave);
-        const [initialCloudBinding] = useState(readCloudBinding);
+        const initialCloudBinding=cloudBindingMatches(initialSave?.cloudBinding,initialSave?.gameState)?initialSave.cloudBinding:null;
         const [isGameStarted, setIsGameStarted] = useState(!!initialSave);
         const [gameState, setGameState] = useState(initialSave ? initialSave.gameState : INITIAL_STATE);
         const [betaPortraitAssignments,setBetaPortraitAssignments]=useState(initialSave?.betaPortraitAssignments||{});
@@ -143,12 +143,28 @@
         const [cloudBusy, setCloudBusy] = useState(false);
         const [cloudStatus, setCloudStatus] = useState('遊客模式');
         const [cloudSavedAt, setCloudSavedAt] = useState('');
-        const [pendingCloudNewGameSlot, setPendingCloudNewGameSlot] = useState(null);
+        const [initialCloudDraft]=useState(readCloudNewGameDraft);
+        const [pendingCloudNewGameSlot, setPendingCloudNewGameSlot] = useState(initialCloudDraft?.slot||null);
+        const [cloudOperation, setCloudOperation] = useState('');
+        const cloudActionRef=useRef(false);
+        const cloudDraftRef=useRef(initialCloudDraft);
+        const saveCloudDraft=draft=>{
+            cloudDraftRef.current=draft;
+            try {
+                if(draft)sessionStorage.setItem(QING_CLOUD_DRAFT_KEY,JSON.stringify(draft));
+                else sessionStorage.removeItem(QING_CLOUD_DRAFT_KEY);
+            } catch (error) { console.warn('無法在此分頁保留雲端開局草稿'); }
+        };
+        const cloudListGenerationRef=useRef(0);
         const [appBooting,setAppBooting]=useState(true);
         const [cloudSessionChecking,setCloudSessionChecking]=useState(false);
-        const [cloudBinding,setCloudBinding]=useState(()=>initialCloudBinding&&initialSave?.gameState?.gameId===initialCloudBinding.gameId?initialCloudBinding:null);
-        const [cloudGuard,setCloudGuard]=useState(()=>initialCloudBinding&&initialSave?.gameState?.gameId===initialCloudBinding.gameId?{
+        const [cloudBinding,setCloudBinding]=useState(initialCloudBinding);
+        const cloudBindingRef=useRef(initialCloudBinding);
+        const [cloudGuard,setCloudGuard]=useState(()=>initialCloudBinding?{
             type:'login',message:'這是已連結雲端槽位的遊戲。請登入原本的 Google 帳號，核對雲端版本後才能繼續。'}:null);
+        const currentSaveLocation=cloudSlot&&cloudUser&&cloudGuard?.type!=='login'&&cloudGuard?.type!=='conflict'
+            ?`雲端槽位 ${cloudSlot}`
+            :cloudBinding?`原槽位 ${cloudBinding.slot}・待核對`:'本機進度・未連結';
         const cloudLatestRef = useRef({isGameStarted,gameState,logs,betaPortraitAssignments});
         const cloudContextRef = useRef({token:'',slot:null,revision:0,name:''});
         const cloudDirtyRef = useRef(false);
@@ -156,68 +172,61 @@
         const cloudWritingRef = useRef(false);
         const cloudPauseRef = useRef(false);
         const cloudGenerationRef = useRef(0);
+        const clearCloudSyncTimer=()=>{
+            if(cloudTimerRef.current)clearTimeout(cloudTimerRef.current);
+            cloudTimerRef.current=null;
+        };
         const cloudSyncRef = useRef(null);
         const cloudSyncBlockedRef = useRef(false);
         const cloudSessionCheckRef=useRef(null);
         const cloudSessionCheckBusyRef=useRef(false);
         const cloudLoginPollBusyRef=useRef(false);
         const cloudLoginPopupRef=useRef(null);
-        const saveCloudBinding=binding=>{setCloudBinding(binding);writeCloudBinding(binding);};
-        const clearCloudBinding=()=>{setCloudBinding(null);writeCloudBinding(null);};
+        const saveCloudBinding=binding=>{cloudBindingRef.current=binding;setCloudBinding(binding);};
+        const clearCloudBinding=()=>saveCloudBinding(null);
         const pauseForCloudError=error=>{
             const message=error?.message||'雲端操作失敗';
-            const binding=readCloudBinding();
-            if(!isGameStarted||!binding||binding.gameId!==gameState.gameId)return message;
+            const binding=cloudBindingRef.current;
+            if(!cloudLatestRef.current.isGameStarted||!cloudBindingMatches(binding,cloudLatestRef.current.gameState))return message;
             const authError=/登入.*(?:逾期|無效|登出)|重新登入/.test(message);
             const conflict=!!error?.conflict||message.includes('CONFLICT');
-            saveCloudBinding({...binding,dirty:true});cloudDirtyRef.current=true;cloudSyncBlockedRef.current=true;
+            cloudSyncBlockedRef.current=true;
             setCloudGuard({type:authError?'login':conflict?'conflict':'sync',message:authError?'Google 登入已逾期或失效。遊戲已暫停，請重新登入原帳號後同步。':conflict?'雲端已有較新的版本，系統已停止覆寫。請先下載本機備份，再檢查並讀取雲端槽位。':`雲端連線失敗，遊戲已暫停以避免本機與雲端進度分岔。\n\n${message}`});
-            if(authError){setCloudToken('');setCloudUser(null);try{sessionStorage.removeItem('qing_cloud_session');}catch(ignore){}}
+            if(authError){cloudListGenerationRef.current+=1;setCloudToken('');setCloudUser(null);try{sessionStorage.removeItem('qing_cloud_session');}catch(ignore){}}
             return message;
         };
         const restoreCloudBinding=(result,token)=>{
-            let binding=readCloudBinding();
-            if(!binding&&isGameStarted&&gameState.gameId){
-                const legacyMatches=(result.slots||[]).filter(item=>String(item.gameId)===String(gameState.gameId));
-                if(legacyMatches.length===1){
-                    const slot=legacyMatches[0];
-                    binding={userId:result.user?.id,slot:Number(slot.slot),revision:Number(slot.revision)||0,name:slot.name||'',gameId:gameState.gameId,dirty:false};
-                    saveCloudBinding(binding);
-                }else if(legacyMatches.length>1){
-                    setCloudGuard({type:'conflict',message:'這份舊版本機進度同時出現在多個雲端槽位，無法安全判斷原本連結。請先下載本機備份，再從雲端面板選擇正確槽位讀取。'});
-                    setCloudStatus('舊版槽位連結待確認・遊戲已暫停');
-                    return true;
-                }
-            }
-            if(!binding||binding.gameId!==gameState.gameId)return false;
-            saveCloudBinding(binding);
-            if(!isGameStarted)return false;
-            if(String(result.user?.id)!==String(binding.userId)){
-                setCloudGuard({type:'login',message:'目前登入的 Google 帳號不是這局雲端存檔原本綁定的帳號。請登出後改用原帳號登入。'});
-                setCloudStatus('帳號不符・遊戲已暫停');
-                return true;
-            }
+            if(!result)return false;
+            const binding=cloudBindingRef.current;
+            const local=cloudLatestRef.current;
+            if(!local.isGameStarted||!cloudBindingMatches(binding,local.gameState))return false;
+            const sameUser=String(result.user?.id)===String(binding.userId);
             const slot=(result.slots||[]).find(item=>Number(item.slot)===Number(binding.slot));
-            if(!slot||String(slot.gameId)!==String(binding.gameId)){
-                setCloudGuard({type:'conflict',message:'原本綁定的雲端槽位已不存在，或已被另一局遊戲取代。系統不會自動覆蓋，請先下載本機備份並檢查槽位。'});
-                setCloudStatus('雲端槽位不符・遊戲已暫停');
+            const sameSlot=slot&&!slot.empty&&slot.status!=='review'&&
+                slot.dynastyId===cloudDynastyId(local.gameState)&&
+                (!binding.slotIdentity||binding.slotIdentity===slot.slotIdentity);
+            if(!sameUser||!sameSlot||Number(slot.revision)!==Number(binding.revision)){
+                cloudSyncBlockedRef.current=true;
+                cloudContextRef.current={token,slot:null,revision:0,name:''};
+                setCloudSlot(null);
+                setCloudGuard(sameUser
+                    ? {type:'conflict',message:'原槽位需要核對或版本已變更。請先下載本機備份，再選擇正確的雲端存檔。'}
+                    : {type:'login',message:'請改用此槽位原本綁定的 Google 帳號。'});
+                setCloudStatus(sameUser?'雲端槽位待核對・遊戲已暫停':'帳號不符・遊戲已暫停');
                 return true;
             }
-            setCloudSlot(Number(slot.slot));setCloudRevision(Number(slot.revision)||0);setCloudName(slot.name||binding.name||'');setCloudSavedAt(slot.updatedAt||'');
-            cloudContextRef.current={token,slot:Number(slot.slot),revision:Number(slot.revision)||0,name:slot.name||binding.name||''};
-            cloudDirtyRef.current=!!binding.dirty;
-            const remoteNewer=Number(slot.revision)>Number(binding.revision||0);
-            if(remoteNewer){
-                cloudSyncBlockedRef.current=true;
-                setCloudGuard({type:'conflict',message:'雲端槽位已有較新的版本。為避免覆蓋其他裝置的進度，請先下載本機備份，再從雲端槽位重新讀取。'});
-                setCloudStatus('雲端版本衝突・遊戲已暫停');
-            }else if(binding.dirty){
-                cloudSyncBlockedRef.current=true;
-                setCloudGuard({type:'sync',message:'這局遊戲仍有尚未同步的本機進度。請先重新同步，成功後才能繼續。'});
-                setCloudStatus('尚有未同步進度・遊戲已暫停');
-            }else{
-                cloudSyncBlockedRef.current=false;setCloudGuard(null);setCloudStatus(`已連結：槽位 ${slot.slot}`);
+            const wasActive=cloudContextRef.current.slot===binding.slot&&!cloudSyncBlockedRef.current;
+            const dirty=!!binding.dirty||slot.gameId!==String(local.gameState.gameId);
+            const needsSync=dirty&&!wasActive;
+            if(dirty!==!!binding.dirty||binding.slotIdentity!==slot.slotIdentity||binding.dynastyId!==slot.dynastyId||binding.gameId!==slot.gameId){
+                saveCloudBinding({...binding,slotIdentity:slot.slotIdentity,dynastyId:slot.dynastyId,gameId:slot.gameId,dirty});
             }
+            setCloudSlot(slot.slot);setCloudRevision(slot.revision);setCloudName(slot.name);setCloudSavedAt(slot.updatedAt||'');
+            cloudContextRef.current={token,slot:slot.slot,revision:slot.revision,name:slot.name};
+            cloudDirtyRef.current=dirty;
+            cloudSyncBlockedRef.current=needsSync;
+            setCloudGuard(needsSync?{type:'sync',message:'本機有尚未同步的進度。請先同步，成功後才能繼續。'}:null);
+            setCloudStatus(needsSync?'尚有未同步進度・遊戲已暫停':`已連結：槽位 ${slot.slot}`);
             return true;
         };
 
@@ -233,12 +242,12 @@
                     if(session){
                         try{
                             const result=await refreshCloudSlots(session);
-                            if(!active)return;
+                            if(!active||!result)return;
                             setCloudToken(session);setCloudUser(result.user||null);
                             if(!restoreCloudBinding(result,session))setCloudStatus(`已登入：${result.user?.name||'Google 玩家'}`);
                         }catch(error){
                             try{sessionStorage.removeItem('qing_cloud_session');}catch(ignore){}
-                            if(readCloudBinding())setCloudGuard({type:'login',message:'Google 登入已逾期或失效。這局雲端遊戲已暫停，請重新登入原帳號。'});
+                            if(cloudBindingRef.current)setCloudGuard({type:'login',message:'Google 登入已逾期或失效。這局雲端遊戲已暫停，請重新登入原帳號。'});
                         }
                     }
                 }catch(error){
@@ -255,13 +264,14 @@
         useEffect(() => {
             cloudLatestRef.current={isGameStarted,gameState,logs,betaPortraitAssignments};
             const context=cloudContextRef.current;
-            if(!context.token||!context.slot||!isGameStarted||!gameState.gameId||cloudPauseRef.current)return;
+            if(!isGameStarted||!cloudBindingMatches(cloudBindingRef.current,gameState)||cloudPauseRef.current)return;
             cloudGenerationRef.current+=1;
             cloudDirtyRef.current=true;
-            if(cloudBinding&&cloudBinding.gameId===gameState.gameId)saveCloudBinding({...cloudBinding,dirty:true});
+            if(!cloudBindingRef.current.dirty)saveCloudBinding({...cloudBindingRef.current,dirty:true});
+            if(!context.token||!context.slot||cloudSyncBlockedRef.current)return;
             if(cloudTimerRef.current)clearTimeout(cloudTimerRef.current);
             cloudTimerRef.current=setTimeout(()=>{cloudTimerRef.current=null;cloudSyncRef.current?.(false);},4000);
-            return ()=>{if(cloudTimerRef.current)clearTimeout(cloudTimerRef.current);};
+            return clearCloudSyncTimer;
         },[isGameStarted,gameState,logs,betaPortraitAssignments]);
 
         // 每次國庫或人數改變都立即保存峰值，避免同一年內先增加、後減少而遺失紀錄。
@@ -326,47 +336,42 @@
         };
 
         const handleStartGame = async (eraName, playerName, avatarSelection) => {
-            const fresh=createFreshGame(eraName,playerName,avatarSelection);
-            const freshPortraitAssignments=betaAllocatePortraits(betaStateWithPortraitCandidates(fresh.state),{});
-            setBetaPortraitAssignments(freshPortraitAssignments);
-            const targetSlot=Number(pendingCloudNewGameSlot)||null;
-            cloudPauseRef.current=true;
+            if(cloudActionRef.current)return;
+            const targetSlot=pendingCloudNewGameSlot;
             if(targetSlot){
-                const previousSave=readAutoSave(),previousBinding=readCloudBinding();
-                if(!cloudToken){
-                    if(previousSave){setGameState(previousSave.gameState);setBetaPortraitAssignments(previousSave.betaPortraitAssignments||{});setLogs(previousSave.logs);setIsGameStarted(true);}
-                    if(previousBinding)setCloudGuard({type:'login',message:'Google登入已失效，未建立新的雲端遊戲。請重新登入原帳號後再操作。'});
-                    setCloudStatus('需要重新登入・未建立新遊戲');setPendingCloudNewGameSlot(null);cloudPauseRef.current=false;
-                    return;
-                }
-                const payload={version:2,savedAt:Date.now(),gameState:cleanGameStateForSave(fresh.state),logs:fresh.logs,betaPortraitAssignments:freshPortraitAssignments};
-                const saveName=`${fresh.state.eraName}・${fresh.state.playerName}`.slice(0,40);
-                setCloudBusy(true);
+                if(!cloudToken||!cloudUser){showMessage('請先登入 Google 帳號。','error');setShowCloudPanel(true);return;}
+                if(cloudDraftRef.current&&cloudDraftRef.current.userId!==cloudUser.id){showMessage('請使用開始設定時的 Google 帳號。','error');return;}
+                const draft=cloudDraftRef.current||(()=>{
+                    const fresh=createFreshGame(eraName,playerName,avatarSelection);
+                    const betaPortraitAssignments=betaAllocatePortraits(betaStateWithPortraitCandidates(fresh.state),{});
+                    return { userId:cloudUser.id, name:`${fresh.state.eraName}・${fresh.state.playerName}`.slice(0,40),
+                        payload:{version:2,savedAt:Date.now(),gameState:cleanGameStateForSave(fresh.state),logs:fresh.logs,betaPortraitAssignments} };
+                })();
+                saveCloudDraft({...draft,slot:targetSlot});
+                beginCloudAction(`正在建立雲端槽位 ${targetSlot}…`);
                 try{
-                    const saved=await qingCloudGas('saveCloudGame',cloudToken,targetSlot,saveName,payload,0);
-                    cloudSyncBlockedRef.current=false;setCloudGuard(null);clearCloudBinding();
-                    setGameState(fresh.state);setLogs(fresh.logs);setCurrentView('THRONE');setShowSystemSettings(false);setIsGameStarted(true);
-                    setCloudSlot(targetSlot);setCloudRevision(saved.revision);setCloudName(saved.name);setCloudSavedAt(saved.updatedAt||'');
-                    saveCloudBinding({userId:cloudUser?.id,slot:targetSlot,revision:saved.revision,name:saved.name,gameId:fresh.state.gameId,dirty:false});
-                    cloudDirtyRef.current=false;setCloudStatus(`已連結：槽位 ${targetSlot}`);
-                    await refreshCloudSlots(cloudToken);
+                    const id=draft.payload.gameState.gameId;
+                    const saved=await qingCloudGas('saveCloudGame',cloudToken,targetSlot,draft.name,draft.payload,0,'','',id);
+                    if(saved.slot!==targetSlot||saved.dynastyId!==cloudDynastyId(draft.payload.gameState))throw new Error('雲端回覆與開局草稿不符。');
+                    applyLoadedCloudSave({...saved,payload:saved.payload||draft.payload});
                     showMessage(`新遊戲已建立於雲端槽位 ${targetSlot}`,'success');
                 }catch(error){
-                    if(previousSave){setGameState(previousSave.gameState);setBetaPortraitAssignments(previousSave.betaPortraitAssignments||{});setLogs(previousSave.logs);setIsGameStarted(true);}
-                    if(previousBinding)setCloudGuard({type:'login',message:'雲端新遊戲建立失敗，系統已保留並恢復原本的遊戲；請核對登入與槽位後再試。'});
-                    setCloudStatus('雲端建立失敗・原遊戲已保留');
-                    showMessage(`${error.message||'雲端槽位建立失敗'}；未切換或建立本機新遊戲`,'error');
-                }finally{
-                    setCloudBusy(false);setPendingCloudNewGameSlot(null);cloudPauseRef.current=false;
-                }
-            }else{
-                cloudSyncBlockedRef.current=false;setCloudGuard(null);clearCloudBinding();
-                setCloudSlot(null);setCloudRevision(0);setCloudName('');setCloudSavedAt('');cloudDirtyRef.current=false;
-                setCloudStatus(cloudUser?`已登入：${cloudUser.name||cloudUser.email||'Google 玩家'}`:'遊客模式');
-                setGameState(fresh.state);setLogs(fresh.logs);setCurrentView('THRONE');setShowSystemSettings(false);setIsGameStarted(true);
-                setPendingCloudNewGameSlot(null);
-                setTimeout(()=>{cloudPauseRef.current=false;},100);
+                    if(error.conflict){
+                        await refreshCloudSlots(cloudToken).catch(()=>{});
+                        setShowCloudPanel(true);
+                    }
+                    showMessage(`${error.message||'雲端建立失敗'}。目前進度已保留，可重試或取消。`,'error');
+                }finally{endCloudAction();}
+                return;
             }
+            const fresh=createFreshGame(eraName,playerName,avatarSelection);
+            clearCloudSyncTimer();cloudPauseRef.current=true;
+            cloudSyncBlockedRef.current=false;setCloudGuard(null);clearCloudBinding();
+            setCloudSlot(null);setCloudRevision(0);setCloudName('');setCloudSavedAt('');cloudDirtyRef.current=false;
+            setCloudStatus(cloudUser?'本機進度・未連結':'遊客模式');
+            setBetaPortraitAssignments(betaAllocatePortraits(betaStateWithPortraitCandidates(fresh.state),{}));
+            setGameState(fresh.state);setLogs(fresh.logs);setCurrentView('THRONE');setShowSystemSettings(false);setIsGameStarted(true);
+            setTimeout(()=>{cloudPauseRef.current=false;},100);
         };
 
         const showMessage = (msg, type = 'error') => { setFeedbackMessage({ text: msg, type }); setTimeout(() => setFeedbackMessage(null), 3000); };
@@ -422,7 +427,8 @@
                     savedAt: Date.now(),
                     gameState: cleanGameStateForSave(normalizeRoyalState(gameState)),
                     logs,
-                    betaPortraitAssignments
+                    betaPortraitAssignments,
+                    cloudBinding:cloudBindingMatches(cloudBindingRef.current,gameState)?cloudBindingRef.current:null
                 };
                 localStorage.setItem(QING_SAVE_KEY, JSON.stringify(payload));
                 setAutoSaveStatus('已自動存檔');
@@ -430,13 +436,14 @@
                 console.error('即時存檔失敗：', error);
                 setAutoSaveStatus('自動存檔失敗');
             }
-        }, [isGameStarted, gameState, logs, betaPortraitAssignments]);
+        }, [isGameStarted, gameState, logs, betaPortraitAssignments, cloudBinding]);
 
         const handleSave = () => {
             try {
                 localStorage.setItem(QING_SAVE_KEY, JSON.stringify({
                     version: 2, savedAt: Date.now(),
-                    gameState: cleanGameStateForSave(normalizeRoyalState(gameState)), logs, betaPortraitAssignments
+                    gameState: cleanGameStateForSave(normalizeRoyalState(gameState)), logs, betaPortraitAssignments,
+                    cloudBinding:cloudBindingMatches(cloudBindingRef.current,gameState)?cloudBindingRef.current:null
                 }));
                 setAutoSaveStatus('已自動存檔');
                 showMessage('目前進度已儲存！', 'success');
@@ -446,9 +453,10 @@
         const handleLoad = () => {
             const saved = readAutoSave();
             if (!saved) { showMessage('目前沒有可讀取的本機存檔', 'error'); return; }
-            const binding=readCloudBinding();
-            const linked=!!binding&&String(binding.gameId)===String(saved.gameState.gameId);
-            cloudPauseRef.current=true;
+            const binding=saved.cloudBinding;
+            const linked=cloudBindingMatches(binding,saved.gameState);
+            if(cloudWritingRef.current||cloudActionRef.current){showMessage('請等候雲端操作完成後再讀取。','error');return;}
+            clearCloudSyncTimer();cloudPauseRef.current=true;
             setGameState(saved.gameState);
             setBetaPortraitAssignments(saved.betaPortraitAssignments||{});
             setLogs(saved.logs);
@@ -458,21 +466,19 @@
             setShowHeirSelection(false);
             setShowSystemSettings(false);
             if(linked){
-                saveCloudBinding(binding);setCloudSlot(Number(binding.slot));setCloudRevision(Number(binding.revision)||0);setCloudName(binding.name||'');cloudDirtyRef.current=!!binding.dirty;
-                const slot=(cloudSlots||[]).find(item=>Number(item.slot)===Number(binding.slot));
-                if(!cloudToken||String(cloudUser?.id)!==String(binding.userId)){
-                    setCloudGuard({type:'login',message:'這份本機進度已連結雲端槽位。請登入原本的 Google 帳號並核對版本後再繼續。'});setCloudStatus('需要重新登入・遊戲已暫停');
-                }else if(!slot||String(slot.gameId)!==String(binding.gameId)||Number(slot.revision)>Number(binding.revision||0)){
-                    setCloudGuard({type:'conflict',message:'雲端槽位不存在、已被取代或已有較新版本。請先下載本機備份，再檢查並讀取雲端槽位。'});setCloudStatus('雲端版本待核對・遊戲已暫停');
-                }else if(binding.dirty){
-                    setCloudGuard({type:'sync',message:'本機存檔含有尚未同步的進度。請先重新同步，成功後才能繼續。'});setCloudStatus('尚有未同步進度・遊戲已暫停');
-                }else{setCloudGuard(null);setCloudStatus(`已連結：槽位 ${binding.slot}`);}
+                saveCloudBinding(binding);setCloudSlot(null);setCloudRevision(0);setCloudName('');setCloudSavedAt('');
+                cloudSyncBlockedRef.current=true;
+                setCloudGuard({type:cloudToken?'sync':'login',message:'正在核對這份本機進度原本連結的雲端槽位。'});
+
             }else{
-                clearCloudBinding();setCloudGuard(null);setCloudSlot(null);setCloudRevision(0);setCloudName('');setCloudSavedAt('');cloudDirtyRef.current=false;
+                clearCloudBinding();setCloudGuard(null);cloudSyncBlockedRef.current=false;setCloudSlot(null);setCloudRevision(0);setCloudName('');setCloudSavedAt('');cloudDirtyRef.current=false;
                 setCloudStatus(cloudUser?`已登入：${cloudUser.name||cloudUser.email||'Google 玩家'}`:'遊客模式');
             }
             setIsGameStarted(true);
-            setTimeout(()=>{cloudPauseRef.current=false;},150);
+            setTimeout(()=>{
+                cloudPauseRef.current=false;
+                if(linked&&cloudToken)cloudSessionCheckRef.current?.();
+            },150);
             showMessage('已恢復最近一次自動存檔', 'success');
         };
 
@@ -486,19 +492,31 @@
 
         const refreshCloudSlots = async (token = cloudToken) => {
             if(!token)throw new Error('請先登入 Google 帳號。');
+            const generation=++cloudListGenerationRef.current;
             try{
                 const result=await qingCloudGas('listCloudSaves',token);
+                if(generation!==cloudListGenerationRef.current)return null;
                 setCloudUser(result.user||null);
                 const bySlot=new Map((Array.isArray(result.slots)?result.slots:[]).map(item=>[Number(item.slot),item]));
                 setCloudSlots(Array.from({length:Number(cloudConfig.maxSlots)||5},(_,index)=>bySlot.get(index+1)||{slot:index+1,empty:true}));
                 return result;
-            }catch(error){pauseForCloudError(error);throw error;}
+            }catch(error){if(generation===cloudListGenerationRef.current)pauseForCloudError(error);throw error;}
+        };
+
+        const refreshCloudPanel = async () => {
+            if(!cloudToken||cloudActionRef.current||cloudWritingRef.current)return;
+            beginCloudAction('正在核對雲端槽位…');
+            try{
+                const result=await refreshCloudSlots(cloudToken);
+                if(result)restoreCloudBinding(result,cloudToken);
+            }catch(error){showMessage(error.message,'error');}
+            finally{endCloudAction();}
         };
 
         const validateBoundCloudSession=async()=>{
-            const binding=readCloudBinding();
-            if(!isGameStarted||!binding||String(binding.gameId)!==String(gameState.gameId))return true;
-            if(cloudSessionCheckBusyRef.current)return false;
+            const binding=cloudBindingRef.current;
+            if(!isGameStarted||!cloudBindingMatches(binding,gameState))return true;
+            if(cloudActionRef.current||cloudWritingRef.current||cloudSessionCheckBusyRef.current||cloudPauseRef.current)return false;
             if(!cloudToken){
                 setCloudGuard({type:'login',message:'這局遊戲已連結雲端，但目前沒有有效登入。請重新登入原帳號並核對槽位後繼續。'});
                 setCloudStatus('需要重新登入・遊戲已暫停');
@@ -507,6 +525,7 @@
             cloudSessionCheckBusyRef.current=true;setCloudSessionChecking(true);
             try{
                 const result=await refreshCloudSlots(cloudToken);
+                if(!result||cloudActionRef.current||cloudWritingRef.current||cloudBindingRef.current!==binding)return false;
                 const guarded=restoreCloudBinding(result,cloudToken);
                 return guarded&&!cloudSyncBlockedRef.current;
             }catch(error){return false;}
@@ -551,6 +570,7 @@
                 const handoff=await qingCloudGas('consumeCloudLoginHandoff',state);
                 if(handoff?.pending)return 'pending';
                 const result=await refreshCloudSlots(handoff.sessionToken);
+                if(!result)throw new Error('雲端登入狀態已變更，請重新登入。');
                 setCloudToken(handoff.sessionToken);setCloudUser(result.user||null);setCloudLoginState('');setCloudAuthUrl('');
                 try{sessionStorage.setItem('qing_cloud_session',handoff.sessionToken);sessionStorage.removeItem('qing_cloud_oauth_state');}catch(error){}
                 if(!restoreCloudBinding(result,handoff.sessionToken))setCloudStatus(`已登入：${result.user?.name||'Google 玩家'}`);
@@ -597,103 +617,179 @@
         },[cloudLoginState,cloudToken]);
 
         const cloudLogout = async () => {
-            const storedBinding=readCloudBinding();
-            const activeBoundGame=!!isGameStarted&&storedBinding?.gameId===gameState.gameId;
+            if(cloudActionRef.current||cloudWritingRef.current)return;
+            const storedBinding=cloudBindingRef.current;
+            const activeBoundGame=isGameStarted&&cloudBindingMatches(storedBinding,gameState);
             const activeLinkedGame=activeBoundGame&&Number(cloudSlot)===Number(storedBinding.slot)&&String(cloudUser?.id)===String(storedBinding.userId);
             if(!await requestGameConfirm(activeLinkedGame?'系統會先把目前進度同步至雲端；同步成功後才會登出並返回開始頁面。確定登出嗎？':'確定登出目前的 Google 帳號嗎？',{title:'登出 Google 帳號'}))return;
-            if(cloudTimerRef.current)clearTimeout(cloudTimerRef.current);
+            if(cloudActionRef.current||cloudWritingRef.current)return;
+            clearCloudSyncTimer();
             const token=cloudToken;
-            setCloudBusy(true);
+            beginCloudAction('正在登出 Google 帳號…');
             if(activeLinkedGame){
                 const synced=await cloudSync(true);
-                if(!synced){setCloudBusy(false);showMessage('雲端同步未完成，已取消登出。請先排除同步問題。','error');return;}
+                if(!synced){endCloudAction();showMessage('雲端同步未完成，已取消登出。請先排除同步問題。','error');return;}
             }
-            if(token){try{await qingCloudGas('logoutCloudSession',token);}catch(error){setCloudBusy(false);showMessage('登出連線失敗，帳號與遊戲仍保持登入。','error');return;}}
+            if(token){try{await qingCloudGas('logoutCloudSession',token);}catch(error){endCloudAction();showMessage('登出連線失敗，帳號與遊戲仍保持登入。','error');return;}}
+            cloudListGenerationRef.current+=1;
             setCloudToken('');setCloudUser(null);setCloudSlot(null);setCloudRevision(0);setCloudName('');setCloudSavedAt('');
             setCloudSlots(Array.from({length:5},(_,index)=>({slot:index+1,empty:true})));
             cloudDirtyRef.current=false;cloudContextRef.current={token:'',slot:null,revision:0,name:''};
             setCloudStatus('遊客模式');
             try{sessionStorage.removeItem('qing_cloud_session');sessionStorage.removeItem('qing_cloud_oauth_state');}catch(error){}
-            setCloudLoginState('');setCloudAuthUrl('');setCloudBusy(false);setShowCloudPanel(false);
+            setCloudLoginState('');setCloudAuthUrl('');endCloudAction();setShowCloudPanel(false);
             if(activeLinkedGame){setCloudGuard(null);setIsGameStarted(false);setCurrentEvent(null);setYearReport(null);}
             else if(activeBoundGame)setCloudGuard({type:'login',message:'這局遊戲仍綁定原本的雲端帳號。請登入原帳號並核對槽位後才能繼續。'});
             else setCloudGuard(null);
         };
 
-        const applyLoadedCloudSave = (loaded,slotRecord) => {
+        const beginCloudAction=message=>{
+            cloudActionRef.current=true;
+            cloudListGenerationRef.current+=1;
+            setCloudOperation(message);setCloudBusy(true);
+        };
+        const endCloudAction=()=>{
+            cloudActionRef.current=false;
+            setCloudOperation('');setCloudBusy(false);
+            if(cloudDirtyRef.current&&!cloudSyncBlockedRef.current&&!cloudTimerRef.current){
+                cloudTimerRef.current=setTimeout(()=>{cloudTimerRef.current=null;cloudSyncRef.current?.(false);},4000);
+            }
+        };
+        const updateCloudSlot=record=>{
+            cloudListGenerationRef.current+=1;
+            setCloudSlots(previous=>previous.map(item=>item.slot===record.slot?record:item));
+        };
+        const cloudBindingFor=record=>({
+            userId:cloudUser.id,slot:record.slot,revision:record.revision,name:record.name,
+            slotIdentity:record.slotIdentity,dynastyId:record.dynastyId,gameId:record.gameId,dirty:false
+        });
+        const bindCloudRecord=(record,binding)=>{
+            saveCloudBinding(binding);
+            cloudContextRef.current={token:cloudToken,slot:record.slot,revision:record.revision,name:record.name};
+            setCloudSlot(record.slot);setCloudRevision(record.revision);setCloudName(record.name);setCloudSavedAt(record.updatedAt||'');
+            cloudDirtyRef.current=binding.dirty;cloudSyncBlockedRef.current=false;setCloudGuard(null);
+            setCloudStatus(`已連結：槽位 ${record.slot}`);
+            const {payload,userId,summary,ok,...slot}=record;
+            updateCloudSlot(slot);
+        };
+        const cancelCloudNewGame=()=>{
+            saveCloudDraft(null);
+            setPendingCloudNewGameSlot(null);
+        };
+        const applyLoadedCloudSave = loaded => {
             const normalized=normalizeLoadedGame(loaded.payload);
-            if(!normalized)throw new Error('雲端存檔格式不完整，未覆蓋目前進度。');
-            cloudPauseRef.current=true;
-            setGameState(normalized.gameState);setBetaPortraitAssignments(normalized.betaPortraitAssignments||{});setLogs(normalized.logs);setIsGameStarted(true);
-            setCurrentView('THRONE');setCurrentEvent(null);setYearReport(null);setShowVictoryModal(false);setShowHeirSelection(false);
-            setCloudSlot(Number(loaded.slot));setCloudRevision(Number(loaded.revision)||0);setCloudName(loaded.name||slotRecord?.name||`雲端存檔 ${loaded.slot}`);
-            setCloudSavedAt(loaded.updatedAt||'');cloudDirtyRef.current=false;
-            saveCloudBinding({userId:cloudUser?.id,slot:Number(loaded.slot),revision:Number(loaded.revision)||0,name:loaded.name||slotRecord?.name||'',gameId:normalized.gameState.gameId,dirty:false});
-            cloudSyncBlockedRef.current=false;setCloudGuard(null);
-            setCloudStatus(`已連結：槽位 ${loaded.slot}`);setShowCloudPanel(false);setShowSystemSettings(false);
+            if(!normalized||String(loaded.userId)!==String(cloudUser?.id)||!loaded.slotIdentity||
+                loaded.gameId!==String(normalized.gameState.gameId)||loaded.dynastyId!==cloudDynastyId(normalized.gameState)){
+                throw new Error('帳號、槽位或存檔內容不符，目前進度已保留。');
+            }
+            const binding=cloudBindingFor(loaded);
+            // 一次寫入完整進度與綁定，成功後才切換畫面。
+            localStorage.setItem(QING_SAVE_KEY,JSON.stringify({version:2,savedAt:Date.now(),
+                gameState:cleanGameStateForSave(normalized.gameState),logs:normalized.logs,
+                betaPortraitAssignments:normalized.betaPortraitAssignments,cloudBinding:binding}));
+            clearCloudSyncTimer();cloudPauseRef.current=true;
+            bindCloudRecord(loaded,binding);
+            setGameState(normalized.gameState);setBetaPortraitAssignments(normalized.betaPortraitAssignments||{});
+            setLogs(normalized.logs);setIsGameStarted(true);setCurrentView('THRONE');
+            setCurrentEvent(null);setYearReport(null);setShowVictoryModal(false);setShowHeirSelection(false);
+            setRecruitReveal(null);setExamResult(null);setDeathEvent(null);setRetireEvent(null);
+            cancelCloudNewGame();setShowCloudPanel(false);setShowSystemSettings(false);
             setTimeout(()=>{cloudPauseRef.current=false;},150);
         };
 
         const loadCloudSlot = async slotRecord => {
-            if(!cloudToken||slotRecord?.empty)return;
-            if(isGameStarted&&!await requestGameConfirm(`讀取「${slotRecord.name}」會取代目前畫面中的進度；本機自動存檔仍可在讀取前另行下載備份。確定讀取嗎？`,{title:'讀取雲端存檔'}))return;
-            setCloudBusy(true);
+            if(!cloudToken||!cloudUser||slotRecord.empty||slotRecord.status==='review'||cloudActionRef.current)return;
+            beginCloudAction(`正在讀取雲端槽位 ${slotRecord.slot}…`);
             try{
-                const loaded=await qingCloudGas('loadCloudSave',cloudToken,slotRecord.slot);
-                applyLoadedCloudSave(loaded,slotRecord);
+                if(cloudWritingRef.current)throw new Error('同步進行中，請等候完成後再讀取。');
+                let confirmed=false;
+                if(isGameStarted&&cloudBindingMatches(cloudBindingRef.current,gameState)&&
+                    (cloudDirtyRef.current||cloudBindingRef.current.dirty)){
+                    if(cloudGuard?.type==='conflict'){
+                        if(!await requestGameConfirm('目前局有未同步進度。請先下載本機備份，完成備份後可重新讀取並選擇取代。',{title:'保留未同步進度',confirmLabel:'下載本機備份'}))return;
+                        handleDownloadBackup();
+                        confirmed=await requestGameConfirm('請確認備份已下載。讀取雲端存檔將取代此裝置目前未同步的進度。',{title:'讀取雲端存檔',confirmLabel:'取代並讀取'});
+                        if(!confirmed)return;
+                    }else if(!await cloudSync(true)||cloudDirtyRef.current){
+                        throw new Error('目前進度尚未同步，已保留原本遊戲。');
+                    }
+                }
+                if(isGameStarted&&!confirmed&&!await requestGameConfirm(`讀取「${slotRecord.name}」會切換目前遊戲。是否繼續？`,{title:'讀取雲端存檔'}))return;
+                // 如果目前槽位在讀取前剛同步，清單上的版本可使用該次已確認的新版本。
+                const current=cloudBindingRef.current;
+                const revision=current?.slotIdentity===slotRecord.slotIdentity&&current.slot===slotRecord.slot
+                    ? Math.max(slotRecord.revision,current.revision):slotRecord.revision;
+                const loaded=await qingCloudGas('loadCloudSave',cloudToken,slotRecord.slot,revision,slotRecord.slotIdentity);
+                if(loaded.slot!==slotRecord.slot||loaded.slotIdentity!==slotRecord.slotIdentity||loaded.revision!==revision){
+                    throw new Error('雲端槽位已變更，未切換目前進度。');
+                }
+                applyLoadedCloudSave(loaded);
                 showMessage(`已讀取雲端槽位 ${slotRecord.slot}`,'success');
-            }catch(error){pauseForCloudError(error);showMessage(error.message||'雲端讀取失敗，目前進度未變更','error');}
-            finally{setCloudBusy(false);}
+            }catch(error){
+                const result=await refreshCloudSlots(cloudToken).catch(()=>null);
+                if(result&&error.conflict)restoreCloudBinding(result,cloudToken);
+                showMessage(error.message||'雲端讀取失敗，目前進度未變更','error');
+            }finally{endCloudAction();}
         };
 
         const createCloudGame = async slotRecord => {
-            if(!cloudToken||!slotRecord?.empty)return;
-            if(isGameStarted&&!await requestGameConfirm('這會建立一局全新的遊戲並切換到該局；目前進度不會自動寫入這個空白槽。確定繼續嗎？',{title:'建立雲端新遊戲'}))return;
-            if(isGameStarted&&cloudSlot&&!await cloudSync(true)){showMessage('目前雲端進度尚未同步，已取消建立新遊戲。','error');return;}
-            cloudPauseRef.current=true;
-            setPendingCloudNewGameSlot(Number(slotRecord.slot));
-            setShowCloudPanel(false);setShowSystemSettings(false);setIsGameStarted(false);
+            if(!cloudToken||!cloudUser||!slotRecord.empty||cloudActionRef.current)return;
+            beginCloudAction(`正在核對空白槽位 ${slotRecord.slot}…`);
+            try{
+                if(!pendingCloudNewGameSlot&&isGameStarted&&!await requestGameConfirm('建立成功後會切換到新王朝。開局設定期間仍保留目前進度。',{title:'建立雲端新遊戲'}))return;
+                if(cloudWritingRef.current||(cloudBindingMatches(cloudBindingRef.current,gameState)&&
+                    (cloudGuard||cloudBindingRef.current.dirty)&&(!await cloudSync(true)||cloudDirtyRef.current))){
+                    throw new Error('請先完成目前進度的雲端同步。');
+                }
+                if(cloudDraftRef.current)saveCloudDraft({...cloudDraftRef.current,slot:slotRecord.slot});
+                setPendingCloudNewGameSlot(slotRecord.slot);
+                setShowCloudPanel(false);setShowSystemSettings(false);
+            }catch(error){showMessage(error.message,'error');}
+            finally{endCloudAction();}
         };
 
         const saveCurrentToCloudSlot = async slotRecord => {
-            if(!cloudToken||!slotRecord?.empty||!isGameStarted||!gameState.gameId)return;
-            const binding=readCloudBinding();
-            if(binding&&String(binding.gameId)===String(gameState.gameId)){showMessage('目前遊戲已連結雲端槽位，不能另存成第二份雲端檔案。','error');return;}
-            const saveName=`${gameState.eraName||'本朝'}・${gameState.playerName||'皇帝'}`.slice(0,40);
-            setCloudBusy(true);
+            if(!cloudToken||!cloudUser||!slotRecord.empty||!isGameStarted||!gameState.gameId||cloudActionRef.current)return;
+            if(cloudBindingMatches(cloudBindingRef.current,gameState)){showMessage('目前王朝已有雲端槽位。','error');return;}
+            beginCloudAction(`正在存入雲端槽位 ${slotRecord.slot}…`);
             try{
-                const saved=await qingCloudGas('saveCloudGame',cloudToken,slotRecord.slot,saveName,makeSavePayload(),0);
-                setCloudSlot(slotRecord.slot);setCloudRevision(saved.revision);setCloudName(saved.name);setCloudSavedAt(saved.updatedAt||'');
-                saveCloudBinding({userId:cloudUser?.id,slot:Number(slotRecord.slot),revision:saved.revision,name:saved.name,gameId:gameState.gameId,dirty:false});
-                cloudDirtyRef.current=false;setCloudStatus(`已連結：槽位 ${slotRecord.slot}`);
-                await refreshCloudSlots(cloudToken);
+                const payload=makeSavePayload();
+                const saveName=`${gameState.eraName||'本朝'}・${gameState.playerName||'皇帝'}`.slice(0,40);
+                const saved=await qingCloudGas('saveCloudGame',cloudToken,slotRecord.slot,saveName,payload,0,'','',gameState.gameId);
+                const binding={...cloudBindingFor(saved),dirty:!!saved.payload};
+                if(saved.userId!==cloudUser.id||saved.slot!==slotRecord.slot||!saved.slotIdentity||
+                    binding.dynastyId!==cloudDynastyId(gameState))throw new Error('雲端回覆與目前王朝不符。');
+                localStorage.setItem(QING_SAVE_KEY,JSON.stringify({...payload,cloudBinding:binding}));
+                bindCloudRecord(saved,binding);
                 showMessage(`目前進度已建立於雲端槽位 ${slotRecord.slot}`,'success');
-            }catch(error){showMessage(error.message||'建立雲端存檔失敗','error');}
-            finally{setCloudBusy(false);}
+            }catch(error){
+                if(error.conflict)await refreshCloudSlots(cloudToken).catch(()=>{});
+                showMessage(error.message||'建立雲端存檔失敗','error');
+            }finally{endCloudAction();}
         };
 
         const cloudSync = async (force=false) => {
             const context=cloudContextRef.current;
             const latest=cloudLatestRef.current;
-            if(!context.token||!context.slot||!latest.isGameStarted||!latest.gameState?.gameId)return false;
+            const binding=cloudBindingRef.current;
+            if(!context.token||!context.slot||!latest.isGameStarted||!cloudBindingMatches(binding,latest.gameState)||
+                String(binding.userId)!==String(cloudUser?.id)||binding.slot!==context.slot||
+                cloudGuard?.type==='conflict'||(!force&&(cloudActionRef.current||cloudPauseRef.current||cloudSyncBlockedRef.current)))return false;
             if(!force&&!cloudDirtyRef.current)return true;
             if(cloudWritingRef.current){cloudDirtyRef.current=true;return false;}
             const generation=cloudGenerationRef.current;
             let succeeded=false;
-            cloudWritingRef.current=true;setCloudStatus(`同步槽位 ${context.slot}…`);
+            cloudWritingRef.current=true;cloudListGenerationRef.current+=1;
+            setCloudStatus(`同步槽位 ${context.slot}…`);
             const payload={version:2,savedAt:Date.now(),gameState:cleanGameStateForSave(normalizeRoyalState(latest.gameState)),logs:latest.logs,betaPortraitAssignments:latest.betaPortraitAssignments||{}};
             try{
-                const expectedGameId=readCloudBinding()?.gameId||latest.gameState.gameId;
-                const saved=await qingCloudGas('saveCloudGame',context.token,context.slot,context.name,payload,context.revision,expectedGameId);
+                const saved=await qingCloudGas('saveCloudGame',context.token,context.slot,context.name,payload,context.revision,binding.gameId,binding.slotIdentity||'');
                 cloudContextRef.current={...context,revision:saved.revision,name:saved.name};
                 setCloudRevision(saved.revision);setCloudName(saved.name);setCloudSavedAt(saved.updatedAt||'');
-                setCloudSlots(previous=>previous.map(item=>Number(item.slot)===Number(context.slot)?{
-                    ...item,empty:false,name:saved.name,revision:saved.revision,updatedAt:saved.updatedAt,...(saved.summary||{})
-                }:item));
+                updateCloudSlot(saved.summary);
                 const stillDirty=generation!==cloudGenerationRef.current;
-                if(!stillDirty)cloudDirtyRef.current=false;
-                const previousBinding=readCloudBinding();
-                saveCloudBinding({userId:cloudUser?.id||previousBinding?.userId,slot:Number(context.slot),revision:saved.revision,name:saved.name,gameId:latest.gameState.gameId,dirty:stillDirty});
+                cloudDirtyRef.current=stillDirty;
+                saveCloudBinding({...cloudBindingFor(saved),dirty:stillDirty});
                 cloudSyncBlockedRef.current=false;
                 if(!stillDirty)setCloudGuard(null);
                 setCloudStatus(`已同步：槽位 ${context.slot}`);
@@ -701,14 +797,14 @@
             }catch(error){
                 cloudDirtyRef.current=true;
                 const message=error.message||'雲端同步失敗';
-                const previousBinding=readCloudBinding();
+                const previousBinding=cloudBindingRef.current;
                 if(previousBinding)saveCloudBinding({...previousBinding,dirty:true});
                 const authError=/登入.*(?:逾期|無效|登出)|重新登入/.test(message);
                 const conflict=!!error.conflict||message.includes('CONFLICT');
                 cloudSyncBlockedRef.current=true;
                 setCloudGuard({type:authError?'login':conflict?'conflict':'sync',message:authError?'Google 登入已逾期或失效。遊戲已暫停，請重新登入原帳號後同步。':conflict?'雲端已有較新的版本，系統已停止覆寫。請先下載本機備份，再檢查並讀取雲端槽位。':`雲端同步失敗，遊戲已暫停以避免本機與雲端進度分岔。\n\n${message}`});
                 setCloudStatus(conflict?'雲端版本衝突・遊戲已暫停':authError?'登入失效・遊戲已暫停':'同步失敗・遊戲已暫停');
-                if(authError){setCloudToken('');setCloudUser(null);try{sessionStorage.removeItem('qing_cloud_session');}catch(ignore){}}
+                if(authError){cloudListGenerationRef.current+=1;setCloudToken('');setCloudUser(null);try{sessionStorage.removeItem('qing_cloud_session');}catch(ignore){}}
                 showMessage(message,'error');
             }finally{
                 cloudWritingRef.current=false;
@@ -719,36 +815,47 @@
         cloudSyncRef.current=cloudSync;
         const retryCloudGuard = async () => {
             if(!cloudToken){setShowCloudPanel(true);return;}
-            cloudSyncBlockedRef.current=false;setCloudBusy(true);
+            if(cloudActionRef.current||cloudWritingRef.current)return;
+            setCloudBusy(true);
             const ok=await cloudSync(true);
             setCloudBusy(false);
             if(ok){setCloudGuard(null);showMessage('雲端同步完成，可以繼續遊戲。','success');}
         };
         const renameCloudSlot = async slotRecord => {
+            if(cloudActionRef.current||cloudWritingRef.current||slotRecord.status==='review')return;
             const name=await requestGamePrompt('輸入新的雲端存檔名稱（最多40字）',slotRecord.name||'',{title:'雲端存檔改名',maxLength:40,danger:false});
-            if(name===null)return;
-            setCloudBusy(true);
+            if(name===null||cloudActionRef.current||cloudWritingRef.current)return;
+            beginCloudAction(`正在更新槽位 ${slotRecord.slot}…`);
             try{
-                const result=await qingCloudGas('renameCloudSave',cloudToken,slotRecord.slot,name,slotRecord.revision);
-                if(Number(cloudSlot)===Number(slotRecord.slot)){setCloudRevision(result.revision);setCloudName(result.name);setCloudSavedAt(result.updatedAt||'');const binding=readCloudBinding();if(binding)saveCloudBinding({...binding,revision:result.revision,name:result.name});}
-                await refreshCloudSlots(cloudToken);showMessage('雲端存檔已改名','success');
-            }catch(error){pauseForCloudError(error);showMessage(error.message||'改名失敗','error');}
-            finally{setCloudBusy(false);}
+                const result=await qingCloudGas('renameCloudSave',cloudToken,slotRecord.slot,name,slotRecord.revision,slotRecord.slotIdentity);
+                if(cloudBindingRef.current?.slotIdentity===result.slotIdentity&&Number(cloudSlot)===Number(slotRecord.slot)){
+                    cloudContextRef.current={...cloudContextRef.current,revision:result.revision,name:result.name};
+                    setCloudRevision(result.revision);setCloudName(result.name);setCloudSavedAt(result.updatedAt||'');
+                    saveCloudBinding({...cloudBindingRef.current,revision:result.revision,name:result.name});
+                }
+                const {ok,...record}=result;
+                updateCloudSlot(record);showMessage('雲端存檔已改名','success');
+            }catch(error){await refreshCloudSlots(cloudToken).catch(()=>{});showMessage(error.message||'改名失敗','error');}
+            finally{endCloudAction();}
         };
 
         const deleteCloudSlot = async slotRecord => {
+            if(cloudActionRef.current||cloudWritingRef.current||slotRecord.status==='review')return;
             if(!await requestGameConfirm(`確定刪除槽位 ${slotRecord.slot}「${slotRecord.name}」？此操作無法由遊戲畫面復原。`,{title:'刪除雲端存檔'}))return;
-            setCloudBusy(true);
+            if(cloudActionRef.current||cloudWritingRef.current)return;
+            beginCloudAction(`正在刪除槽位 ${slotRecord.slot}…`);
             try{
-                await qingCloudGas('deleteCloudSave',cloudToken,slotRecord.slot,slotRecord.revision);
-                if(Number(cloudSlot)===Number(slotRecord.slot)){
+                await qingCloudGas('deleteCloudSave',cloudToken,slotRecord.slot,slotRecord.revision,slotRecord.slotIdentity);
+                if(cloudBindingRef.current?.slotIdentity===slotRecord.slotIdentity){
+                    clearCloudSyncTimer();
+                    cloudContextRef.current={token:cloudToken,slot:null,revision:0,name:''};
                     setCloudSlot(null);setCloudRevision(0);setCloudName('');setCloudSavedAt('');cloudDirtyRef.current=false;
                     clearCloudBinding();setCloudGuard(null);cloudSyncBlockedRef.current=false;
                     setCloudStatus(`已登入：${cloudUser?.name||cloudUser?.email||'Google 玩家'}`);
                 }
-                await refreshCloudSlots(cloudToken);showMessage('雲端槽位已刪除；目前本機進度仍保留','success');
-            }catch(error){pauseForCloudError(error);showMessage(error.message||'刪除失敗','error');}
-            finally{setCloudBusy(false);}
+                updateCloudSlot({slot:slotRecord.slot,empty:true});showMessage('雲端槽位已刪除；目前本機進度仍保留','success');
+            }catch(error){await refreshCloudSlots(cloudToken).catch(()=>{});showMessage(error.message||'刪除失敗','error');}
+            finally{endCloudAction();}
         };
         const handleExportSave = async () => {
             try {
@@ -1466,7 +1573,7 @@
             setViewedTutorials([]);
             clearCloudBinding();setCloudGuard(null);cloudSyncBlockedRef.current=false;
             setCloudSlot(null);setCloudRevision(0);setCloudName('');setCloudSavedAt('');cloudDirtyRef.current=false;
-            setPendingCloudNewGameSlot(null);
+            cancelCloudNewGame();
             setCloudStatus(cloudUser?`已登入：${cloudUser.name||cloudUser.email||'Google 玩家'}`:'遊客模式');
             setIsGameStarted(false);
         };
