@@ -25,3 +25,6 @@ qing-clasp-verify-*/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Isolated frontend GAS staging output.
+.gas-test/

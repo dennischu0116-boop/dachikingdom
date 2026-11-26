@@ -1,0 +1,35 @@
+name: Deploy frontend test GAS
+on:
+  push:
+    branches: [frontend/redesign-gas-test]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: gas-frontend-test
+  cancel-in-progress: false
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/frontend/redesign-gas-test'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - run: npm ci
+      - run: npm run verify:production
+      - run: npm run build:beta-preview
+      - run: node scripts/stage-gas-test.mjs
+      - run: node scripts/verify-gas-test.mjs
+      - name: Restore clasp credentials
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+        run: |
+          test -n "$CLASPRC_JSON"
+          printf '%s' "$CLASPRC_JSON" > "$HOME/.clasprc.json"
+          chmod 600 "$HOME/.clasprc.json"
+      - name: Push only to test GAS
+        working-directory: .gas-test
+        run: npx --yes @google/clasp@3.4.1 push
