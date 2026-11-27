@@ -1,12 +1,13 @@
 import { Application, Assets, Container, Graphics, MeshPlane, Polygon, Rectangle, Sprite, Text, Texture, WebGLRenderer } from 'pixi.js';
 import './style.css';
+import layout from './layout.json';
 import { cameraBounds, zoomTransform } from './camera';
 
 type AssetRecord = { name: string; file: string; width: number; height: number; bytes: number };
 type Manifest = { assets: AssetRecord[]; totalBytes: number };
 type Point = { x: number; y: number };
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
-const WIDTH = 1800, HEIGHT = 1200;
+const WIDTH = layout.width, HEIGHT = layout.height;
 const app = new Application();
 let night = false, animate = !matchMedia('(prefers-reduced-motion: reduce)').matches, selected = false, clock = 0;
 let manifest: Manifest;
@@ -20,7 +21,7 @@ const guards: { sprite: Sprite; shadow: Graphics; route: Point[]; segment: numbe
 const lamps: Graphics[] = [];
 const labelTexts: Text[] = [];
 let palace: Container, highlight: Sprite, taiheLabel: Text;
-const palaceHit = new Polygon([-285,-635, 285,-635, 315,-440, 395,-360, 395,-130, 255,5, -270,5, -395,-130, -395,-360, -310,-440]);
+const palaceHit = new Polygon([-235,-550, 205,-575, 335,-430, 440,-345, 480,-105, 320,-15, 65,0, -325,-30, -480,-175, -410,-395]);
 let frames: Texture[][];
 
 function sprite(name: string, width: number, x = 0, y = 0, parent: Container = objects) {
@@ -38,9 +39,9 @@ function label(text: string, x: number, y: number, main = false) {
 function addTree(name: string, x: number, y: number, width: number) { shadow(x,y,width*.37,18);sprite(name,width,x,y); }
 function addFlag(x:number,y:number,phase:number) {
   const c=new Container();c.position.set(x,y);c.zIndex=y;objects.addChild(c);
-  const pole=sprite('flagpole',24,0,0,c);
+  const pole=sprite('flagpole',20,0,0,c);
   const mesh=new MeshPlane({texture:tex.banner,verticesX:10,verticesY:8});
-  mesh.width=48;mesh.height=76;mesh.position.set(0,-pole.height+12);c.addChild(mesh);
+  mesh.width=29;mesh.height=68;mesh.position.set(0,-pole.height+12);c.addChild(mesh);
   flags.push({mesh,base:new Float32Array(mesh.geometry.positions),phase});shadow(x,y,18,5,.15);
 }
 function addLamp(x:number,y:number) {
@@ -51,30 +52,21 @@ function addLamp(x:number,y:number) {
 }
 function buildScene() {
   const ground = new Sprite(tex.courtyard);ground.width=WIDTH;ground.height=HEIGHT;floor.addChild(ground);
-  // Buildings share a ground-contact depth with their complete terrace; walkways route around the plinth.
-  palace=new Container();palace.position.set(900,700);palace.zIndex=700;objects.addChild(palace);
-  sprite('terrace',790,0,0,palace);
-  highlight=sprite('taihe',616,0,-266,palace);highlight.tint=0xffe19a;highlight.alpha=.48;highlight.visible=false;
-  sprite('taihe',600,0,-270,palace);
-  shadow(910,640,365,60,.18);
-  const east=sprite('east-hall',370,360,650); shadow(375,650,180,28);
-  const west=sprite('west-pavilion',315,1455,605);shadow(1460,605,140,27);
-  // Two side halls, one main hall. Ground-contact Y makes passing behind/in front observable.
-  east.label='east-hall';west.label='west-pavilion';
-  taiheLabel=label('太和殿',900,338,true);label('東配殿',355,522);label('西配殿',1450,466);
-  const trees:[string,number,number,number][]=[['pine',167,385,255],['cypress',340,310,165],['pine',1515,320,250],['cypress',1650,460,155],['pine',185,835,240],['cypress',1600,850,180],['pine',425,1015,240],['pine',1435,1040,260],['cypress',75,1085,200],['cypress',1730,1090,180]];
-  trees.forEach(t=>addTree(...t));
-  [[590,710],[1210,710],[620,900],[1180,900]].forEach(([x,y],i)=>addFlag(x,y,i*1.3));
-  [[690,680],[1110,680],[670,890],[1130,890],[480,755],[1320,755]].forEach(([x,y])=>addLamp(x,y));
-  sprite('brazier',58,780,675);sprite('brazier',58,1020,675);
-  frames=Array.from({length:4},(_,row)=>Array.from({length:6},(_,col)=>new Texture({source:tex.guards.source,frame:new Rectangle(col*128,row*128,128,128)})));
-  const routes:Point[][]=[
-    [{x:485,y:740},{x:1290,y:820},{x:1270,y:955},{x:490,y:880}],
-    [{x:1290,y:820},{x:1270,y:955},{x:490,y:880},{x:485,y:740}],
-    [{x:210,y:535},{x:490,y:565},{x:490,y:725},{x:210,y:690}],
-    [{x:1300,y:520},{x:1570,y:550},{x:1570,y:710},{x:1300,y:680}],
-  ];
-  routes.forEach((route,i)=>{const s=new Sprite(frames[0][0]);s.anchor.set(.5,.94);s.width=55;s.height=55;objects.addChild(s);const sh=shadow(0,0,9,3,.24);guards.push({sprite:s,shadow:sh,route,segment:0,progress:i*.06,speed:27+i*2});});
+  // A coherent architectural sprite includes the hall, three-tier plinth and stairs.
+  // Terrain, vegetation, flags, guards, labels and effects remain independent layers.
+  const p=layout.palace;
+  palace=new Container();palace.position.set(p.x,p.y);palace.zIndex=p.y;objects.addChild(palace);
+  highlight=sprite('taihe',p.width+18,0,4,palace);highlight.tint=0xffe19a;highlight.alpha=.48;highlight.visible=false;
+  sprite('taihe',p.width,0,0,palace);
+  layout.halls.forEach(h=>{sprite(h.asset,h.width,h.x,h.y).label=h.asset;});
+  layout.labels.forEach(l=>{const t=label(l.text,l.x,l.y,l.main);if(l.main)taiheLabel=t;});
+  layout.trees.forEach(t=>addTree(t.asset,t.x,t.y,t.width));
+  layout.flags.forEach(([x,y],i)=>addFlag(x,y,i*1.3));
+  layout.lamps.forEach(([x,y])=>addLamp(x,y));
+  layout.braziers.forEach(([x,y])=>sprite('brazier',43,x,y));
+  frames=Array.from({length:4},(_,row)=>Array.from({length:2},(_,col)=>new Texture({source:tex.guards.source,frame:new Rectangle(col*128,row*96,128,96)})));
+  const routes:Point[][]=layout.routes;
+  routes.forEach((route,i)=>{const s=new Sprite(frames[0][0]);s.anchor.set(.5,.95);s.width=58;s.height=43.5;objects.addChild(s);const sh=shadow(0,0,7,2.5,.22);guards.push({sprite:s,shadow:sh,route,segment:0,progress:i*.06,speed:27+i*2});});
   updateGuards(0);setNight(false);setAnimation(animate);
 }
 function updateGuards(dt:number) {
@@ -84,7 +76,7 @@ function updateGuards(dt:number) {
     if(g.progress>=1){g.progress%=1;g.segment=(g.segment+1)%g.route.length;a=g.route[g.segment];b=g.route[(g.segment+1)%g.route.length];}
     const dx=b.x-a.x,dy=b.y-a.y;
     const row=dy>=0?(dx>=0?0:1):(dx>=0?2:3);
-    g.sprite.texture=frames[row][Math.floor(clock*7)%6];
+    g.sprite.texture=frames[row][Math.floor(clock*4.2)%2];
     g.sprite.position.set(a.x+dx*g.progress,a.y+dy*g.progress);
     g.sprite.zIndex=g.sprite.y;g.shadow.position.set(g.sprite.x+4,g.sprite.y+2);
   }

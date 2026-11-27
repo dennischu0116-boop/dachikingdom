@@ -1,0 +1,12 @@
+{
+  "type": "static-layout-proof",
+  "renderer": "SVG / Sharp, NOT PixiJS",
+  "source": "src/layout.json + public/assets/manifest.json",
+  "excludes": [
+    "camera transforms",
+    "HTML interface",
+    "mesh animation",
+    "night lighting",
+    "runtime FPS"
+  ]
+}

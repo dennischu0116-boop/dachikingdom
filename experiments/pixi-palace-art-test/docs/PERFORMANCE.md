@@ -7,13 +7,14 @@
 | TypeScript 型別檢查、Vite production build | 通過 |
 | 游標中心縮放（含上下限）、桌面／直式鏡頭邊界測試 | 通過，2 個測試案例，涵蓋多組比例及視窗尺寸 |
 | 12 張 WebP 的尺寸、透明通道、SHA-256、檔案容量與動畫格線 | 通過，12 張素材全部符合 manifest |
-| WebP 實際檔案容量 | 1,423,046 bytes（1.423 MB / 1.357 MiB） |
+| WebP 實際檔案容量 | 1,380,444 bytes（1.380 MB / 1.317 MiB） |
 | 實際冷載入傳輸容量 | 未測，不以檔案容量代替網路傳輸量 |
 | 桌面 FPS | 未測 |
 | 手機實機 FPS／雙指縮放 | 未測 |
-| 畫面、晝夜、高亮、拖曳、遮擋的瀏覽器驗收 | 未完成 |
+| 第二次重製素材的靜態排版檢查 | 已檢查；由共用座標與實際 WebP 排版，非 PixiJS 截圖 |
+| 晝夜、高亮、拖曳、遮擋的瀏覽器驗收 | 未完成 |
 
-阻塞原因：managed preview 回報 `relay could not open browser port 4173: timed out waiting for relay readiness`。初始化並啟動雲端瀏覽器後再試仍相同。未改用另一個伺服器或繞過預覽基礎設施。無法由成功編譯推論瀏覽器操作或效能合格。
+阻塞原因：managed preview 回報 `relay could not open browser port 4173: timed out waiting for relay readiness`。初始化並啟動雲端瀏覽器後再試仍相同。未改用另一個伺服器或繞過預覽基礎設施。本次重製重新嘗試啟動專案預覽仍回報相同錯誤。無法由成功編譯或靜態排版圖推論瀏覽器操作或效能合格。
 
 開發環境套件：PixiJS 8.23.0、Vite 7.3.8、TypeScript 5.9.3、Sharp 0.34.5、Node 24.22.3。實際鎖定版本見 package-lock.json。
 

@@ -1,67 +1,68 @@
 {
   "generated": "2026-11-27",
   "origin": "OpenAI image generation tool, generated for this experiment; no third-party game assets",
-  "note": "AI art: approximate perspective and Qing details; guard walk frames have limited pose variation.",
+  "revision": "art-remake-2",
+  "note": "All six source sheets remade: muted ceramic roofs, shared southwest elevated camera, integrated palace terrace, diagonal paving and overhead guards. Camera geometry and historical detail remain approximate.",
   "assets": [
     {
       "name": "taihe",
       "file": "assets/taihe.webp",
       "source": "source-art/taihe.png",
-      "width": 1280,
-      "height": 778,
-      "bytes": 409322,
+      "width": 1512,
+      "height": 877,
+      "bytes": 397354,
       "alpha": true,
-      "sha256": "7241e836aa1ac4ec0c4dfb2ccc126bf516a04deb1181c9e5a88fddfcffa9e132"
+      "sha256": "21138eb7d7af3f9f38f3279c593ff654d4099a62d6ec7f428401ab4ceabee433"
     },
     {
       "name": "east-hall",
       "file": "assets/east-hall.webp",
       "source": "source-art/architecture.png",
-      "width": 500,
-      "height": 254,
-      "bytes": 55980,
+      "width": 838,
+      "height": 408,
+      "bytes": 106622,
       "alpha": true,
-      "sha256": "ab04a8ae598788272c96886b807196d0a642e582865af92c355ea379498b8e23"
+      "sha256": "1eed61c472ee5f6e43c760e2a966b0592581d4eb5bdf3e91de1aa89e0af38ac2"
     },
     {
       "name": "west-pavilion",
       "file": "assets/west-pavilion.webp",
       "source": "source-art/architecture.png",
-      "width": 370,
-      "height": 328,
-      "bytes": 47008,
+      "width": 634,
+      "height": 409,
+      "bytes": 85774,
       "alpha": true,
-      "sha256": "b7974feaf8b7af93ea025aa8ffa98c0c4e3d8bd8ce415b998cb8fab10d8e2eb2"
-    },
-    {
-      "name": "terrace",
-      "file": "assets/terrace.webp",
-      "source": "source-art/architecture.png",
-      "width": 631,
-      "height": 317,
-      "bytes": 72490,
-      "alpha": true,
-      "sha256": "25a8155fe6a50f77dd7c5ff1b90c592b617128cfddcaf45afe56111216bcd25d"
+      "sha256": "d5e94ff1ed8cf923a8374c6504bf8679820a2798b0e526e1bd167b13622a5e32"
     },
     {
       "name": "pine",
       "file": "assets/pine.webp",
-      "source": "source-art/architecture.png",
-      "width": 475,
-      "height": 429,
-      "bytes": 92060,
+      "source": "source-art/trees.png",
+      "width": 501,
+      "height": 408,
+      "bytes": 104284,
       "alpha": true,
-      "sha256": "af5520e340207932cb601fdab6a6f2d5559ef4f2cc3313b0a89d3481e4302698"
+      "sha256": "3ebd36d5e564a26c9c067f0be3d2a0a25a97f7843c5330ed22ef42097a176677"
     },
     {
-      "name": "cypress",
-      "file": "assets/cypress.webp",
-      "source": "source-art/architecture.png",
-      "width": 355,
-      "height": 480,
-      "bytes": 75986,
+      "name": "broadleaf",
+      "file": "assets/broadleaf.webp",
+      "source": "source-art/trees.png",
+      "width": 496,
+      "height": 438,
+      "bytes": 114964,
       "alpha": true,
-      "sha256": "0ff90dbf67a57e75d7250cfe807304ba07a16eb79985e0d9aa358f617442e1d7"
+      "sha256": "044efc124519e8a79bf10e7701ddd362211dab8727e71f0da098911c42c995e1"
+    },
+    {
+      "name": "blossom",
+      "file": "assets/blossom.webp",
+      "source": "source-art/trees.png",
+      "width": 500,
+      "height": 407,
+      "bytes": 117598,
+      "alpha": true,
+      "sha256": "fe34b3df9e663e309099be4cdad019090100d852754ef17fb02ba5aa58a4dddd"
     },
     {
       "name": "courtyard",
@@ -69,64 +70,64 @@
       "source": "source-art/courtyard.png",
       "width": 1536,
       "height": 1024,
-      "bytes": 425394,
+      "bytes": 303096,
       "alpha": false,
-      "sha256": "75368a8864867d7edc5716b02868f94a1ca21bba8973370db0495dfb4857b8e9"
+      "sha256": "06fe670532fe7255e8eaa07d88f437f7c092e476f2eb66fef43f35c19ba204d1"
     },
     {
       "name": "flagpole",
       "file": "assets/flagpole.webp",
       "source": "source-art/props.png",
-      "width": 111,
-      "height": 612,
-      "bytes": 19518,
+      "width": 106,
+      "height": 597,
+      "bytes": 14776,
       "alpha": true,
-      "sha256": "11c4628806005ed638680ec9c692e35ddca7d89936f43d3f9d97759f9fe56639"
+      "sha256": "e341941d260f53a52158cfb99be7022245d65dc1c244b3424afb335662e2da9c"
     },
     {
       "name": "banner",
       "file": "assets/banner.webp",
       "source": "source-art/props.png",
-      "width": 256,
-      "height": 450,
-      "bytes": 55568,
+      "width": 254,
+      "height": 560,
+      "bytes": 61820,
       "alpha": true,
-      "sha256": "65ef955295064bb179006a4301395c29d53391cc293d8820b603e7a35127a6b2"
+      "sha256": "078f22a19e728c3f357c5bce0e1d3b33558b6140e5d25eff78a9f4919b32d0d4"
     },
     {
       "name": "lantern",
       "file": "assets/lantern.webp",
       "source": "source-art/props.png",
-      "width": 192,
-      "height": 470,
-      "bytes": 33346,
+      "width": 181,
+      "height": 562,
+      "bytes": 25548,
       "alpha": true,
-      "sha256": "a7d7167b26b5715937c1ff50a03e392944667dff973efba89b7e738fe7228599"
+      "sha256": "945effdb08b8af671547f061cfce1264ab10f9442ca956529d719e3b1c4dab53"
     },
     {
       "name": "brazier",
       "file": "assets/brazier.webp",
       "source": "source-art/props.png",
       "width": 256,
-      "height": 281,
-      "bytes": 30854,
+      "height": 276,
+      "bytes": 24862,
       "alpha": true,
-      "sha256": "b03e8c1a9a2ed7de5e981a6350347686b3e451ea73d812f17e09162897890d9f"
+      "sha256": "87a5b50758f4819394b4ef25997013662b434465586ca67e3d18cddfb8dff98a"
     },
     {
       "name": "guards",
       "file": "assets/guards.webp",
       "source": "source-art/guards.png",
-      "width": 768,
-      "height": 512,
-      "bytes": 105520,
+      "width": 256,
+      "height": 384,
+      "bytes": 23746,
       "alpha": true,
-      "columns": 6,
+      "columns": 2,
       "rows": 4,
       "frameWidth": 128,
-      "frameHeight": 128,
-      "sha256": "d876b384a69f70ffc5c5dbde22173dca0b597ae78362bd56fe14c1e3ebc8e14f"
+      "frameHeight": 96,
+      "sha256": "df1b93c29b98c5c677bd4189a9ea61d8d74f4669068e4b19a221e6dbc289ca41"
     }
   ],
-  "totalBytes": 1423046
+  "totalBytes": 1380444
 }
