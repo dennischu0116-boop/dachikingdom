@@ -1,7 +1,10 @@
-import { Application, Assets, Container, Graphics, MeshPlane, Polygon, Rectangle, Sprite, Text, Texture, WebGLRenderer } from 'pixi.js';
+import { Application, Assets, Container, Graphics, MeshPlane, Rectangle, Sprite, Text, Texture, WebGLRenderer } from 'pixi.js';
 import './style.css';
 import layout from './layout.json';
 import { cameraBounds, zoomTransform } from './camera';
+import { BuildingLayout, loadLayout, saveLayout, clearLayout } from './building-layout';
+import type { BuildingSpec, LayoutStorage } from './building-layout';
+import { SceneGestures } from './gestures';
 
 type AssetRecord = { name: string; file: string; width: number; height: number; bytes: number };
 type Manifest = { assets: AssetRecord[]; totalBytes: number };
@@ -20,8 +23,16 @@ const flags: { mesh: MeshPlane; base: Float32Array; phase: number }[] = [];
 const guards: { sprite: Sprite; shadow: Graphics; route: Point[]; segment: number; progress: number; speed: number }[] = [];
 const lamps: Graphics[] = [];
 const labelTexts: Text[] = [];
-let palace: Container, highlight: Sprite, taiheLabel: Text;
-const palaceHit = new Polygon([-235,-550, 205,-575, 335,-430, 440,-345, 480,-105, 320,-15, 65,0, -325,-30, -480,-175, -410,-395]);
+let palace: Container;
+let buildingLayout: BuildingLayout;
+let editing = false;
+let selectedBuilding: string | null = null;
+let gestures: SceneGestures;
+const buildingViews = new Map<string, { node: Container; highlight: Sprite; label: Text }>();
+let storage: LayoutStorage | null = null;
+try { storage = window.localStorage; } catch { /* Private/blocked storage: editing still works in memory. */ }
+const mainSilhouette = [[.30,.07],[.69,0],[.82,.23],[.91,.24],[.85,.34],[.94,.43],[.94,.60],[1,.84],[.88,.89],[.61,1],[.22,.96],[0,.66],[.09,.48],[.08,.37],[.17,.28],[.13,.25]].map(([x,y])=>({x,y}));
+const hallSilhouette = [[.14,.10],[.80,0],[.92,.16],[1,.28],[.97,.80],[.74,.98],[.18,1],[0,.72],[.05,.31],[.01,.25]].map(([x,y])=>({x,y}));
 let frames: Texture[][];
 
 function sprite(name: string, width: number, x = 0, y = 0, parent: Container = objects) {
@@ -54,12 +65,26 @@ function buildScene() {
   const ground = new Sprite(tex.courtyard);ground.width=WIDTH;ground.height=HEIGHT;floor.addChild(ground);
   // A coherent architectural sprite includes the hall, three-tier plinth and stairs.
   // Terrain, vegetation, flags, guards, labels and effects remain independent layers.
-  const p=layout.palace;
-  palace=new Container();palace.position.set(p.x,p.y);palace.zIndex=p.y;objects.addChild(palace);
-  highlight=sprite('taihe',p.width+18,0,4,palace);highlight.tint=0xffe19a;highlight.alpha=.48;highlight.visible=false;
-  sprite('taihe',p.width,0,0,palace);
-  layout.halls.forEach(h=>{sprite(h.asset,h.width,h.x,h.y).label=h.asset;});
-  layout.labels.forEach(l=>{const t=label(l.text,l.x,l.y,l.main);if(l.main)taiheLabel=t;});
+  const definitions = [
+    { id:'taihe', asset:'taihe', ...layout.palace, label:layout.labels[0] },
+    ...layout.halls.map((h,i)=>({ id:h.asset, ...h, label:layout.labels[i+1] })),
+  ];
+  const specs: BuildingSpec[] = definitions.map(d=>({
+    id:d.id, x:d.x, y:d.y, width:d.width, height:d.width*tex[d.asset].height/tex[d.asset].width,
+    labelOffset:{ x:d.label.x-d.x, y:d.label.y-d.y }, polygon:d.id==='taihe'?mainSilhouette:hallSilhouette,
+  }));
+  buildingLayout = new BuildingLayout(specs, WIDTH, HEIGHT);
+  definitions.forEach(d=>{
+    const node=new Container();objects.addChild(node);
+    const halo=sprite(d.asset,d.width+18,0,4,node);halo.tint=0xffe19a;halo.alpha=.48;halo.visible=false;
+    sprite(d.asset,d.width,0,0,node);
+    const title=label(d.label.text,d.label.x,d.label.y,d.label.main);
+    buildingViews.set(d.id,{node,highlight:halo,label:title});
+    if(d.id==='taihe')palace=node;
+  });
+  const loaded=loadLayout(buildingLayout,storage);
+  $('layout-status').textContent=loaded==='restored'?'已載入此瀏覽器的配置':loaded==='unavailable'?'瀏覽器無法儲存；調整只保留於本次頁面':'放開建築後，自動儲存於此瀏覽器';
+  applyBuildingPositions();
   layout.trees.forEach(t=>addTree(t.asset,t.x,t.y,t.width));
   layout.flags.forEach(([x,y],i)=>addFlag(x,y,i*1.3));
   layout.lamps.forEach(([x,y])=>addLamp(x,y));
@@ -83,25 +108,93 @@ function updateGuards(dt:number) {
 }
 function setNight(value:boolean){if(activeRun&&value!==night)activeRun.interrupted=true;night=value;world.tint=night?0x7389b5:0xffffff;lightLayer.tint=night?0xffe4b5:0xffffff;lightLayer.visible=night;shadows.alpha=night?.45:1;labels.tint=night?0xffe7b2:0xffffff;$('day-night').setAttribute('aria-pressed',String(night));$('day-night').querySelector('span')!.textContent=night?'夜晚':'白晝';}
 function setAnimation(value:boolean){if(activeRun&&value!==animate)activeRun.interrupted=true;animate=value;$('animation').setAttribute('aria-pressed',String(animate));$('animation').querySelector('span')!.textContent=animate?'動畫開啟':'動畫關閉';}
-function select(value:boolean){selected=value;highlight.visible=value;taiheLabel.style.fill=value?0xffefb5:0xf4dfaf;$('hint').textContent=value?'已選取太和殿 · 拖曳移動 · 滾輪／雙指縮放':'拖曳移動 · 滾輪／雙指縮放 · 點選太和殿';}
+function applyBuildingPositions() {
+  for(const b of buildingLayout.buildings) {
+    const view=buildingViews.get(b.id)!;
+    view.node.position.set(b.x,b.y);view.node.zIndex=b.depth;
+    view.label.parent!.position.set(b.labelPosition.x,b.labelPosition.y);
+  }
+}
+function pickBuilding(p: Point) {
+  objects.sortChildren();
+  const ids=[...buildingViews.keys()].sort((a,b)=>objects.getChildIndex(buildingViews.get(b)!.node)-objects.getChildIndex(buildingViews.get(a)!.node));
+  return buildingLayout.pick(p,ids);
+}
+function updateHint() {
+  $('hint').textContent=editing?'拖動建築調整位置 · 拖空地移動鏡頭 · 滾輪／雙指縮放':selected?'已選取太和殿 · 拖曳移動 · 滾輪／雙指縮放':'拖曳移動 · 滾輪／雙指縮放 · 點選太和殿';
+}
+function selectBuilding(id: string | null) {
+  selectedBuilding=id;selected=id==='taihe';
+  for(const [key,view] of buildingViews) {
+    view.highlight.visible=key===id;view.label.style.fill=key===id?0xffefb5:0xf4dfaf;
+  }
+  updateHint();
+}
+function finishBuildingDrag() {
+  if(buildingLayout.finish()) {
+    const saved=saveLayout(buildingLayout,storage);
+    $('layout-status').textContent=saved?'配置已儲存於此瀏覽器':'瀏覽器無法儲存；調整只保留於本次頁面';
+  }
+}
 let baseScale=1;
 function clampCamera(){const p=cameraBounds({x:camera.x,y:camera.y,scale:camera.scale.x},app.screen.width,app.screen.height,WIDTH,HEIGHT);camera.position.set(p.x,p.y);}
 function resetCamera(){baseScale=Math.max(app.screen.width/WIDTH,app.screen.height/HEIGHT);camera.scale.set(baseScale);camera.position.set((app.screen.width-WIDTH*baseScale)/2,(app.screen.height-HEIGHT*baseScale)/2+30);clampCamera();}
 function zoomAt(factor:number,point:Point){const p=zoomTransform({x:camera.x,y:camera.y,scale:camera.scale.x},factor,point,baseScale*.85,baseScale*2.6);camera.position.set(p.x,p.y);camera.scale.set(p.scale);clampCamera();}
-const pointers=new Map<number,Point>();let down:Point|null=null,dragged=false,pinched=false;
-function bindCamera(){
-  const canvas=app.canvas;const point=(e:PointerEvent|WheelEvent):Point=>{const r=canvas.getBoundingClientRect();return{x:(e.clientX-r.left)*app.screen.width/r.width,y:(e.clientY-r.top)*app.screen.height/r.height};};
-  canvas.addEventListener('pointerdown',e=>{if(e.pointerType==='mouse'&&e.button!==0)return;const p=point(e);pointers.set(e.pointerId,p);canvas.setPointerCapture(e.pointerId);if(pointers.size===1){down=p;dragged=false;pinched=false;}else{pinched=true;dragged=true;}canvas.classList.add('dragging');});
-  canvas.addEventListener('pointermove',e=>{if(!pointers.has(e.pointerId))return;const p=point(e),prev=pointers.get(e.pointerId)!;
-    if(pointers.size===2){const other=[...pointers.entries()].find(([id])=>id!==e.pointerId)![1];const oldDistance=Math.hypot(prev.x-other.x,prev.y-other.y),newDistance=Math.hypot(p.x-other.x,p.y-other.y);const before={x:(prev.x+other.x)/2,y:(prev.y+other.y)/2},after={x:(p.x+other.x)/2,y:(p.y+other.y)/2};if(oldDistance>1){zoomAt(newDistance/oldDistance,before);camera.x+=after.x-before.x;camera.y+=after.y-before.y;}}
-    else if(pointers.size===1){camera.x+=p.x-prev.x;camera.y+=p.y-prev.y;if(down&&Math.hypot(p.x-down.x,p.y-down.y)>5)dragged=true;}
-    pointers.set(e.pointerId,p);clampCamera();
+function bindCamera() {
+  const canvas=app.canvas;
+  const point=(e:PointerEvent|WheelEvent):Point=>{
+    const r=canvas.getBoundingClientRect();
+    return {x:(e.clientX-r.left)*app.screen.width/r.width,y:(e.clientY-r.top)*app.screen.height/r.height};
+  };
+  gestures=new SceneGestures({
+    toWorld:p=>world.toLocal(p),
+    pick:p=>pickBuilding(p)?.id,
+    begin:(id,p)=>{buildingLayout.begin(id,p);selectBuilding(id);},
+    move:p=>{buildingLayout.move(p);applyBuildingPositions();if(activeRun)activeRun.interrupted=true;},
+    finish:finishBuildingDrag,
+    cancel:()=>{buildingLayout.cancel();applyBuildingPositions();$('layout-status').textContent='已取消本次移動';},
+    pan:(dx,dy)=>{camera.x+=dx;camera.y+=dy;clampCamera();},
+    zoom:zoomAt,
+    tap:p=>{const hit=pickBuilding(world.toLocal(p));selectBuilding(editing?(hit?.id??null):hit?.id==='taihe'?'taihe':null);},
   });
-  const end=(e:PointerEvent)=>{if(!pointers.has(e.pointerId))return;if(e.type==='pointerup'&&!dragged&&!pinched&&pointers.size===1){const local=palace.toLocal(point(e));select(palaceHit.contains(local.x,local.y));}pointers.delete(e.pointerId);if(pointers.size===0){canvas.classList.remove('dragging');down=null;}if(canvas.hasPointerCapture(e.pointerId))canvas.releasePointerCapture(e.pointerId);};
-  canvas.addEventListener('pointerup',end);canvas.addEventListener('pointercancel',end);canvas.addEventListener('lostpointercapture',e=>{pointers.delete(e.pointerId);if(!pointers.size)canvas.classList.remove('dragging');});
-  canvas.addEventListener('wheel',e=>{e.preventDefault();const unit=e.deltaMode===1?16:e.deltaMode===2?app.screen.height:1;zoomAt(Math.exp(-e.deltaY*unit*.0012),point(e));},{passive:false});
-  $('reset').onclick=resetCamera;$('day-night').onclick=()=>setNight(!night);$('animation').onclick=()=>setAnimation(!animate);
-  app.renderer.on('resize',resetCamera);
+  const release=(ids:number[])=>{for(const id of ids)if(canvas.hasPointerCapture(id))canvas.releasePointerCapture(id);canvas.classList.remove('dragging');};
+  const stop=(commit:boolean)=>{const ids=[...gestures.pointers.keys()];if(commit)gestures.finish();else gestures.cancel();release(ids);};
+  canvas.addEventListener('pointerdown',e=>{
+    if(e.pointerType==='mouse'&&e.button!==0)return;
+    gestures.down(e.pointerId,point(e));canvas.setPointerCapture(e.pointerId);canvas.classList.add('dragging');
+  });
+  canvas.addEventListener('pointermove',e=>gestures.move(e.pointerId,point(e)));
+  canvas.addEventListener('pointerup',e=>{
+    gestures.up(e.pointerId,point(e));
+    if(canvas.hasPointerCapture(e.pointerId))canvas.releasePointerCapture(e.pointerId);
+    if(!gestures.pointers.size)canvas.classList.remove('dragging');
+  });
+  canvas.addEventListener('pointercancel',()=>stop(false));
+  canvas.addEventListener('lostpointercapture',e=>{if(gestures.pointers.has(e.pointerId))stop(false);});
+  window.addEventListener('blur',()=>stop(false));
+  document.addEventListener('visibilitychange',()=>{if(document.hidden)stop(false);});
+  canvas.addEventListener('wheel',e=>{
+    e.preventDefault();stop(true);
+    const unit=e.deltaMode===1?16:e.deltaMode===2?app.screen.height:1;
+    zoomAt(Math.exp(-e.deltaY*unit*.0012),point(e));
+  },{passive:false});
+  $('edit-layout').onclick=()=>{
+    stop(true);editing=!editing;gestures.editing=editing;
+    $('edit-layout').setAttribute('aria-pressed',String(editing));
+    $('edit-layout').querySelector('span')!.textContent=editing?'完成配置':'配置模式';
+    $('layout-tools').hidden=!editing;
+    if(!editing&&selectedBuilding!=='taihe')selectBuilding(null);else updateHint();
+    if(activeRun)activeRun.interrupted=true;
+  };
+  $('restore-layout').onclick=()=>{
+    stop(false);buildingLayout.reset();applyBuildingPositions();selectBuilding(null);
+    const cleared=clearLayout(storage);
+    $('layout-status').textContent=cleared?'已還原預設配置':'已還原畫面，但瀏覽器無法清除已儲存配置';
+    if(activeRun)activeRun.interrupted=true;
+  };
+  $('reset').onclick=()=>{stop(false);resetCamera();};
+  $('day-night').onclick=()=>setNight(!night);$('animation').onclick=()=>setAnimation(!animate);
+  app.renderer.on('resize',()=>{stop(false);resetCamera();});
 }
 
 type Measurement = { scenario:string; durationMs:number; frames:number; averageFPS:number; p95FrameMs:number; minFPS1s:number; interrupted:boolean; viewport:{width:number;height:number;dpr:number;resolution:number}; renderer:string; userAgent:string; night:boolean; animation:boolean; resourceBytes:number; transferBytes:number; encodedBodyBytes:number; resources:unknown[] };
@@ -130,7 +223,7 @@ async function init(){
   app.ticker.add(tick);$('loading').classList.add('loaded');
   const api={
     ready:true,measurements,
-    snapshot:()=>({night,animate,selected,clock,camera:{x:camera.x,y:camera.y,scale:camera.scale.x},guards:guards.map(g=>({x:g.sprite.x,y:g.sprite.y,zIndex:g.sprite.zIndex})),palaceDepth:palace.zIndex,assetBytes:manifest.totalBytes,resources:resources(),renderer:rendererName(),viewport:{width:app.screen.width,height:app.screen.height,dpr:devicePixelRatio,resolution:app.renderer.resolution}}),
+    snapshot:()=>({night,animate,selected,editing,buildings:buildingLayout.buildings.map(b=>({id:b.id,x:b.x,y:b.y,depth:b.depth,label:b.labelPosition})),clock,camera:{x:camera.x,y:camera.y,scale:camera.scale.x},guards:guards.map(g=>({x:g.sprite.x,y:g.sprite.y,zIndex:g.sprite.zIndex})),palaceDepth:palace.zIndex,assetBytes:manifest.totalBytes,resources:resources(),renderer:rendererName(),viewport:{width:app.screen.width,height:app.screen.height,dpr:devicePixelRatio,resolution:app.renderer.resolution}}),
     benchmark:(scenario='manual',seconds=60)=>new Promise<Measurement>((resolve,reject)=>{if(!Number.isFinite(seconds)||seconds<1)return reject(new Error('Benchmark duration must be at least 1 second'));if(activeRun)return reject(new Error('A benchmark is already active'));activeRun={scenario,start:performance.now(),duration:seconds*1000,times:[],interrupted:document.hidden,resolve,night,animation:animate};}),
     setNight,setAnimation,resetCamera,
     // Coordinates only, for reproducible UI input verification without bypassing input handlers.
