@@ -1,0 +1,29 @@
+{
+  "revision": "city-portals-1",
+  "automatedTests": {
+    "passed": 21,
+    "failed": 0,
+    "scope": "Node tests of actual navigation, rendering functions, fixtures, gestures, storage and camera; not browser tests"
+  },
+  "build": "TypeScript and Vite passed",
+  "buildWarning": "Main JS chunk is 512.87 kB minified, 158.34 kB gzip; Vite recommends splitting chunks over 500 kB. This is a size warning, not a measured performance result.",
+  "assets": {
+    "webpCount": 19,
+    "webpBytes": 2097098,
+    "integrity": "dimensions, alpha, SHA-256 and animation grid verified"
+  },
+  "dist": {
+    "files": 28,
+    "bytes": 2784278,
+    "note": "Files on disk; not actual network transfer size"
+  },
+  "browserQA": {
+    "status": "unverified",
+    "reason": "sites-preview: relay could not open browser port 4173: timed out waiting for relay readiness",
+    "statusCommand": "Sites preview stopped"
+  },
+  "desktopFPS": null,
+  "physicalMobileFPS": null,
+  "coldNetworkTransferBytes": null,
+  "staticArtProof": "docs/art-layout-preview.png; not a browser screenshot"
+}

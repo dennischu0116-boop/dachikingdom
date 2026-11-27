@@ -8,7 +8,7 @@ export type BuildingSpec = Point & {
   polygon: readonly Point[];
 };
 export type BuildingState = BuildingSpec & { depth: number; labelPosition: Point };
-export const LAYOUT_STORAGE_KEY = 'dachikingdom:pixi-palace:building-layout:v1';
+export const LAYOUT_STORAGE_KEY = 'dachikingdom:pixi-palace:city-layout:v1';
 export type LayoutStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
 
 function bounded(p: Point, spec: BuildingSpec, width: number, height: number): Point {
@@ -74,7 +74,7 @@ export class BuildingLayout {
     if (!raw) return false;
     try {
       const data = JSON.parse(raw);
-      if (data?.version !== 1 || data.scene !== 'art-remake-2' || !data.positions || typeof data.positions !== 'object') return false;
+      if (data?.version !== 1 || data.scene !== 'city-portals-1' || !data.positions || typeof data.positions !== 'object') return false;
       // Validate the whole record before applying anything. Never partially restore corrupt data.
       const positions = this.buildings.map(b => data.positions[b.id]);
       if (!positions.every(p => p && typeof p.x === 'number' && Number.isFinite(p.x) && typeof p.y === 'number' && Number.isFinite(p.y))) return false;
@@ -83,7 +83,7 @@ export class BuildingLayout {
     } catch { return false; }
   }
   serialize(): string {
-    return JSON.stringify({ version: 1, scene: 'art-remake-2', positions: Object.fromEntries(this.buildings.map(b => [b.id, { x: b.x, y: b.y }])) });
+    return JSON.stringify({ version: 1, scene: 'city-portals-1', positions: Object.fromEntries(this.buildings.map(b => [b.id, { x: b.x, y: b.y }])) });
   }
 }
 

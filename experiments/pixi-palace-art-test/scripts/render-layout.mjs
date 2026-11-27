@@ -11,8 +11,7 @@ const image=(asset,x,y,w,h)=>`<image href="${uris[asset]}" x="${x}" y="${y}" wid
 const sprite=(asset,x,y,w)=>image(asset,x-w/2,y-w*assets[asset].height/assets[asset].width,w,w*assets[asset].height/assets[asset].width);
 const groups=[];
 const put=(y,svg)=>groups.push({y,svg});
-put(layout.palace.y,sprite('taihe',layout.palace.x,layout.palace.y,layout.palace.width));
-for(const t of [...layout.halls,...layout.trees])put(t.y,sprite(t.asset,t.x,t.y,t.width));
+for(const t of [...layout.buildings,...layout.trees])put(t.y,sprite(t.asset,t.x,t.y,t.width));
 for(const [x,y] of layout.flags){const ph=20*assets.flagpole.height/assets.flagpole.width;put(y,sprite('flagpole',x,y,20)+image('banner',x,y-ph+12,29,68));}
 for(const [x,y] of layout.lamps)put(y,sprite('lantern',x,y,29));
 for(const [x,y] of layout.braziers)put(y,sprite('brazier',x,y,43));
@@ -23,8 +22,8 @@ for(const [i,route] of layout.routes.entries()){
  put(y,image(key,x-29,y-43.5*.95,58,43.5));
 }
 const shadows=layout.trees.map(t=>`<ellipse cx="${t.x+t.width*.37*.22}" cy="${t.y+8}" rx="${t.width*.37}" ry="18" fill="#18281f" opacity=".19"/>`).join('');
-const labels=layout.labels.map(l=>`<g transform="translate(${l.x} ${l.y})"><rect x="${l.main?-66:-50}" y="-17" width="${l.main?132:100}" height="34" rx="6" fill="#17231f" fill-opacity=".92" stroke="#bda16a"/><text x="0" y="7" text-anchor="middle" font-family="Noto Serif CJK TC,serif" font-size="${l.main?22:17}" letter-spacing="3" fill="#f4dfaf">${l.text}</text></g>`).join('');
-const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1200" viewBox="0 0 1800 1200">${image('courtyard',0,0,1800,1200)}${shadows}${groups.sort((a,b)=>a.y-b.y).map(g=>g.svg).join('')}${labels}<rect y="1152" width="1800" height="48" fill="#14231f" fill-opacity=".85"/><text x="30" y="1184" fill="#e4d8ba" font-family="Noto Serif CJK TC,serif" font-size="20">美術重製・靜態素材排版預覽（非瀏覽器截圖）</text></svg>`;
+const labels=layout.buildings.map(b=>b.label).map(l=>`<g transform="translate(${l.x} ${l.y})"><rect x="${l.main?-66:-50}" y="-17" width="${l.main?132:100}" height="34" rx="6" fill="#17231f" fill-opacity=".92" stroke="#bda16a"/><text x="0" y="7" text-anchor="middle" font-family="Noto Serif CJK TC,serif" font-size="${l.main?22:17}" letter-spacing="3" fill="#f4dfaf">${l.text}</text></g>`).join('');
+const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${layout.width}" height="${layout.height}" viewBox="0 0 ${layout.width} ${layout.height}">${image('courtyard',0,0,layout.width,layout.height)}${shadows}${groups.sort((a,b)=>a.y-b.y).map(g=>g.svg).join('')}${labels}<rect y="${layout.height-48}" width="${layout.width}" height="48" fill="#14231f" fill-opacity=".85"/><text x="30" y="${layout.height-16}" fill="#e4d8ba" font-family="Noto Serif CJK TC,serif" font-size="20">主城入口・靜態素材排版預覽（非瀏覽器截圖，不含介面）</text></svg>`;
 await mkdir('docs',{recursive:true});
 await sharp(Buffer.from(svg)).resize(1440).png().toFile('docs/art-layout-preview.png');
 await writeFile('docs/art-layout-preview.json',JSON.stringify({type:'static-layout-proof',renderer:'SVG / Sharp, NOT PixiJS',source:'src/layout.json + public/assets/manifest.json',excludes:['camera transforms','HTML interface','mesh animation','night lighting','runtime FPS']},null,2));

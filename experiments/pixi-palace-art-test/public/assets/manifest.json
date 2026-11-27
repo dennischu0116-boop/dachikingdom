@@ -1,8 +1,8 @@
 {
   "generated": "2026-11-27",
   "origin": "OpenAI image generation tool, generated for this experiment; no third-party game assets",
-  "revision": "art-remake-2",
-  "note": "All six source sheets remade: muted ceramic roofs, shared southwest elevated camera, integrated palace terrace, diagonal paving and overhead guards. Camera geometry and historical detail remain approximate.",
+  "revision": "city-portals-1",
+  "note": "Ten building entrances: retained main hall and two side halls, six new distinct institutional buildings and one palace gate. Shared southwest elevated camera and muted ceramic palette. Historical geometry is illustrative.",
   "assets": [
     {
       "name": "taihe",
@@ -115,6 +115,76 @@
       "sha256": "87a5b50758f4819394b4ef25997013662b434465586ca67e3d18cddfb8dff98a"
     },
     {
+      "name": "council",
+      "file": "assets/council.webp",
+      "source": "source-art/city-buildings.png",
+      "width": 440,
+      "height": 357,
+      "bytes": 58318,
+      "alpha": true,
+      "sha256": "b6f636442ba3d31ba95b4d0920389e1db9c6705e431963d232921d319bfb7ea9"
+    },
+    {
+      "name": "barracks",
+      "file": "assets/barracks.webp",
+      "source": "source-art/city-buildings.png",
+      "width": 549,
+      "height": 334,
+      "bytes": 68308,
+      "alpha": true,
+      "sha256": "79ca5eeb15cf67766d91ba59b881dc6364c1aae63a2c90f809fe5ab583a98831"
+    },
+    {
+      "name": "school",
+      "file": "assets/school.webp",
+      "source": "source-art/city-buildings.png",
+      "width": 462,
+      "height": 346,
+      "bytes": 62064,
+      "alpha": true,
+      "sha256": "1d5d2453c2e822f949e3ae8816501821a99311793bffa9096adc7da6cae514f1"
+    },
+    {
+      "name": "study",
+      "file": "assets/study.webp",
+      "source": "source-art/city-buildings.png",
+      "width": 439,
+      "height": 461,
+      "bytes": 71198,
+      "alpha": true,
+      "sha256": "fc601758f72501eaa7253e748f5d7cbe764dfdda99e3fc1abca5584a9445756d"
+    },
+    {
+      "name": "clan",
+      "file": "assets/clan.webp",
+      "source": "source-art/city-buildings.png",
+      "width": 571,
+      "height": 400,
+      "bytes": 85770,
+      "alpha": true,
+      "sha256": "89cf4755b97e31c5c8360c9aa1704d23db999852e4084b549f519392e37488c7"
+    },
+    {
+      "name": "treasury",
+      "file": "assets/treasury.webp",
+      "source": "source-art/city-buildings.png",
+      "width": 464,
+      "height": 408,
+      "bytes": 73898,
+      "alpha": true,
+      "sha256": "36a983d8289148daee6f81cbcd3a47f3728a0ff12b51098a8f996138552c6345"
+    },
+    {
+      "name": "gate",
+      "file": "assets/gate.webp",
+      "source": "source-art/gate.png",
+      "width": 1024,
+      "height": 740,
+      "bytes": 297098,
+      "alpha": true,
+      "sha256": "64a12696bdc8be717f2f8a13cd4af2df16df637f73e3758a79dd416dd0832799"
+    },
+    {
       "name": "guards",
       "file": "assets/guards.webp",
       "source": "source-art/guards.png",
@@ -129,5 +199,5 @@
       "sha256": "df1b93c29b98c5c677bd4189a9ea61d8d74f4669068e4b19a221e6dbc289ca41"
     }
   ],
-  "totalBytes": 1380444
+  "totalBytes": 2097098
 }

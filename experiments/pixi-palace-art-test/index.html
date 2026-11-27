@@ -1,12 +1,12 @@
 <!doctype html>
 <html lang="zh-Hant">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#192524"><meta name="description" content="大清帝國 · 太和殿局部美術與 PixiJS 8 渲染測試"><title>大清帝國 · 太和殿</title></head>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#192524"><meta name="description" content="大清帝國 · 主城入口示範與 PixiJS 8 渲染測試"><title>大清帝國 · 宮城</title></head>
 <body>
   <main id="scene" aria-label="可拖曳與縮放的清代宮廷場景"></main>
-  <header class="identity"><span class="seal" aria-hidden="true">大清</span><div><h1>大清帝國</h1><p>太和殿 <span>／</span> 宮城美術試作</p></div></header>
+  <div id="city-ui"></div>
   <aside class="telemetry" aria-label="即時效能"><span class="live-dot"></span><strong id="fps">—</strong><span>FPS</span><small id="renderer">PIXIJS 8</small></aside>
   <div id="loading" role="status"><span>乾清日朗 · 萬象更新</span><p id="load-message">正在載入宮城素材…</p></div>
-  <div class="bottom-ui"><div id="layout-tools" class="layout-tools" hidden><span id="layout-status" role="status" aria-live="polite">放開建築後，自動儲存於此瀏覽器</span><button id="restore-layout" type="button">還原配置</button></div><p class="hint" id="hint">拖曳移動 · 滾輪／雙指縮放 · 點選太和殿</p><nav aria-label="場景控制">
+  <div class="bottom-ui"><div id="layout-tools" class="layout-tools" hidden><span id="layout-status" role="status" aria-live="polite">放開建築後，自動儲存於此瀏覽器</span><button id="restore-layout" type="button">還原配置</button></div><p class="hint" id="hint">拖曳移動 · 滾輪／雙指縮放 · 點選建築開啟入口</p><nav aria-label="場景控制">
     <button id="day-night" type="button" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/></svg><span>白晝</span></button>
     <span class="divider"></span>
     <button id="animation" type="button" aria-pressed="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14M16 5v14"/></svg><span>動畫開啟</span></button>
@@ -14,6 +14,6 @@
     <button id="reset" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10a8 8 0 1 1 1 8M4 4v6h6"/></svg><span>重置鏡頭</span></button>
     <span class="divider"></span>
     <button id="edit-layout" type="button" aria-pressed="false" aria-controls="layout-tools"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M3 12h18M9 6l3-3 3 3M9 18l3 3 3-3M6 9l-3 3 3 3M18 9l3 3-3 3"/></svg><span>配置模式</span></button>
-  </nav><p class="edition">PIXIJS 8 <span>·</span> 2.5D ART STUDY</p></div>
+  </nav><p class="edition">PIXIJS 8 <span>·</span> 示範資料 · 主城入口</p></div>
   <script type="module" src="/src/main.ts"></script>
 </body></html>

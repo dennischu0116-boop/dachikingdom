@@ -1,5 +1,7 @@
 import { Application, Assets, Container, Graphics, MeshPlane, Rectangle, Sprite, Text, Texture, WebGLRenderer } from 'pixi.js';
 import './style.css';
+import { setupPortals } from './portals';
+const portalUI=setupPortals();
 import layout from './layout.json';
 import { cameraBounds, zoomTransform } from './camera';
 import { BuildingLayout, loadLayout, saveLayout, clearLayout } from './building-layout';
@@ -65,10 +67,7 @@ function buildScene() {
   const ground = new Sprite(tex.courtyard);ground.width=WIDTH;ground.height=HEIGHT;floor.addChild(ground);
   // A coherent architectural sprite includes the hall, three-tier plinth and stairs.
   // Terrain, vegetation, flags, guards, labels and effects remain independent layers.
-  const definitions = [
-    { id:'taihe', asset:'taihe', ...layout.palace, label:layout.labels[0] },
-    ...layout.halls.map((h,i)=>({ id:h.asset, ...h, label:layout.labels[i+1] })),
-  ];
+  const definitions = layout.buildings;
   const specs: BuildingSpec[] = definitions.map(d=>({
     id:d.id, x:d.x, y:d.y, width:d.width, height:d.width*tex[d.asset].height/tex[d.asset].width,
     labelOffset:{ x:d.label.x-d.x, y:d.label.y-d.y }, polygon:d.id==='taihe'?mainSilhouette:hallSilhouette,
@@ -121,7 +120,7 @@ function pickBuilding(p: Point) {
   return buildingLayout.pick(p,ids);
 }
 function updateHint() {
-  $('hint').textContent=editing?'拖動建築調整位置 · 拖空地移動鏡頭 · 滾輪／雙指縮放':selected?'已選取太和殿 · 拖曳移動 · 滾輪／雙指縮放':'拖曳移動 · 滾輪／雙指縮放 · 點選太和殿';
+  $('hint').textContent=editing?'拖動建築調整位置 · 拖空地移動鏡頭 · 滾輪／雙指縮放':'點建築開啟入口 · 拖空地移動 · 滾輪／雙指縮放';
 }
 function selectBuilding(id: string | null) {
   selectedBuilding=id;selected=id==='taihe';
@@ -137,7 +136,7 @@ function finishBuildingDrag() {
   }
 }
 let baseScale=1;
-function clampCamera(){const p=cameraBounds({x:camera.x,y:camera.y,scale:camera.scale.x},app.screen.width,app.screen.height,WIDTH,HEIGHT);camera.position.set(p.x,p.y);}
+function clampCamera(){const p=cameraBounds({x:camera.x,y:camera.y,scale:camera.scale.x},app.screen.width,app.screen.height,WIDTH,HEIGHT);camera.position.set(p.x,p.y);for(const text of labelTexts)text.parent!.scale.set(Math.max(1,.85/camera.scale.x));}
 function resetCamera(){baseScale=Math.max(app.screen.width/WIDTH,app.screen.height/HEIGHT);camera.scale.set(baseScale);camera.position.set((app.screen.width-WIDTH*baseScale)/2,(app.screen.height-HEIGHT*baseScale)/2+30);clampCamera();}
 function zoomAt(factor:number,point:Point){const p=zoomTransform({x:camera.x,y:camera.y,scale:camera.scale.x},factor,point,baseScale*.85,baseScale*2.6);camera.position.set(p.x,p.y);camera.scale.set(p.scale);clampCamera();}
 function bindCamera() {
@@ -155,7 +154,7 @@ function bindCamera() {
     cancel:()=>{buildingLayout.cancel();applyBuildingPositions();$('layout-status').textContent='已取消本次移動';},
     pan:(dx,dy)=>{camera.x+=dx;camera.y+=dy;clampCamera();},
     zoom:zoomAt,
-    tap:p=>{const hit=pickBuilding(world.toLocal(p));selectBuilding(editing?(hit?.id??null):hit?.id==='taihe'?'taihe':null);},
+    tap:p=>{const hit=pickBuilding(world.toLocal(p));selectBuilding(hit?.id??null);if(hit&&!editing)portalUI.openBuilding(hit.id);},
   });
   const release=(ids:number[])=>{for(const id of ids)if(canvas.hasPointerCapture(id))canvas.releasePointerCapture(id);canvas.classList.remove('dragging');};
   const stop=(commit:boolean)=>{const ids=[...gestures.pointers.keys()];if(commit)gestures.finish();else gestures.cancel();release(ids);};
@@ -183,7 +182,7 @@ function bindCamera() {
     $('edit-layout').setAttribute('aria-pressed',String(editing));
     $('edit-layout').querySelector('span')!.textContent=editing?'完成配置':'配置模式';
     $('layout-tools').hidden=!editing;
-    if(!editing&&selectedBuilding!=='taihe')selectBuilding(null);else updateHint();
+    document.body.classList.toggle('editing',editing);updateHint();
     if(activeRun)activeRun.interrupted=true;
   };
   $('restore-layout').onclick=()=>{
@@ -223,7 +222,7 @@ async function init(){
   app.ticker.add(tick);$('loading').classList.add('loaded');
   const api={
     ready:true,measurements,
-    snapshot:()=>({night,animate,selected,editing,buildings:buildingLayout.buildings.map(b=>({id:b.id,x:b.x,y:b.y,depth:b.depth,label:b.labelPosition})),clock,camera:{x:camera.x,y:camera.y,scale:camera.scale.x},guards:guards.map(g=>({x:g.sprite.x,y:g.sprite.y,zIndex:g.sprite.zIndex})),palaceDepth:palace.zIndex,assetBytes:manifest.totalBytes,resources:resources(),renderer:rendererName(),viewport:{width:app.screen.width,height:app.screen.height,dpr:devicePixelRatio,resolution:app.renderer.resolution}}),
+    snapshot:()=>({night,animate,selected,editing,portal:portalUI.snapshot(),buildings:buildingLayout.buildings.map(b=>({id:b.id,x:b.x,y:b.y,depth:b.depth,label:b.labelPosition})),clock,camera:{x:camera.x,y:camera.y,scale:camera.scale.x},guards:guards.map(g=>({x:g.sprite.x,y:g.sprite.y,zIndex:g.sprite.zIndex})),palaceDepth:palace.zIndex,assetBytes:manifest.totalBytes,resources:resources(),renderer:rendererName(),viewport:{width:app.screen.width,height:app.screen.height,dpr:devicePixelRatio,resolution:app.renderer.resolution}}),
     benchmark:(scenario='manual',seconds=60)=>new Promise<Measurement>((resolve,reject)=>{if(!Number.isFinite(seconds)||seconds<1)return reject(new Error('Benchmark duration must be at least 1 second'));if(activeRun)return reject(new Error('A benchmark is already active'));activeRun={scenario,start:performance.now(),duration:seconds*1000,times:[],interrupted:document.hidden,resolve,night,animation:animate};}),
     setNight,setAnimation,resetCamera,
     // Coordinates only, for reproducible UI input verification without bypassing input handlers.
