@@ -1,5 +1,6 @@
         const ProvinceView = () => {
-          const constructionCost = getConstructionCost();
+          const constructionBaseCost = getConstructionCost();
+          const constructionCost = val(constructionBaseCost);
           const appointmentCost = getAppointmentCost();
           const handleProvAppoint = async (provId, slotIndex, newId) => {
               if (String(gameState.provinces.find(p => String(p.id) === String(provId))?.officials?.[slotIndex]) === String(newId)) return;
@@ -48,7 +49,7 @@
                   return (
                       <div key={p.id} data-province-id={String(p.id)} className={`bg-white p-4 rounded shadow border transition-all duration-300 ${provinceAppointmentTarget&&String(provinceAppointmentTarget.provinceId)===String(p.id)?'border-amber-500 ring-4 ring-amber-300':'border-emerald-100'}`}>
                       <div className="flex justify-between mb-2"><h3 className="font-bold text-emerald-800">{p.name}</h3><span className="text-xs bg-emerald-100 px-2 py-1 rounded font-bold">發展: {p.development}</span></div>
-                      <button onClick={() => handleAction(constructionCost, buildSilverCost, `建設${p.name}`, s => ({ ...s, treasury: s.treasury - buildSilverCost, provinces: s.provinces.map(prov => prov.id === p.id ? { ...prov, development: prov.development + getConstructionDevelopmentGain(s,prov) } : prov) }))} className="w-full mb-3 py-1 bg-emerald-600 text-white text-xs rounded hover:bg-emerald-700 flex items-center justify-center gap-1"><Hammer/> 建設 (銀-{buildSilverCost}, 體-{constructionCost}，發展+{constructionGain})</button>
+                      <button onClick={() => handleAction(constructionBaseCost, buildSilverCost, `建設${p.name}`, s => ({ ...s, treasury: s.treasury - buildSilverCost, provinces: s.provinces.map(prov => prov.id === p.id ? { ...prov, development: prov.development + getConstructionDevelopmentGain(s,prov) } : prov) }))} className="w-full mb-3 py-1 bg-emerald-600 text-white text-xs rounded hover:bg-emerald-700 flex items-center justify-center gap-1"><Hammer/> 建設 (銀-{buildSilverCost}, 體-{constructionCost}，發展+{constructionGain})</button>
                       {fanZhongyanBonus>0&&<div className="text-[11px] text-emerald-700 mb-2">范仲淹「先憂後樂」生效：本省建設額外發展+1。</div>}
                       <div className="grid grid-cols-2 gap-2">
                           {[0, 1].map(slotIndex => {
@@ -265,16 +266,17 @@
             const used=Number(gameState.imperialStudyYear)===studyYear?(gameState.imperialStudyCount||0):0;
             if(Number(gameState.age)<16){showMessage('年未滿16歲，請到上書房接受皇家書院教育');return;}
             if(used>=3){showMessage('本年度進修三次已用完');return;}
-            if(gameState.energy<10||gameState.treasury<300){showMessage('每次進修需銀兩300、體力10');return;}
+            const studyEnergy=applyChallengeEnergyCost(10,gameState);
+            if(gameState.energy<studyEnergy||gameState.treasury<300){showMessage(`每次進修需銀兩300、體力${studyEnergy}`);return;}
             const growth=imperialStudyCourse==='civil'?{civil:8,military:0}:imperialStudyCourse==='military'?{civil:0,military:8}:{civil:4,military:4};
             const civil=Math.min(ROYAL_ABILITY_CAP,(Number(gameState.civil)||0)+growth.civil);
             const military=Math.min(ROYAL_ABILITY_CAP,(Number(gameState.military)||0)+growth.military);
             if(civil===Number(gameState.civil)&&military===Number(gameState.military)){showMessage('所選能力已達上限');return;}
-            if(!await confirmLowEnergySpend(10,'御書房進修'))return;
+            if(!await confirmLowEnergySpend(studyEnergy,'御書房進修'))return;
             setGameState(prev=>normalizeRoyalState({...prev,civil,military,
-                treasury:prev.treasury-300,energy:prev.energy-10,
+                treasury:prev.treasury-300,energy:prev.energy-studyEnergy,
                 imperialStudyYear:studyYear,imperialStudyCount:used+1}));
-            addLog(`【御書房進修】${ACADEMY_COURSES[imperialStudyCourse]?.name||'帝王進修'}，文治${gameState.civil}→${civil}，武力${gameState.military}→${military}，銀-300、體力-10。`);
+            addLog(`【御書房進修】${ACADEMY_COURSES[imperialStudyCourse]?.name||'帝王進修'}，文治${gameState.civil}→${civil}，武力${gameState.military}→${military}，銀-300、體力-${studyEnergy}。`);
         };
 
         const SchoolView = () => (
@@ -364,8 +366,8 @@
                 <div className="bg-white border rounded p-4 space-y-3">
                   <p className="font-bold text-red-950">選擇進修方向</p>
                   {[['civil','經世研習・文治 +8'],['military','兵法演武・武力 +8'],['balanced','文武兼修・文治 +4、武力 +4']].map(([key,label])=><label key={key} className="flex items-center gap-2 p-2 border rounded cursor-pointer"><input type="radio" checked={imperialStudyCourse===key} onChange={()=>setImperialStudyCourse(key)}/>{label}</label>)}
-                  <div className="bg-amber-50 p-3 rounded text-sm"><p>本次文治：{gameState.civil} → {Math.min(ROYAL_ABILITY_CAP,(Number(gameState.civil)||0)+growth.civil)}</p><p>本次武力：{gameState.military} → {Math.min(ROYAL_ABILITY_CAP,(Number(gameState.military)||0)+growth.military)}</p><p>費用：銀兩 300・體力 10</p></div>
-                  <button disabled={age<16||used>=3||gameState.treasury<300||gameState.energy<10} onClick={doImperialStudy} className="w-full bg-red-900 rounded p-3 text-white font-bold disabled:opacity-40">{age<16?'未滿16歲，請到皇家書院就學':used>=3?'本年進修次數已用完':'📜 御書房進修・立即生效'}</button>
+                  <div className="bg-amber-50 p-3 rounded text-sm"><p>本次文治：{gameState.civil} → {Math.min(ROYAL_ABILITY_CAP,(Number(gameState.civil)||0)+growth.civil)}</p><p>本次武力：{gameState.military} → {Math.min(ROYAL_ABILITY_CAP,(Number(gameState.military)||0)+growth.military)}</p><p>費用：銀兩 300・體力 {applyChallengeEnergyCost(10,gameState)}</p></div>
+                  <button disabled={age<16||used>=3||gameState.treasury<300||gameState.energy<applyChallengeEnergyCost(10,gameState)} onClick={doImperialStudy} className="w-full bg-red-900 rounded p-3 text-white font-bold disabled:opacity-40">{age<16?'未滿16歲，請到皇家書院就學':used>=3?'本年進修次數已用完':'📜 御書房進修・立即生效'}</button>
                 </div><p className="text-xs text-stone-500 mt-4">能力每10點增加奏摺正面效果1%，最高20%；不減少政策費用與負面效果。後宮調查不套用。</p>
               </div></div>;
         };

@@ -15,12 +15,14 @@
               const regular=(cmd.specialId==='lu_bu'?1.15:1)*(vice.specialId==='wu_qi'?1.12:1);
               const province=gameState.provinces.find(p=>String(p.id)===String(line.provinceId));
               const defenseBonus=Math.min(.3,(Number(province?.development)||0)/400);
-               const powerBeforeLastStand=Math.floor(base*regular*(1+defenseBonus));
+              const rawPowerBeforeLastStand=Math.floor(base*regular*(1+defenseBonus));
               const enemyMultiplier=(vice.specialId==='zhang_fei'?.9:1)*(strat.specialId==='sun_wu'?.9:1);
-              const enemyPower=Math.max(1,line.coalitionStrength*enemyMultiplier);
+              const enemyPower=Math.max(1,line.coalitionStrength*enemyMultiplier*challengeEnemyPowerMultiplier(gameState));
               const bonus=(cmd.specialId==='guan_yu'?5:0)+(strat.specialId==='zhang_liang'?5:0);
-               const preliminaryWinRate=Math.min(95,Math.round(powerBeforeLastStand/(enemyPower*1.8)*100)+emperorPolicyBonus(gameState,'military')+bonus);
-               const finalPower=Math.floor(powerBeforeLastStand*(cmd.specialId==='xiang_yu'&&preliminaryWinRate<50?1.25:1));
+              const challengedPowerBeforeLastStand=Math.floor(rawPowerBeforeLastStand*challengePlayerPowerMultiplier(gameState));
+              const preliminaryWinRate=Math.min(95,Math.round(challengedPowerBeforeLastStand/(enemyPower*1.8)*100)+emperorPolicyBonus(gameState,'military')+bonus);
+              const rawFinalPower=Math.floor(rawPowerBeforeLastStand*(cmd.specialId==='xiang_yu'&&preliminaryWinRate<50?1.25:1));
+              const finalPower=Math.floor(rawFinalPower*challengePlayerPowerMultiplier(gameState));
               const winRate=Math.min(95,Math.round(finalPower/(enemyPower*1.8)*100)+emperorPolicyBonus(gameState,'military')+bonus);
               return {cmd,vice,strat,finalPower,enemyPower,defenseBonus,winRate};
           };
@@ -107,7 +109,7 @@
               {!line.abandon&&<>{singleFront?<div className="mt-3 bg-white rounded border p-3 text-sm flex justify-between"><b>投入兵力</b><span>全軍 {battleTroops(line)}千</span></div>:<div className="mt-3"><div className="flex justify-between text-sm"><b>投入兵力</b><span>{line.assignedTroops||0}千</span></div><input type="range" min="0" max={gameState.army} value={line.assignedTroops||0} onChange={e=>updateLine(line.id,{assignedTroops:Math.max(0,Number(e.target.value)||0)})} className="w-full"/><input type="number" min="0" max={gameState.army} value={line.assignedTroops||0} onChange={e=>updateLine(line.id,{assignedTroops:Math.max(0,Number(e.target.value)||0)})} className="w-full border rounded p-2 text-sm"/></div>}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-3">{[['commanderId','主將','military'],['viceId','副將','military'],['strategistId','軍師','civil']].map(([key,label,stat])=>{const current=gameState.ministers.find(m=>String(m.id)===String(line[key]));return <label key={key} className="text-xs font-bold">{label}{current&&hasSpecialSkillForPost(current,key,'DEFEND')?' ★':''}<select value={line[key]||''} onChange={e=>{const id=resolveMinisterSelectId(e.target.value);if(id&&usedElsewhere(line.id,key,id)){showMessage('同一將領不可重複指派','error');return;}updateLine(line.id,{[key]:id});}} className="block w-full border rounded p-2 mt-1"><option value="">無</option>{gameState.ministers.filter(m=>!gameState.provinces.some(p=>(p.officials||[]).some(id=>String(id)===String(m.id)))&&(!usedElsewhere(line.id,key,m.id)||String(line[key])===String(m.id))).sort((a,b)=>(Number(b[stat])||0)-(Number(a[stat])||0)).map(m=><option key={m.id} value={m.id}>{m.name}{hasSpecialSkillForPost(m,key,'DEFEND')?' ★':''}（文{Math.round(Number(m.civil)||0)}／武{Math.round(Number(m.military)||0)}）</option>)}</select></label>})}</div>
               <p className="text-[11px] text-stone-600 mt-2">★ 表示該武將在目前防守軍職可觸發專屬技能。</p>{activeSkills.length>0&&<div className="mt-2 bg-amber-50 border border-amber-200 rounded p-2 text-xs text-amber-900">{activeSkills.map(([,m])=>`${m.name}・${getMinisterSkillText(m)}`).join('；')}</div>}
-              <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs"><div className="bg-white p-2 rounded">守城加成<b className="block">+{Math.round(info.defenseBonus*1000)/10}%</b></div><div className="bg-white p-2 rounded">我軍戰力<b className="block">{info.finalPower}</b></div><div className="bg-white p-2 rounded">敵軍有效<b className="block">{Math.round(info.enemyPower)}</b></div><div className="bg-white p-2 rounded">預估勝率<b className="block text-red-800">{info.winRate}%</b></div></div></>}
+              <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs"><div className="bg-white p-2 rounded">守城加成<b className="block">+{Math.round(info.defenseBonus*1000)/10}%</b></div><div className="bg-white p-2 rounded">我軍戰力<b className="block">{info.finalPower}</b></div><div className="bg-white p-2 rounded">敵軍有效<b className="block">{Math.round(info.enemyPower)}</b></div><div className="bg-white p-2 rounded">預估勝率<b className="block text-red-800">{info.winRate}%</b></div></div>{gameState.gameMode==='challenge'&&(challengeValue(gameState,'playerPower')>0||challengeValue(gameState,'enemyPower')>0)&&<div className="mt-2 text-[11px] text-red-800 text-center">挑戰修正：我軍最終戰力 -{challengeValue(gameState,'playerPower')}%・敵軍有效戰力 +{challengeValue(gameState,'enemyPower')}%</div>}</>}
             </section>})}</div>
             {!singleFront&&totalAssigned>gameState.army&&<p className="text-red-700 font-bold mt-3">兵力超額 {totalAssigned-gameState.army}千，無法確認。</p>}
             <button onClick={settleAll} disabled={totalAssigned>gameState.army} className="screen-bottom-return w-full mt-4 bg-red-900 text-white rounded py-3 font-bold disabled:opacity-40">{singleFront?'鎖定部署・結算防守':'鎖定所有部署・統一結算'}</button>
@@ -131,13 +133,15 @@
           const leaderBonus = rawPower / 100;
           const baseFinalPower = Math.floor(gameState.army * (1 + leaderBonus));
           const regularPowerMultiplier=(cmd.specialId==='lu_bu'?1.15:1)*(vice.specialId==='wu_qi'?1.12:1)*(mode==='ATTACK'&&strat.specialId==='zhou_yu'?1.10:1);
-          const powerBeforeLastStand=Math.floor(baseFinalPower*regularPowerMultiplier);
+          const rawPowerBeforeLastStand=Math.floor(baseFinalPower*regularPowerMultiplier);
           const enemyPowerMultiplier=(vice.specialId==='zhang_fei'?0.9:1)*(strat.specialId==='sun_wu'?0.9:1)*(mode==='ATTACK'&&cmd.specialId==='bai_qi'?0.85:1)*(mode==='ATTACK'&&vice.specialId==='xu_da'?0.92:1);
-          const effectiveEnemyStrength=target?target.strength*enemyPowerMultiplier:0;
+          const effectiveEnemyStrength=target?target.strength*enemyPowerMultiplier*challengeEnemyPowerMultiplier(gameState):0;
           const specialWinBonus=(cmd.specialId==='guan_yu'?5:0)+(strat.specialId==='zhang_liang'?5:0);
-          const preliminaryWinRate=target?Math.min(95,Math.round((powerBeforeLastStand/(effectiveEnemyStrength*1.8))*100)+emperorPolicyBonus(gameState,'military')+specialWinBonus):0;
+          const challengedPowerBeforeLastStand=Math.floor(rawPowerBeforeLastStand*challengePlayerPowerMultiplier(gameState));
+          const preliminaryWinRate=target?Math.min(95,Math.round((challengedPowerBeforeLastStand/(effectiveEnemyStrength*1.8))*100)+emperorPolicyBonus(gameState,'military')+specialWinBonus):0;
           const lastStandActive=cmd.specialId==='xiang_yu'&&preliminaryWinRate<50;
-          const finalPower=Math.floor(powerBeforeLastStand*(lastStandActive?1.25:1));
+          const rawFinalPower=Math.floor(rawPowerBeforeLastStand*(lastStandActive?1.25:1));
+          const finalPower=Math.floor(rawFinalPower*challengePlayerPowerMultiplier(gameState));
           const baseWinRate=target?(finalPower / (effectiveEnemyStrength * 1.8))*100:0;
           const winRate=target?Math.min(95,Math.round(baseWinRate)+emperorPolicyBonus(gameState,'military')+specialWinBonus):0;
 
@@ -181,6 +185,7 @@
                   <div className="bg-stone-200 p-4 rounded text-center">
                   <div className="flex justify-around mb-4 text-sm"><div>我軍: {gameState.army}千</div><div>加成: +{(leaderBonus*100).toFixed(0)}%</div><div className="font-bold text-red-800">總戰力: {finalPower}</div></div>
                   <div className="text-xs text-emerald-800 mb-2">皇帝武力 {gameState.military}：成功率 +{emperorPolicyBonus(gameState,'military')} 個百分點（最高95%）</div>
+                  {gameState.gameMode==='challenge'&&(challengeValue(gameState,'playerPower')>0||challengeValue(gameState,'enemyPower')>0)&&<div className="text-xs text-red-800 mb-2">🔥 挑戰修正：我軍最終戰力 -{challengeValue(gameState,'playerPower')}%・敵軍有效戰力 +{challengeValue(gameState,'enemyPower')}%</div>}
                   <div className="text-[11px] text-amber-800 mb-2">{[cmd,vice,strat].filter(m=>m.specialId).map(m=>`${m.name}・${getMinisterSkillText(m)}`).join('；')}</div>
                   <div className="text-xs text-gray-500 mb-4">對陣 {target ? target.name : '未知'} (強:{target ? target.strength : '?'}) | 預估勝率: {winRate}%<br/>出征費用: 銀兩500, 體力{val(20)}</div>
                   <button onClick={async () => {
@@ -312,7 +317,8 @@
                         const baseStepSilver = tech.totalSilver / 5;
                         const wangAnshiActive = Object.values(gameState.centralOfficials||{}).some(id=>gameState.ministers.some(m=>String(m.id)===String(id)&&m.specialId==='wang_an_shi'));
                         const stepSilver = Math.floor(baseStepSilver*(wangAnshiActive?0.9:1));
-                        const stepEnergy = val(tech.totalEnergy / 5);
+                        const stepBaseEnergy = Math.floor((tech.totalEnergy / 5)*getCostMultiplier());
+                        const stepEnergy = val(stepBaseEnergy);
                         const canInvest = Number(gameState.dynastyYear||gameState.year) >= tech.reqYear && gameState.treasury >= stepSilver && gameState.energy >= stepEnergy;
                         
                         return (
@@ -337,7 +343,7 @@
                                     <button 
                                         disabled={!canInvest}
                                         onClick={() => {
-                                            handleAction(stepEnergy, stepSilver, `研發${tech.name}`, s => {
+                                            handleAction(stepBaseEnergy, stepSilver, `研發${tech.name}`, s => {
                                                 const newProgress = ((s.techProgress || {})[tech.id] || 0) + 20;
                                                 const newUnlocked = newProgress >= 100 ? [...(s.unlockedTechs || []), tech.id] : (s.unlockedTechs || []);
                                                 if(newProgress >= 100) addLog(`【工部】${tech.name} 研發完成！`);
@@ -591,7 +597,7 @@
               <div className="screen-modal-header shrink-0 flex justify-between items-center gap-2 mb-3"><h3 className="font-serif text-xl font-bold text-red-900">📖 完整玩法說明</h3><button onClick={()=>setShowGameManual(false)} className="font-bold bg-stone-200 rounded px-3 py-1">關閉</button></div>
               <div className="min-h-0 flex-1 overflow-y-auto pr-1">
               <div className="grid grid-cols-3 gap-2 mb-4">{[
-                  ['PALACE','宮鬥案件'],['HAREM','懷孕後宮'],['BEAUTIES','特殊佳人'],['BUREAU','宗人府'],['SCHOOL','賜名上書房'],['TREASURY','皇家寶庫'],['FINANCE','財政貪腐'],['CORRUPTION','軍機密查'],['RECRUIT','綜合十連招募'],['COURT','上朝聽政'],['MINISTERS','中央與百官'],['DIPLOMACY','外交和親'],['WAR','戰爭'],['IMPERIAL_STUDY','御書房'],['INTRO','新手']
+                  ['CHALLENGE','挑戰模式'],['PALACE','宮鬥案件'],['HAREM','懷孕後宮'],['BEAUTIES','特殊佳人'],['BUREAU','宗人府'],['SCHOOL','賜名上書房'],['TREASURY','皇家寶庫'],['FINANCE','財政貪腐'],['CORRUPTION','軍機密查'],['RECRUIT','綜合十連招募'],['COURT','上朝聽政'],['MINISTERS','中央與百官'],['DIPLOMACY','外交和親'],['WAR','戰爭'],['IMPERIAL_STUDY','御書房'],['INTRO','新手']
               ].map(([id,label])=><button key={id} onClick={()=>setManualTab(id)} className={`py-2 text-xs rounded border font-bold ${manualTab===id?'bg-red-900 text-white':'bg-white text-red-900'}`}>{label}</button>)}</div>
               <h4 className="text-lg font-bold text-amber-900 mb-3">{TUTORIAL_CONTENT[manualTab]?.title||'玩法說明'}</h4>
               <p className="whitespace-pre-line leading-7 text-sm text-stone-800">{TUTORIAL_CONTENT[manualTab]?.desc}</p>
@@ -657,7 +663,7 @@
                       {item.status==='unresolved'&&<p className="text-xs text-rose-900 mb-2">擱置 {getPalaceInvestigationRates(gameState,item).years} 年・曾產生好感損失 {item.affectionPenalty||0} 點{item.clueAvailable?'・新線索加成 +20%（限下次）':''}</p>}
                       {item.status==='unresolved' && <div className="grid grid-cols-2 gap-2 mt-2">
                           <button disabled={item.lastInvestigatedYear===gameState.dynastyYear || !!gameState.pendingPalaceEvent} onClick={()=>recheckPalaceCase(item.id,'simple')} className="py-2 rounded bg-amber-100 border border-amber-300 disabled:opacity-40">簡單查問（{getPalaceInvestigationRates(gameState,item).simple}%）</button>
-                          <button disabled={item.lastInvestigatedYear===gameState.dynastyYear || !!gameState.pendingPalaceEvent || gameState.treasury<200 || gameState.energy<10} onClick={()=>recheckPalaceCase(item.id,'full')} className="py-2 rounded bg-red-900 text-white disabled:opacity-40">徹查（{getPalaceInvestigationRates(gameState,item).full}%・銀200／體10）</button>
+                          <button disabled={item.lastInvestigatedYear===gameState.dynastyYear || !!gameState.pendingPalaceEvent || gameState.treasury<200 || gameState.energy<applyChallengeEnergyCost(10,gameState)} onClick={()=>recheckPalaceCase(item.id,'full')} className="py-2 rounded bg-red-900 text-white disabled:opacity-40">徹查（{getPalaceInvestigationRates(gameState,item).full}%・銀200／體{applyChallengeEnergyCost(10,gameState)}）</button>
                       </div>}
                   </div>)}
               <h4 className="font-bold text-amber-900 mt-3 mb-2">後宮紀事</h4>
@@ -705,8 +711,8 @@
           <h3 className="text-xl font-serif font-bold text-red-950 text-center">🩺 太醫急奏・后妃病危</h3>
           <p className="text-sm my-4 leading-7">{(() => {const c=gameState.consorts.find(c=>String(c.id)===String(gameState.pendingConsortIllnesses[0]));return c?`${consortIdentity(c)}，現年${getConsortAge(c)}歲，年高染疾，恐有性命之危。請皇上速決救治方式；獲救後元氣虧損，生育能力亦將永久下降。`:'宮中病患待確認。';})()}</p>
           <div className="space-y-2 text-sm">
-            <button disabled={gameState.treasury<500||gameState.energy<10} onClick={()=>decideConsortIllness('imperial')} className="w-full text-left p-3 rounded bg-emerald-50 border border-emerald-300 text-emerald-950 disabled:opacity-40">御召名醫・精心救治（銀500、體力10，90%救回；生育-12）</button>
-            <button disabled={gameState.treasury<150||gameState.energy<5} onClick={()=>decideConsortIllness('ordinary')} className="w-full text-left p-3 rounded bg-amber-100 border border-amber-300 text-amber-950 disabled:opacity-40">太醫院例行搶救（銀150、體力5，60%救回；生育-22）</button>
+            <button disabled={gameState.treasury<500||gameState.energy<applyChallengeEnergyCost(10,gameState)} onClick={()=>decideConsortIllness('imperial')} className="w-full text-left p-3 rounded bg-emerald-50 border border-emerald-300 text-emerald-950 disabled:opacity-40">御召名醫・精心救治（銀500、體力{applyChallengeEnergyCost(10,gameState)}，90%救回；生育-12）</button>
+            <button disabled={gameState.treasury<150||gameState.energy<applyChallengeEnergyCost(5,gameState)} onClick={()=>decideConsortIllness('ordinary')} className="w-full text-left p-3 rounded bg-amber-100 border border-amber-300 text-amber-950 disabled:opacity-40">太醫院例行搶救（銀150、體力{applyChallengeEnergyCost(5,gameState)}，60%救回；生育-22）</button>
             <button onClick={()=>decideConsortIllness('none')} className="w-full text-left p-3 rounded bg-red-100 border border-red-300 text-red-950">不予救治（免費，病故）</button>
           </div>
         </div>
@@ -721,7 +727,7 @@
         <div className="bg-amber-50 border-4 border-red-900 rounded-xl p-5 max-w-md w-full">
           <h3 className="text-xl text-red-950 font-bold text-center mb-3">⚠️ 後宮危急・御前聖裁</h3>
           <p className="text-sm leading-7 mb-3">內務府密奏，{(() => {const c=gameState.consorts.find(c=>String(c.id)===String(gameState.pendingConsortCrises[0]));return c?consortValues(c):'一位妃嬪';})()}因久失聖眷，近日心緒低落，甚至流露輕生之念。此事事關人命，請皇上親自決定如何照料。</p>
-          <div className="space-y-2 text-sm"><button disabled={gameState.energy<10} onClick={()=>decideConsortCrisis('visit')} className="w-full bg-amber-100 border rounded p-3 text-left disabled:opacity-35">親臨探望・溫言開解（體力10，好感+20）</button>
+          <div className="space-y-2 text-sm"><button disabled={gameState.energy<applyChallengeEnergyCost(10,gameState)} onClick={()=>decideConsortCrisis('visit')} className="w-full bg-amber-100 border rounded p-3 text-left disabled:opacity-35">親臨探望・溫言開解（體力{applyChallengeEnergyCost(10,gameState)}，好感+20）</button>
             <button disabled={gameState.treasury<200} onClick={()=>decideConsortCrisis('care')} className="w-full bg-amber-100 border rounded p-3 text-left disabled:opacity-35">賜銀並命宮人悉心照料（銀200，好感+15）</button>
             <button onClick={()=>decideConsortCrisis('ignore')} className="w-full bg-red-100 border rounded p-3 text-left">暫不追加照料（免費，30%機率不幸身故）</button></div>
         </div>
@@ -764,14 +770,14 @@
                       </>}
                   </>}
                   {gameState.pendingPalaceEvent.step==='rescue' && <>
-                      <button disabled={gameState.treasury<300 || gameState.energy<10} onClick={()=>decidePalaceEvent('rescueFull')} className="w-full p-3 bg-green-100 text-green-900 text-left rounded border disabled:opacity-40">召太醫全力救治（銀300、體力10；成功率依事件類型90%～95%）</button>
+                      <button disabled={gameState.treasury<300 || gameState.energy<applyChallengeEnergyCost(10,gameState)} onClick={()=>decidePalaceEvent('rescueFull')} className="w-full p-3 bg-green-100 text-green-900 text-left rounded border disabled:opacity-40">召太醫全力救治（銀300、體力{applyChallengeEnergyCost(10,gameState)}；成功率依事件類型90%～95%）</button>
                       <button disabled={gameState.treasury<100} onClick={()=>decidePalaceEvent('rescueBasic')} className="w-full p-3 bg-amber-100 text-left rounded border disabled:opacity-40">一般救治（銀100；成功率依事件類型75%～80%）</button>
                       <button onClick={()=>decidePalaceEvent('rescueNone')} className="w-full p-3 bg-red-100 text-red-900 text-left rounded border">暫不追加救治（免費；成功率依事件類型50%～60%）</button>
                       <p className="text-xs text-gray-500">救治失敗：70% 重傷、30% 死亡；孕妃危機失敗則流產。</p>
                   </>}
                   {gameState.pendingPalaceEvent.step==='investigation' && <>
                       <button onClick={()=>decidePalaceEvent('investigateSimple')} className="w-full p-3 bg-amber-100 text-left rounded border">簡單查問（免費，{getPalaceInvestigationRates(gameState,(gameState.palaceCases||[]).find(c=>String(c.id)===String(gameState.pendingPalaceEvent.id))||{}).simple}%）</button>
-                      <button disabled={gameState.treasury<200||gameState.energy<10} onClick={()=>decidePalaceEvent('investigateFull')} className="w-full p-3 bg-amber-100 text-left rounded border disabled:opacity-40">徹查內廷（銀200、體力10，{getPalaceInvestigationRates(gameState,(gameState.palaceCases||[]).find(c=>String(c.id)===String(gameState.pendingPalaceEvent.id))||{}).full}%）</button>
+                      <button disabled={gameState.treasury<200||gameState.energy<applyChallengeEnergyCost(10,gameState)} onClick={()=>decidePalaceEvent('investigateFull')} className="w-full p-3 bg-amber-100 text-left rounded border disabled:opacity-40">徹查內廷（銀200、體力{applyChallengeEnergyCost(10,gameState)}，{getPalaceInvestigationRates(gameState,(gameState.palaceCases||[]).find(c=>String(c.id)===String(gameState.pendingPalaceEvent.id))||{}).full}%）</button>
                       <button onClick={()=>decidePalaceEvent('postpone')} className="w-full p-3 bg-stone-200 text-left rounded border">暫時擱置，保留舊案</button>
                   </>}
                   {['rescueResult','investigationResult','decisionResult'].includes(gameState.pendingPalaceEvent.step)&&<button onClick={()=>decidePalaceEvent('ack')} className="w-full p-3 bg-red-900 text-white font-bold rounded">📜 朕已知悉・繼續</button>}
@@ -841,7 +847,7 @@
           onExport={handleExportSave} onDownload={handleDownloadBackup} onImport={()=>{setShowSystemSettings(false);setShowImportModal(true);}}
           onRestart={restartGame} onAvatarChange={handleEmperorAvatarChange} emperorAvatar={gameState.emperorAvatar}
           emperorAvatarAssets={gameState.emperorAvatarAssets} autoSaveStatus={autoSaveStatus} isGameStarted={isGameStarted}
-          preferences={preferences} setPreferences={changePreferences} preferenceGame={gameState} />}
+          preferences={preferences} setPreferences={changePreferences} preferenceGame={gameState} gameState={gameState} />}
       {betaConsortDetailId!=null&&(()=>{
           const person=(gameState.consorts||[]).find(c=>String(c.id)===String(betaConsortDetailId));
           if(!person)return null;
@@ -905,6 +911,7 @@
                <EmperorAvatar avatar={gameState.emperorAvatar} assets={gameState.emperorAvatarAssets} label={`${gameState.playerName||'皇帝'}頭像`} className="w-10 h-10 rounded-full border-2 border-amber-400 shrink-0" />
                <span className="bg-red-800 px-2 rounded border border-yellow-600">{gameState.eraName}{gameState.year}年</span>
                <span className="text-sm opacity-80">{gameState.age}歲</span>
+               {gameState.gameMode==='challenge'&&<span className={`text-[11px] border rounded px-2 py-1 font-bold whitespace-nowrap ${challengeTierOf(gameState.challengePoints).color}`} title={challengeSummary(gameState).join('\n')}>🔥 {challengeTierOf(gameState.challengePoints).label}・{gameState.challengePoints}分</span>}
                <button onClick={()=>setShowReleaseNotes(true)} className="text-[11px] text-amber-200 underline whitespace-nowrap" title="查看更新說明">{APP_VERSION} 更新</button>
                <button onClick={()=>{setManualTab('PALACE');setShowGameManual(true);}} className="text-[11px] bg-amber-800 rounded px-2 py-1 whitespace-nowrap">❓ 玩法</button>
                <button onClick={()=>setShowSystemSettings(true)} className="text-[11px] bg-stone-700 rounded px-2 py-1 whitespace-nowrap">⚙ 系統設定</button>
@@ -980,7 +987,7 @@
                 <div className="throne-column">
                    <div className="bg-white/60 p-3 rounded border border-stone-100">
                       <h3 className="font-bold text-stone-900 mb-2 flex items-center gap-2"><Sword/> 兵部</h3>
-                      <button onClick={() => { const recruitment=calculateRecruitment(gameState); if(recruitment.actual<=0){showMessage('人口不足，無法募兵','error');return;} handleAction(10, 200, "募兵", s => { const result=calculateRecruitment(s); return {...s, treasury:s.treasury-200,army:s.army+result.actual,population:roundPopulation(s.population-result.populationCost)}; }); }} className="w-full bg-white border p-2 rounded mb-2 text-left hover:bg-gray-50 flex justify-between items-center"><span>招兵買馬</span><span className="text-[10px] text-gray-500">軍+{calculateRecruitment(gameState).actual}千・人口-{formatPopulation(calculateRecruitment(gameState).populationCost)}萬・銀-200 (體{val(10)})</span></button>
+                      <button onClick={() => { const recruitment=calculateRecruitment(gameState); if(recruitment.actual<=0){showMessage('人口不足，無法募兵','error');return;} handleAction(10, 200, "募兵", s => { const result=calculateRecruitment(s); return {...s, treasury:s.treasury-200,army:s.army+result.actual,population:roundPopulation(s.population-result.populationCost)}; }); }} className="w-full bg-white border p-2 rounded mb-2 text-left hover:bg-gray-50 flex justify-between items-center gap-2"><span>招兵買馬{calculateRecruitment(gameState).challengeReduction>0&&<small className="block text-red-700">挑戰修正 -{calculateRecruitment(gameState).challengeReduction}%（原{calculateRecruitment(gameState).standardActual}千）</small>}</span><span className="text-[10px] text-gray-500 text-right">軍+{calculateRecruitment(gameState).actual}千・人口-{formatPopulation(calculateRecruitment(gameState).populationCost)}萬・銀-200 (體{val(10)})</span></button>
                       <button onClick={() => { if (gameState.army <= 0) { showMessage("無兵可遣散", 'error'); return; } handleAction(5, 0, "遣散", s => {const dismissed=Math.min(10,Math.max(0,Number(s.army)||0));return {...s,army:s.army-dismissed,population:roundPopulation(s.population+dismissed/10)};}); }} className="w-full bg-gray-100 border border-gray-300 p-1 rounded mb-2 text-xs text-center text-gray-600 hover:bg-gray-200">遣散兵馬 (軍-{Math.min(10,Math.max(0,Number(gameState.army)||0))}千、人口+{formatPopulation(Math.min(10,Math.max(0,Number(gameState.army)||0))/10)}萬、體-{val(5)})</button>
                       <button onClick={() => setCurrentView('WAR')} className="w-full bg-stone-800 border-stone-900 border p-2 rounded text-left text-stone-50 shadow-md hover:bg-stone-700">御駕親征 (戰爭)</button>
                    </div>
@@ -1008,7 +1015,7 @@
                    <button onClick={nextYear} disabled={!!gameState.pendingRetirementPlan || getPendingRetirementMinisters(gameState).length>0}
                      className="w-full py-3 bg-red-900 text-white rounded font-bold text-xl shadow hover:bg-red-800 flex items-center justify-center gap-2 disabled:opacity-50"><RefreshCw/> {getPendingRetirementMinisters(gameState).length?'請先裁決老臣告老':'結束本年'}</button>
                    <div className="compact-actions">
-                       <button onClick={fetchLeaderboard} className="flex-1 py-2 bg-blue-800 text-white rounded font-bold flex items-center justify-center gap-1 hover:bg-blue-700 text-sm shadow"><BarChart2/> 排行榜</button>
+                       <button onClick={()=>fetchLeaderboard(gameState.gameMode==='challenge'?'challenge':'standard')} className="flex-1 py-2 bg-blue-800 text-white rounded font-bold flex items-center justify-center gap-1 hover:bg-blue-700 text-sm shadow"><BarChart2/> 排行榜</button>
                        <button onClick={() => setShowAchievements(true)} className="flex-1 py-2 bg-yellow-600 text-white rounded font-bold text-sm flex items-center justify-center gap-1 hover:bg-yellow-500 shadow"><Medal/> 成就 ({gameState.unlockedAchievements?.length || 0})</button>
                    </div>
                    <button onClick={()=>setCurrentView('TREASURY')} className="w-full py-2 bg-amber-800 text-white rounded font-bold text-sm shadow">🎒 皇家寶庫（{inventoryUsedSlots(gameState.inventory)}/{INVENTORY_CAPACITY}）</button>

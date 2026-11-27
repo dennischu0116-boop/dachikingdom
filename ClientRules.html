@@ -30,7 +30,7 @@
               ...['commanderId','viceId','strategistId'].map(k=>state.warSetup?.[k]).filter(x=>x!=null).map(String)
           ]);
           const appointed=(state.ministers||[]).filter(m=>appointedIds.has(String(m.id)));
-          const activeRate=normalizeCorruptionRate(rate);
+          const activeRate=normalizeCorruptionRate(rate,state);
           const pool=calculateAnnualCorruptionCost(annualIncome,activeRate);
           let offenders=[];
 
@@ -645,7 +645,7 @@
       const investigatePalaceCase = (state,id,mode) => {
           const item=(state.palaceCases||[]).find(c=>String(c.id)===String(id));
           if (!item || item.status==='closed'||item.status==='sentence') return state;
-          const cost=mode==='full'?200:0, energy=mode==='full'?10:0;
+          const cost=mode==='full'?200:0, energy=mode==='full'?applyChallengeEnergyCost(10,state):0;
           if ((state.treasury||0)<cost||(state.energy||0)<energy) return state;
           if (Number(item.lastInvestigatedYear)===Number(state.dynastyYear)) return state;
           const rates=getPalaceInvestigationRates(state,item);
@@ -748,7 +748,7 @@
               next.pendingPalaceEvent=null;
           } else if (event.step==='rescue') {
               const idx=action==='rescueFull'?0:action==='rescueBasic'?1:2;
-              const silver=idx===0?300:idx===1?100:0,energy=idx===0?10:0;
+              const silver=idx===0?300:idx===1?100:0,energy=idx===0?applyChallengeEnergyCost(10,state):0;
               if (next.treasury<silver||next.energy<energy) return state;
               next.treasury-=silver;next.energy-=energy;
               let successRate=PALACE_FATAL_RATES[event.type]?.[idx]||.80;
@@ -878,7 +878,7 @@
               return [id,{...record,course,nextCourse:course}];
           }));
           return {
-              gameState: normalizeEmperorAvatarState(normalizeRoyalState({
+              gameState: normalizeChallengeState(normalizeEmperorAvatarState(normalizeRoyalState({
                   ...INITIAL_STATE, ...saved,
                   // 相容 v1.0.3 舊存檔：進度保留，但體力不得高於目前健康允許的上限。
                   energy: Math.max(0, Math.min(getMaxEnergy(saved.health ?? INITIAL_STATE.health),
@@ -973,7 +973,7 @@
                   unlockedAchievements: saved.unlockedAchievements || [],
                   statsHistory: saved.statsHistory || INITIAL_STATE.statsHistory,
                   corruptionRate: normalizeCorruptionRate(saved.corruptionRate)
-              })),
+              }))),
               logs: Array.isArray(raw.logs) ? raw.logs : [],
               betaPortraitAssignments: raw.betaPortraitAssignments && typeof raw.betaPortraitAssignments==='object'
                   ? raw.betaPortraitAssignments

@@ -456,13 +456,37 @@ assert(state.includes('setBetaPortraitAssignments(normalized.betaPortraitAssignm
 assert(!state.includes('圖片測試版已停用排行榜連線'), 'beta leaderboard guard remains');
 assert(!read('AppWarAndMain.html').includes('圖片效能實驗室'), 'image performance lab remains in player UI');
 assert(state.includes('...emperorLeaderboardAvatarPayload(stateToSave)'), 'leaderboard submission omits emperor avatar');
-assert(state.includes('submitScore(gameState, true, loadLeaderboard)') && state.includes('else if (showLeaderboard) loadLeaderboard()'), 'leaderboard refresh must sync once without recursion');
+assert(state.includes("submitScore(gameState, true,()=>loadLeaderboard(mode))") && state.includes('else if (showLeaderboard) loadLeaderboard(leaderboardMode)'), 'leaderboard refresh must sync once without recursion');
 assert(state.includes('submitScore(next,true)'), 'avatar changes must immediately update the leaderboard');
 assert(read('AppModals.html').includes("id===String(gameState.gameId||'')") && read('AppModals.html').includes('assets={gameState.emperorAvatarAssets}'), 'current leaderboard entry must use the local avatar');
 const leaderboardServer=read('程式碼.js');
 assert(leaderboardServer.includes("'avatarKind', 'avatarValue'"), 'leaderboard avatar columns are missing');
 assert(leaderboardServer.includes('function getLeaderboardAvatar(gameId)'), 'on-demand leaderboard avatar endpoint is missing');
+assert(leaderboardServer.includes("const QING_CHALLENGE_SHEET_NAME = '挑戰模式排行榜'")&&leaderboardServer.includes('function submitChallengeLeaderboardScore_'), 'independent challenge leaderboard is missing');
+assert(state.includes("gameMode:stateToSave.gameMode==='challenge'?'challenge':'standard'")&&state.includes('challengeConfig:stateToSave.gameMode'), 'challenge leaderboard payload is missing');
+assert(read('ClientCore.html').includes("{id:'recruitment',name:'募兵困難'")&&read('ClientCore.html').includes('calculateChallengePoints'), 'challenge rules are missing');
 assert(read('ClientShell.html').includes('fullCanvas.width=256')&&read('ClientShell.html').includes('boardCanvas.width=96'), 'avatar upload resize rules are missing');
+
+const challengeRuleMatch=read('ClientCore.html').match(/      const CHALLENGE_DEBUFFS =[\s\S]*?(?=      const INVENTORY_CAPACITY)/);
+assert(challengeRuleMatch,'could not isolate challenge rules');
+const challengeContext={globalThis:{},normalizeCorruptionRate:(rate,state)=>Math.max(Number(rate)||.1,(state?.challengeConfig?.corruptionFloor?(.05+state.challengeConfig.corruptionFloor*.05):.05))};
+challengeContext.globalThis=challengeContext;
+vm.runInNewContext(`${challengeRuleMatch[0]}\nglobalThis.__challenge={emptyChallengeConfig,normalizeChallengeConfig,calculateChallengePoints,challengeTierOf,normalizeChallengeState,applyChallengeEnergyCost};`,challengeContext);
+const challenge=challengeContext.__challenge;
+const maximumConfig=Object.fromEntries(['recruitment','income','playerPower','enemyPower','energyCost','corruptionFloor','stabilityDrain'].map(id=>[id,3]));
+assert(challenge.calculateChallengePoints(maximumConfig)===27,'maximum challenge score must be 27');
+assert(challenge.challengeTierOf(1).label==='艱難'&&challenge.challengeTierOf(5).label==='嚴苛'&&challenge.challengeTierOf(10).label==='地獄'&&challenge.challengeTierOf(17).label==='絕境','challenge tier thresholds are incorrect');
+const maximumState=challenge.normalizeChallengeState({gameMode:'challenge',challengeConfig:maximumConfig,corruptionRate:.05});
+assert(maximumState.challengePoints===27&&maximumState.corruptionRate===.2,'challenge state normalization failed');
+assert(challenge.applyChallengeEnergyCost(9,maximumState)===12,'challenge energy surcharge must round up');
+const legacyState=challenge.normalizeChallengeState({treasury:1000,corruptionRate:.05});
+assert(legacyState.gameMode==='standard'&&legacyState.challengePoints===0,'legacy saves must remain standard mode');
+
+const challengeServerContext={globalThis:{},console:{error(){},warn(){},log(){}},Date};
+challengeServerContext.globalThis=challengeServerContext;
+vm.runInNewContext(`${leaderboardServer}\nglobalThis.__normalizeChallengeScore=normalizeChallengeScore_;`,challengeServerContext);
+const serverChallenge=challengeServerContext.__normalizeChallengeScore({gameId:'run_challenge_test',name:'測試',years:1,gameMode:'challenge',challengePoints:27,challengeConfig:{playerPower:2}});
+assert(serverChallenge.challengePoints===4&&serverChallenge.challengeTier==='艱難','server must recompute challenge points from allowed conditions');
 
 const portraitSource = read('ImageBeta.html').split('      const BetaPortrait =')[0] + `
 globalThis.__portraits={BETA_IMAGE_META,betaAllocatePortraits,betaPortraitKey,betaRoyalPortraitId,betaPortraitIdForPerson,betaPortraitIdForCandidate,normalizeEmperorAvatarState,emperorLeaderboardAvatarPayload};`;
@@ -522,4 +546,4 @@ const customState=portraits.normalizeEmperorAvatarState({gameId:'run-avatar',cur
 assert(customState.emperorAvatar.kind==='custom'&&Object.keys(customState.emperorAvatarAssets).length===1,'custom emperor avatar deduplication/pruning failed');
 assert(portraits.emperorLeaderboardAvatarPayload(customState).avatarValue===customAsset.leaderboard,'leaderboard thumbnail selection failed');
 
-console.log('Production verification passed: v1.4.4, Babel syntax, automatic OAuth handoff, cloud save integrity, IME-safe prompts, legacy cloud recovery, event and battle cues, responsive recruit cards, player preferences and annual notices, 173 character IDs and 523 WebP assets.');
+console.log('Production verification passed: v1.4.4, challenge mode, Babel syntax, automatic OAuth handoff, cloud save integrity, IME-safe prompts, legacy cloud recovery, event and battle cues, responsive recruit cards, player preferences and annual notices, 173 character IDs and 523 WebP assets.');

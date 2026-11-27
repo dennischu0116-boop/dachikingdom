@@ -42,6 +42,58 @@
       const roundPopulation = value => Math.max(0,Math.round((Number(value)||0)*10)/10);
       const signedNumber = value => `${Number(value)>0?'+':''}${Number(value)||0}`;
 
+      const CHALLENGE_DEBUFFS = [
+          {id:'recruitment',name:'募兵困難',icon:'🪖',points:[1,2,3],values:[15,30,45],unit:'%',description:'募兵實際人數降低'},
+          {id:'income',name:'稅收不振',icon:'🪙',points:[1,2,3],values:[10,20,30],unit:'%',description:'正常年度正向歲入降低'},
+          {id:'playerPower',name:'軍力受限',icon:'⚔️',points:[2,4,6],values:[10,20,30],unit:'%',description:'攻守戰我軍最終有效戰力降低'},
+          {id:'enemyPower',name:'強敵環伺',icon:'👹',points:[2,4,6],values:[10,20,30],unit:'%',description:'攻守戰敵軍最終有效戰力提高'},
+          {id:'energyCost',name:'政務繁重',icon:'⚡',points:[1,2,3],values:[10,20,30],unit:'%',description:'所有需要體力的行動消耗提高'},
+          {id:'corruptionFloor',name:'貪腐難治',icon:'💸',points:[1,2,3],values:[10,15,20],unit:'%',description:'國家貪腐率最低值提高'},
+          {id:'stabilityDrain',name:'民心動盪',icon:'💢',points:[1,2,3],values:[2,4,6],unit:'',description:'每年結算額外降低民心'}
+      ];
+      const CHALLENGE_DEBUFF_MAP = Object.fromEntries(CHALLENGE_DEBUFFS.map(item=>[item.id,item]));
+      const emptyChallengeConfig = () => Object.fromEntries(CHALLENGE_DEBUFFS.map(item=>[item.id,0]));
+      const normalizeChallengeConfig = raw => Object.fromEntries(CHALLENGE_DEBUFFS.map(item=>{
+          const rank=Math.max(0,Math.min(3,Math.floor(Number(raw?.[item.id])||0)));
+          return [item.id,rank];
+      }));
+      const challengeRank = (state,id) => state?.gameMode==='challenge'
+          ? normalizeChallengeConfig(state.challengeConfig)[id]||0 : 0;
+      const challengeValue = (state,id) => {
+          const rank=challengeRank(state,id),definition=CHALLENGE_DEBUFF_MAP[id];
+          return rank&&definition?definition.values[rank-1]:0;
+      };
+      const calculateChallengePoints = raw => {
+          const config=normalizeChallengeConfig(raw);
+          return CHALLENGE_DEBUFFS.reduce((sum,item)=>sum+(config[item.id]?item.points[config[item.id]-1]:0),0);
+      };
+      const challengeTierOf = points => {
+          const value=Math.max(0,Number(points)||0);
+          if(value>=17)return {id:'despair',label:'絕境',color:'bg-red-950 text-red-100 border-red-500'};
+          if(value>=10)return {id:'hell',label:'地獄',color:'bg-red-700 text-white border-red-300'};
+          if(value>=5)return {id:'severe',label:'嚴苛',color:'bg-orange-700 text-white border-orange-300'};
+          if(value>=1)return {id:'hard',label:'艱難',color:'bg-amber-600 text-white border-amber-300'};
+          return {id:'standard',label:'一般',color:'bg-stone-600 text-white border-stone-300'};
+      };
+      const normalizeChallengeState = rawState => {
+          const state=rawState||{},config=normalizeChallengeConfig(state.challengeConfig);
+          const points=calculateChallengePoints(config),gameMode=state.gameMode==='challenge'&&points>0?'challenge':'standard';
+          const normalized={...state,gameMode,challengeConfig:gameMode==='challenge'?config:emptyChallengeConfig(),
+              challengePoints:gameMode==='challenge'?points:0,challengeVersion:gameMode==='challenge'?1:0};
+          return typeof normalizeCorruptionRate==='function'
+              ? {...normalized,corruptionRate:normalizeCorruptionRate(normalized.corruptionRate,normalized)} : normalized;
+      };
+      const challengeSummary = state => CHALLENGE_DEBUFFS.flatMap(item=>{
+          const rank=challengeRank(state,item.id);
+          return rank?[`${item.name}${['Ⅰ','Ⅱ','Ⅲ'][rank-1]}：${item.description}${item.id==='corruptionFloor'?' '+item.values[rank-1]+'%':item.id==='stabilityDrain'?' -'+item.values[rank-1]:' '+(item.id==='enemyPower'||item.id==='energyCost'?'+':'-')+item.values[rank-1]+'%'}`]:[];
+      });
+      const applyChallengeEnergyCost = (cost,state) => {
+          const value=Math.max(0,Number(cost)||0),penalty=challengeValue(state,'energyCost');
+          return value<=0?0:Math.ceil(value*(1+penalty/100));
+      };
+      const challengePlayerPowerMultiplier = state => 1-challengeValue(state,'playerPower')/100;
+      const challengeEnemyPowerMultiplier = state => 1+challengeValue(state,'enemyPower')/100;
+
       const INVENTORY_CAPACITY = 100;
       const ITEM_RARITIES = {legendary:{label:'稀世',order:0},rare:{label:'珍貴',order:1},common:{label:'普通',order:2}};
       const IMPERIAL_ITEMS = [

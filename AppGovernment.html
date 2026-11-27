@@ -534,10 +534,11 @@
                         const scale=getEffectiveCorruptionScale(target);
                         const requested=getCorruptionScaleReduction(scale);
                         const usedYear=Number(prev.corruptionReductionYear)===currentYear?Number(prev.corruptionReductionThisYear)||0:0;
-                        const currentRate=normalizeCorruptionRate(prev.corruptionRate);
-                        const reducible=Math.max(0,currentRate-MIN_CORRUPTION_RATE);
+                        const currentRate=normalizeCorruptionRate(prev.corruptionRate,prev);
+                        const challengeFloor=Math.max(MIN_CORRUPTION_RATE,challengeValue(prev,'corruptionFloor')/100);
+                        const reducible=Math.max(0,currentRate-challengeFloor);
                         reduction=Math.min(requested,Math.max(0,0.03-usedYear),reducible);
-                        next.corruptionRate=normalizeCorruptionRate(currentRate-reduction);
+                        next.corruptionRate=normalizeCorruptionRate(currentRate-reduction,prev);
                         next.corruptionReductionYear=currentYear;
                         next.corruptionReductionThisYear=usedYear+reduction;
                         const record=prev.corruptionRecords?.[String(target.officialId)]||{};
@@ -568,7 +569,7 @@
             const selectedOfficialSnapshot=selected?.officialSnapshot||selectedCurrentMinister||selectedArchivedMinister||null;
             const selectedPostLabels=(selected?.postLabels&&selected.postLabels.length)?selected.postLabels:
                 (selectedOfficialSnapshot?.postLabels||selectedOfficialSnapshot?.vacatedPosts||[]);
-            const activeRate=normalizeCorruptionRate(gameState.corruptionRate);
+            const activeRate=normalizeCorruptionRate(gameState.corruptionRate,gameState);
             const used=Number(gameState.corruptionReductionYear)===Number(gameState.dynastyYear||gameState.year)?Number(gameState.corruptionReductionThisYear)||0:0;
             const totalStolen=Object.values(gameState.corruptionRecords||{}).reduce((n,r)=>n+(Number(r.totalStolen)||0),0);
             const totalRecovered=Object.values(gameState.corruptionRecords||{}).reduce((n,r)=>n+(Number(r.totalRecovered)||0),0);
@@ -587,7 +588,7 @@
                 <h2 className="text-2xl text-center font-serif text-red-950 mb-2">軍機處・密查貪官</h2>
                 <p className="text-xs text-center text-slate-600 mb-4">年度貪腐漏損已由國家貪腐率統一扣除；案件贓款只是該筆損耗的分帳，追贓不會重複扣款。</p>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
-                    <div className="bg-white border rounded-lg p-3"><div className="text-xs text-slate-500">國家貪腐率</div><div className="text-2xl font-bold text-red-800">{formatCorruptionPercentage(activeRate)}</div><div className="text-[10px] text-slate-500 mt-1">歲入損耗比例／年度案件機率（5%～30%）</div></div>
+                    <div className="bg-white border rounded-lg p-3"><div className="text-xs text-slate-500">國家貪腐率</div><div className="text-2xl font-bold text-red-800">{formatCorruptionPercentage(activeRate)}</div><div className="text-[10px] text-slate-500 mt-1">歲入損耗比例／年度案件機率（{gameState.gameMode==='challenge'?challengeValue(gameState,'corruptionFloor'):5}%～30%）</div></div>
                     <div className="bg-white border rounded-lg p-3"><div className="text-xs text-slate-500">本年查貪降低</div><div className="text-2xl font-bold text-emerald-700">{(used*100).toFixed(1)} / 3%</div></div>
                     <div className="bg-white border rounded-lg p-3"><div className="text-xs text-slate-500">個別案件贓款</div><div className="text-xl font-bold">{totalStolen.toLocaleString()}兩</div></div>
                     <div className="bg-white border rounded-lg p-3"><div className="text-xs text-slate-500">已追回贓款</div><div className="text-xl font-bold text-emerald-700">{totalRecovered.toLocaleString()}兩</div></div>

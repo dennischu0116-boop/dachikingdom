@@ -8,6 +8,7 @@
 const QING_SHEET_PROPERTY = 'QING_LEADERBOARD_SPREADSHEET_ID';
 const QING_SPREADSHEET_ID = '1-4Jbgl5C7_HoJj7VNY2E4GyVm5h1AIWSBxyufWgwKPE';
 const QING_SHEET_NAME = '世界排行榜';
+const QING_CHALLENGE_SHEET_NAME = '挑戰模式排行榜';
 const QING_LEGACY_HEADERS = [
   'gameId', 'name', 'eraName', 'years', 'maxMinisterScore',
   'maxMinisterName', 'maxChildScore', 'maxChildName', 'timestamp', 'gameWon'
@@ -16,6 +17,11 @@ const QING_HEADERS = [
   ...QING_LEGACY_HEADERS, 'winYears', 'dynastyId', 'unificationOwnerGameId',
   'maxTreasury', 'maxConsortCount', 'maxDescendantCount', 'avatarKind', 'avatarValue'
 ];
+const QING_CHALLENGE_HEADERS = [...QING_HEADERS, 'challengePoints', 'challengeTier', 'challengeConfig'];
+const QING_CHALLENGE_POINTS = {
+  recruitment:[1,2,3], income:[1,2,3], playerPower:[2,4,6], enemyPower:[2,4,6],
+  energyCost:[1,2,3], corruptionFloor:[1,2,3], stabilityDrain:[1,2,3]
+};
 
 function doGet(e) {
   // Google OAuth2 授權碼回呼與遊戲首頁共用同一個正式 /exec 網址。
@@ -39,6 +45,7 @@ function setupLeaderboard() {
   lock.waitLock(30000);
   try {
     const sheet = getLeaderboardSheet_();
+    getChallengeLeaderboardSheet_();
     const url = sheet.getParent().getUrl();
     console.log('世界排行榜試算表：' + url);
     return url;
@@ -67,6 +74,29 @@ function getLeaderboardSheet_() {
     }
   }
   ensureLeaderboardHeaders_(sheet);
+  return sheet;
+}
+
+function getChallengeLeaderboardSheet_() {
+  const props = PropertiesService.getScriptProperties();
+  if (props.getProperty(QING_SHEET_PROPERTY) !== QING_SPREADSHEET_ID) {
+    props.setProperty(QING_SHEET_PROPERTY, QING_SPREADSHEET_ID);
+  }
+  const book = SpreadsheetApp.openById(QING_SPREADSHEET_ID);
+  let sheet = book.getSheetByName(QING_CHALLENGE_SHEET_NAME);
+  if (!sheet) sheet = book.insertSheet(QING_CHALLENGE_SHEET_NAME);
+  const width=QING_CHALLENGE_HEADERS.length;
+  if(sheet.getMaxColumns()<width)sheet.insertColumnsAfter(sheet.getMaxColumns(),width-sheet.getMaxColumns());
+  if(sheet.getLastRow()===0)sheet.getRange(1,1,1,width).setValues([QING_CHALLENGE_HEADERS]);
+  else{
+    const actual=sheet.getRange(1,1,1,width).getValues()[0].map(String);
+    QING_CHALLENGE_HEADERS.forEach((header,index)=>{
+      if(actual[index]&&actual[index]!==header)throw new Error('挑戰排行榜欄名不符（'+(index+1)+' 欄），已停止寫入');
+    });
+    sheet.getRange(1,1,1,width).setValues([QING_CHALLENGE_HEADERS]);
+  }
+  sheet.setFrozenRows(1);
+  sheet.getRange(1,1,1,width).setFontWeight('bold').setBackground('#7f1d1d').setFontColor('#ffffff');
   return sheet;
 }
 
@@ -200,6 +230,53 @@ function normalizeScore_(input) {
   });
 }
 
+function normalizeChallengeConfig_(raw) {
+  let value=raw;
+  if(typeof value==='string'){
+    try{value=JSON.parse(value);}catch(error){value={};}
+  }
+  const config={};
+  Object.keys(QING_CHALLENGE_POINTS).forEach(id=>{
+    config[id]=Math.max(0,Math.min(3,Math.floor(Number(value&&value[id])||0)));
+  });
+  return config;
+}
+
+function challengePoints_(config) {
+  return Object.keys(QING_CHALLENGE_POINTS).reduce((sum,id)=>{
+    const rank=Number(config[id])||0;
+    return sum+(rank?QING_CHALLENGE_POINTS[id][rank-1]:0);
+  },0);
+}
+
+function challengeTier_(points) {
+  if(points>=17)return '絕境';
+  if(points>=10)return '地獄';
+  if(points>=5)return '嚴苛';
+  return '艱難';
+}
+
+function normalizeChallengeScore_(input) {
+  const record=normalizeScore_(input),config=normalizeChallengeConfig_(input&&input.challengeConfig);
+  const points=challengePoints_(config);
+  if(points<1)throw new Error('挑戰模式至少需要一項有效條件');
+  return {...record,challengePoints:points,challengeTier:challengeTier_(points),challengeConfig:config};
+}
+
+function challengeRowToObject_(row) {
+  const record=rowToObject_(row.slice(0,QING_HEADERS.length));
+  record.challengePoints=safeNumber_(row[QING_HEADERS.length],27);
+  record.challengeTier=safeText_(row[QING_HEADERS.length+1]||challengeTier_(record.challengePoints),10);
+  record.challengeConfig=normalizeChallengeConfig_(row[QING_HEADERS.length+2]);
+  record.challengePoints=challengePoints_(record.challengeConfig);
+  record.challengeTier=challengeTier_(record.challengePoints);
+  return record;
+}
+
+function challengeScoreToRow_(record) {
+  return [...scoreToRow_(record),record.challengePoints,record.challengeTier,JSON.stringify(record.challengeConfig)];
+}
+
 function rowToObject_(row) {
   const o = {};
   QING_HEADERS.forEach((key, index) => { o[key] = row[index]; });
@@ -293,6 +370,7 @@ function publicLeaderboardRecord_(record) {
 
 /** 每次年末、勝利或駕崩更新同一局；多使用者同時提交時加鎖。 */
 function submitLeaderboardScore(input) {
+  if(input&&input.gameMode==='challenge')return submitChallengeLeaderboardScore_(input);
   const lock = LockService.getScriptLock();
   let locked = false;
   try {
@@ -325,8 +403,36 @@ function submitLeaderboardScore(input) {
   }
 }
 
+function submitChallengeLeaderboardScore_(input) {
+  const lock=LockService.getScriptLock();let locked=false;
+  try{
+    const incoming=normalizeChallengeScore_(input);
+    lock.waitLock(30000);locked=true;
+    const sheet=getChallengeLeaderboardSheet_(),last=sheet.getLastRow();let existingRow=-1;
+    if(last>1){
+      const ids=sheet.getRange(2,1,last-1,1).getValues();
+      const index=ids.findIndex(row=>String(row[0])===incoming.gameId);
+      if(index>=0)existingRow=index+2;
+    }
+    if(existingRow>0){
+      const old=challengeRowToObject_(sheet.getRange(existingRow,1,1,QING_CHALLENGE_HEADERS.length).getValues()[0]);
+      if(JSON.stringify(old.challengeConfig)!==JSON.stringify(incoming.challengeConfig))throw new Error('挑戰條件與此局首次提交的記錄不一致');
+      const merged=mergeLeaderboardScore_(old,incoming);
+      if(!merged)return {ok:true,updated:false};
+      merged.challengeConfig=old.challengeConfig;merged.challengePoints=old.challengePoints;merged.challengeTier=old.challengeTier;
+      sheet.getRange(existingRow,1,1,QING_CHALLENGE_HEADERS.length).setValues([challengeScoreToRow_(merged)]);
+    }else sheet.appendRow(challengeScoreToRow_(incoming));
+    SpreadsheetApp.flush();return {ok:true,updated:true};
+  }catch(error){
+    console.error('submitChallengeLeaderboardScore_: '+error);
+    return {ok:false,error:String(error.message||error)};
+  }finally{if(locked)lock.releaseLock();}
+}
+
 /** 回傳七種排行榜的前 20 名集合，並附上指定本局在各榜的完整名次。 */
 function getLeaderboard(playerGameId) {
+  const gameMode=arguments.length>1?arguments[1]:'standard';
+  if(gameMode==='challenge')return getChallengeLeaderboard_(playerGameId);
   try {
     const sheet = getLeaderboardSheet_();
     const last = sheet.getLastRow();
@@ -367,17 +473,48 @@ function getLeaderboard(playerGameId) {
   }
 }
 
+function getChallengeLeaderboard_(playerGameId) {
+  try{
+    const sheet=getChallengeLeaderboardSheet_(),last=sheet.getLastRow();
+    if(last<=1)return {ok:true,data:[],mine:{}};
+    const values=sheet.getRange(2,1,last-1,QING_CHALLENGE_HEADERS.length).getValues();
+    const all=values.map(challengeRowToObject_).filter(record=>record.gameId);
+    const pointsTie=(a,b)=>(b.challengePoints||0)-(a.challengePoints||0)||a.timestamp-b.timestamp;
+    const worldYears=record=>record.winYears>0?record.winYears:(record.years||9999);
+    const rankings={
+      MERIT:all.filter(record=>record.gameWon).sort((a,b)=>(b.challengePoints||0)-(a.challengePoints||0)||worldYears(a)-worldYears(b)||a.timestamp-b.timestamp),
+      WORLD:all.filter(record=>record.gameWon).sort((a,b)=>worldYears(a)-worldYears(b)||pointsTie(a,b)),
+      MINISTER:all.filter(record=>record.maxMinisterScore>0).sort((a,b)=>b.maxMinisterScore-a.maxMinisterScore||pointsTie(a,b)),
+      CHILD:all.filter(record=>record.maxChildScore>0).sort((a,b)=>b.maxChildScore-a.maxChildScore||pointsTie(a,b)),
+      MONEY:all.filter(record=>record.maxTreasury>0).sort((a,b)=>b.maxTreasury-a.maxTreasury||pointsTie(a,b)),
+      CONSORT:all.filter(record=>record.maxConsortCount>0).sort((a,b)=>b.maxConsortCount-a.maxConsortCount||pointsTie(a,b)),
+      DESCENDANT:all.filter(record=>record.maxDescendantCount>0).sort((a,b)=>b.maxDescendantCount-a.maxDescendantCount||pointsTie(a,b)),
+      REIGN:all.filter(record=>record.years>0).sort((a,b)=>b.years-a.years||pointsTie(a,b))
+    };
+    const unique=new Map();
+    Object.values(rankings).flatMap(items=>items.slice(0,20)).forEach(item=>unique.set(item.gameId,item));
+    const mine={},wantedId=String(playerGameId||'');
+    if(wantedId)Object.keys(rankings).forEach(key=>{const index=rankings[key].findIndex(item=>String(item.gameId)===wantedId);if(index>=0)mine[key]={rank:index+1,record:rankings[key][index]};});
+    const publicMine=Object.fromEntries(Object.entries(mine).map(([key,item])=>[key,{...item,record:publicLeaderboardRecord_(item.record)}]));
+    return {ok:true,data:[...unique.values()].map(publicLeaderboardRecord_),mine:publicMine};
+  }catch(error){
+    console.error('getChallengeLeaderboard_: '+error);
+    return {ok:false,error:String(error.message||error),data:[],mine:{}};
+  }
+}
+
 /** 自訂頭像只在玩家展開排行榜詳情時讀取；主排行榜不回傳全部 Base64 圖片。 */
 function getLeaderboardAvatar(gameId) {
   try {
     const id=String(gameId||'').trim();
     if(!/^run_[A-Za-z0-9_-]{1,80}$/.test(id))throw new Error('遊戲編號格式錯誤');
-    const sheet=getLeaderboardSheet_(),last=sheet.getLastRow();
+    const mode=arguments.length>1?arguments[1]:'standard';
+    const sheet=mode==='challenge'?getChallengeLeaderboardSheet_():getLeaderboardSheet_(),last=sheet.getLastRow();
     if(last<=1)return {ok:false,error:'找不到排行榜紀錄'};
     const ids=sheet.getRange(2,1,last-1,1).getValues();
     const index=ids.findIndex(row=>String(row[0])===id);
     if(index<0)return {ok:false,error:'找不到排行榜紀錄'};
-    const row=rowToObject_(sheet.getRange(index+2,1,1,QING_HEADERS.length).getValues()[0]);
+    const row=mode==='challenge'?challengeRowToObject_(sheet.getRange(index+2,1,1,QING_CHALLENGE_HEADERS.length).getValues()[0]):rowToObject_(sheet.getRange(index+2,1,1,QING_HEADERS.length).getValues()[0]);
     if(row.avatarKind!=='custom')return {ok:true,kind:row.avatarKind,value:row.avatarValue||''};
     const avatar=normalizeLeaderboardAvatar_(row.avatarKind,row.avatarValue);
     return {ok:true,kind:avatar.avatarKind,value:avatar.avatarValue};

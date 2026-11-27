@@ -100,15 +100,19 @@
       };
 
       const StartScreen = ({ onStart, onSettings, onHelp, onUpdates, onCloud, cloudStatus, pendingCloudSlot, onCancelCloud, cloudBusy, cloudDraft, cloudOperation, audioMuted, onToggleAudio }) => {
-          const [era, setEra] = useState(() => cloudDraft?.payload.gameState.eraName||generateRandomEraName());
-          const [name, setName] = useState(() => cloudDraft?.payload.gameState.playerName||generateRandomEmperorName());
-          const [avatar,setAvatar]=useState(()=>cloudDraft?.payload.gameState.emperorAvatar||emperorBuiltinAvatar(EMPEROR_AVATAR_IDS[0]));
-          const [avatarAssets,setAvatarAssets]=useState(()=>cloudDraft?.payload.gameState.emperorAvatarAssets||{});
+          const [era, setEra] = useState(() => cloudDraft?.payload?.gameState?.eraName||generateRandomEraName());
+          const [name, setName] = useState(() => cloudDraft?.payload?.gameState?.playerName||generateRandomEmperorName());
+          const [avatar,setAvatar]=useState(()=>cloudDraft?.payload?.gameState?.emperorAvatar||emperorBuiltinAvatar(EMPEROR_AVATAR_IDS[0]));
+          const [avatarAssets,setAvatarAssets]=useState(()=>cloudDraft?.payload?.gameState?.emperorAvatarAssets||{});
+          const [gameMode,setGameMode]=useState(()=>cloudDraft?.payload?.gameState?.gameMode==='challenge'?'challenge':'standard');
+          const [challengeConfig,setChallengeConfig]=useState(()=>normalizeChallengeConfig(cloudDraft?.payload?.gameState?.challengeConfig));
           const changeAvatar=(next,newAssets)=>{setAvatar(next);setAvatarAssets(next.kind==='custom'?{...avatarAssets,...newAssets}:{});};
           const randomizeBoth = () => { setEra(generateRandomEraName()); setName(generateRandomEmperorName()); };
+          const challengePoints=calculateChallengePoints(challengeConfig),challengeTier=challengeTierOf(challengePoints);
+          const setChallengeRank=(id,rank)=>setChallengeConfig(previous=>normalizeChallengeConfig({...previous,[id]:rank}));
           return (
               <div className="fixed inset-0 bg-stone-900 flex flex-col items-center justify-center z-[60] text-amber-50 animate-in fade-in overflow-y-auto p-3">
-                  <div className="bg-red-900/80 p-6 md:p-8 rounded-lg border-4 border-yellow-600 shadow-2xl max-w-xl w-full text-center my-auto">
+                  <div className="bg-red-900/80 p-5 md:p-8 rounded-lg border-4 border-yellow-600 shadow-2xl max-w-3xl w-full text-center my-auto">
                       <Crown />
                       <h1 className="text-4xl font-serif font-bold mb-2 text-yellow-100">大清帝國模擬器</h1>
                       <p className="text-amber-200/80 text-sm">治國平天下，開創萬世基業</p>
@@ -122,6 +126,21 @@
                       </div>
                       {pendingCloudSlot&&<div className="mb-4 rounded border border-sky-400 bg-sky-950/60 p-3 text-sm text-sky-100">☁️ 新遊戲目標為雲端槽位 {pendingCloudSlot}。成功建立後才會切換目前遊戲。</div>}
                       <fieldset disabled={cloudBusy||!!cloudDraft} className="space-y-4 mb-6 text-left">
+                          <div>
+                              <label className="block text-xs font-bold text-yellow-200 mb-2">遊戲模式</label>
+                              <div className="grid grid-cols-2 gap-2">
+                                  <button type="button" onClick={()=>setGameMode('standard')} className={`rounded-lg border-2 p-3 text-left ${gameMode==='standard'?'border-yellow-400 bg-yellow-500/20':'border-stone-600 bg-stone-900/40'}`}><b className="block">👑 一般模式</b><span className="text-[11px] text-amber-100/75">現行規則與一般排行榜</span></button>
+                                  <button type="button" onClick={()=>setGameMode('challenge')} className={`rounded-lg border-2 p-3 text-left ${gameMode==='challenge'?'border-red-300 bg-red-700/50':'border-stone-600 bg-stone-900/40'}`}><b className="block">🔥 挑戰模式</b><span className="text-[11px] text-amber-100/75">自選負面效果，成績獨立計算</span></button>
+                              </div>
+                          </div>
+                          {gameMode==='challenge'&&<div className="rounded-xl border-2 border-red-400/70 bg-stone-950/55 p-3">
+                              <div className="flex items-center justify-between gap-3 mb-3"><div><b className="text-red-100">挑戰條件</b><p className="text-[11px] text-amber-100/70">至少選擇一項；登基後永久鎖定。</p></div><span className={`rounded-full border px-3 py-1 text-xs font-bold ${challengeTier.color}`}>{challengeTier.label}・{challengePoints}分</span></div>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">{CHALLENGE_DEBUFFS.map(item=>{const rank=challengeConfig[item.id]||0;return <div key={item.id} className={`rounded-lg border p-2 ${rank?'border-amber-400 bg-red-950/60':'border-stone-600 bg-stone-900/60'}`}>
+                                  <div className="flex justify-between gap-2"><span className="text-sm font-bold">{item.icon} {item.name}</span><span className="text-[10px] text-amber-200">{rank?`${item.points[rank-1]}分`:'未啟用'}</span></div>
+                                  <p className="text-[10px] text-amber-100/70 my-1">{item.description}</p>
+                                  <div className="grid grid-cols-4 gap-1">{[0,1,2,3].map(level=><button type="button" key={level} onClick={()=>setChallengeRank(item.id,level)} className={`rounded py-1 text-[10px] ${rank===level?'bg-amber-500 text-stone-950 font-bold':'bg-stone-700 text-stone-100'}`}>{level===0?'無':`${['Ⅰ','Ⅱ','Ⅲ'][level-1]} ${item.id==='corruptionFloor'?item.values[level-1]+'%':item.id==='stabilityDrain'?'-'+item.values[level-1]:(item.id==='enemyPower'||item.id==='energyCost'?'+':'-')+item.values[level-1]+'%'}`}</button>)}</div>
+                              </div>})}</div>
+                          </div>}
                           <div>
                               <label className="block text-xs font-bold text-yellow-200 mb-1">擬定年號</label>
                               <div className="flex gap-2">
@@ -139,14 +158,14 @@
                           <button type="button" onClick={randomizeBoth} className="w-full py-2 rounded border border-amber-400/60 bg-amber-950/40 text-amber-100 text-sm hover:bg-amber-900">🎲 年號與皇帝姓名全部隨機</button>
                           <EmperorAvatarSelector avatar={avatar} assets={avatarAssets} onChange={changeAvatar} dark />
                       </fieldset>
-                      <button disabled={cloudBusy} onClick={() => onStart(era,name,{avatar,assets:avatarAssets})} className="w-full bg-yellow-600 text-white py-3 rounded font-bold text-lg shadow-lg hover:bg-yellow-500 transition-transform hover:scale-105">{cloudBusy?cloudOperation:pendingCloudSlot?(cloudDraft?'重試建立雲端存檔':'登基大典（建立雲端新遊戲）'):'登基大典（開始新遊戲）'}</button>
+                      <button disabled={cloudBusy||(gameMode==='challenge'&&challengePoints<=0)} onClick={() => onStart(era,name,{avatar,assets:avatarAssets,gameMode,challengeConfig})} className="w-full bg-yellow-600 text-white py-3 rounded font-bold text-lg shadow-lg hover:bg-yellow-500 transition-transform hover:scale-[1.01] disabled:opacity-40 disabled:cursor-not-allowed">{cloudBusy?cloudOperation:pendingCloudSlot?(cloudDraft?'重試建立雲端存檔':gameMode==='challenge'?`開始${challengeTier.label}挑戰（建立雲端新遊戲）`:'登基大典（建立雲端新遊戲）'):gameMode==='challenge'?(challengePoints?`開始${challengeTier.label}挑戰（${challengePoints}分）`:'請先選擇至少一項挑戰條件'):'登基大典（開始新遊戲）'}</button>
                       {pendingCloudSlot&&<button type="button" disabled={cloudBusy} onClick={onCancelCloud} className="mt-3 w-full rounded border border-amber-500 px-3 py-2 text-sm disabled:opacity-50">取消建立</button>}
                   </div>
               </div>
           );
       };
 
-      const SystemSettingsModal = ({ onClose, onSave, onLoad, onExport, onDownload, onImport, onRestart, onAvatarChange, emperorAvatar, emperorAvatarAssets, autoSaveStatus, isGameStarted, preferences, setPreferences, preferenceGame }) => (
+      const SystemSettingsModal = ({ onClose, onSave, onLoad, onExport, onDownload, onImport, onRestart, onAvatarChange, emperorAvatar, emperorAvatarAssets, autoSaveStatus, isGameStarted, preferences, setPreferences, preferenceGame, gameState }) => (
           <div className="fixed inset-0 bg-black/75 flex items-center justify-center z-[85] p-4 animate-in fade-in">
               <div className="bg-stone-100 rounded-xl border-4 border-amber-600 shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-5">
                   <div className="screen-modal-header flex items-center justify-between gap-3 mb-2">
@@ -158,6 +177,11 @@
                       <div className="text-xs mt-1">遊戲進度會自動保存在目前瀏覽器；下載備份可另存到電腦或雲端。</div>
                   </div>
                   <PlayerPreferenceControls preferences={preferences} setPreferences={setPreferences} gameState={preferenceGame}/>
+                  {isGameStarted&&gameState?.gameMode==='challenge'&&<div className="rounded-lg border-2 border-red-300 bg-red-50 p-3 mb-4 text-sm text-red-950">
+                      <div className="flex justify-between gap-2"><b>🔥 挑戰模式・{challengeTierOf(gameState.challengePoints).label}</b><b>{gameState.challengePoints}分</b></div>
+                      <p className="text-xs mt-1 mb-2">挑戰條件已在登基時鎖定，繼位與讀取存檔後仍持續生效。</p>
+                      <ul className="text-xs list-disc pl-5 space-y-1">{challengeSummary(gameState).map(text=><li key={text}>{text}</li>)}</ul>
+                  </div>}
                   {isGameStarted&&<div className="mb-4"><EmperorAvatarSelector avatar={emperorAvatar} assets={emperorAvatarAssets} onChange={onAvatarChange}/></div>}
                   <div className="grid grid-cols-2 gap-2">
                       <button disabled={!isGameStarted} onClick={onSave} className="p-3 rounded bg-stone-700 text-white font-bold disabled:opacity-40">💾 立即存檔</button>
@@ -279,7 +303,7 @@
       const cleanGameStateForSave = (state) => {
           const { logsAdd: _unused, ...rest } = normalizeTerritoryState(state);
           // 相容舊版圖片存檔：避免把龐大的 base64 圖片再度存入。
-          return normalizeEmperorAvatarState({
+          return normalizeChallengeState(normalizeEmperorAvatarState({
               ...rest,
               ministers: (rest.ministers || []).map(m => ({...m, avatar: typeof m.avatar === 'string' && m.avatar.startsWith('data:') ? '👤' : m.avatar})),
               consorts: (rest.consorts || []).map(c => ({...c, avatar: typeof c.avatar === 'string' && c.avatar.startsWith('data:') ? '🌸' : c.avatar})),
@@ -288,7 +312,7 @@
                   consorts: (record.consorts || []).map(c => ({...c, avatar: typeof c.avatar === 'string' && c.avatar.startsWith('data:') ? '🌸' : c.avatar}))
               })),
               childrenList: (rest.childrenList || []).map(c => ({...c, avatar: typeof c.avatar === 'string' && c.avatar.startsWith('data:') ? '👤' : c.avatar}))
-          });
+          }));
       };
       // 官職空缺清單：只統計需要正式任命的中央三職與各省總督、巡撫。
       // 兵部戰時主將、副將、軍師屬臨時出征配置，不納入常設官職空缺總數。

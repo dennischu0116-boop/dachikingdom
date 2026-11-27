@@ -159,6 +159,7 @@
         
         // Google Sheets 共用世界排行榜
         const [showLeaderboard, setShowLeaderboard] = useState(false);
+        const [leaderboardMode,setLeaderboardMode]=useState(initialSave?.gameState?.gameMode==='challenge'?'challenge':'standard');
         const [leaderboardData, setLeaderboardData] = useState([]);
         const [leaderboardMine, setLeaderboardMine] = useState({});
         const [leaderboardTab, setLeaderboardTab] = useState('WORLD'); 
@@ -358,20 +359,25 @@
             const finalEraName = String(eraName||'').trim() || generateRandomEraName();
             const finalPlayerName = String(playerName||'').trim() || generateRandomEmperorName();
             const base = JSON.parse(JSON.stringify(INITIAL_STATE));
-            const state = normalizeEmperorAvatarState(normalizeRoyalState({
+            const challengeConfig=normalizeChallengeConfig(avatarSelection.challengeConfig);
+            const gameMode=avatarSelection.gameMode==='challenge'&&calculateChallengePoints(challengeConfig)>0?'challenge':'standard';
+            const challengeSeed={gameMode,challengeConfig};
+            const state = normalizeChallengeState(normalizeEmperorAvatarState(normalizeRoyalState({
                 ...base, gameId, currentEmperorId: `emperor_${gameId}`,
+                gameMode,challengeConfig,
                 emperorAvatar:avatarSelection.avatar||emperorBuiltinAvatar(EMPEROR_AVATAR_IDS[0]),
                 emperorAvatarAssets:avatarSelection.assets||{},
                 consorts:(base.consorts||[]).map(makeConsort),
                 dynastyId: `dynasty_${gameId}`, accessionAge: 16,
                 eraName: finalEraName,
                 playerName: finalPlayerName,
-                corruptionRate: DEFAULT_CORRUPTION_RATE,
+                corruptionRate: normalizeCorruptionRate(DEFAULT_CORRUPTION_RATE,challengeSeed),
                 unlockedAchievements: [],
                 unificationGameId: null, unificationYear: null, unificationAttributionUnknown: false
-            }));
+            })));
             const firstLog=`奉天承運，皇帝詔曰：朕繼承大統，改元${finalEraName}，定名${finalPlayerName}。`;
-            return {state,logs:[firstLog]};
+            const challengeLog=state.gameMode==='challenge'?`【挑戰模式】${challengeTierOf(state.challengePoints).label}・${state.challengePoints}分：${challengeSummary(state).join('；')}`:null;
+            return {state,logs:[firstLog,challengeLog].filter(Boolean)};
         };
 
         const handleStartGame = async (eraName, playerName, avatarSelection) => {
@@ -970,7 +976,9 @@
         };
 
         // 世界排行榜：透過 Apps Script 伺服器存取 Google Sheets。
-        const loadLeaderboard = () => {
+        const loadLeaderboard = (requestedMode = leaderboardMode) => {
+            const mode=requestedMode==='challenge'?'challenge':'standard';
+            setLeaderboardMode(mode);
             setShowLeaderboard(true);
             setIsLeaderboardLoading(true);
             setLeaderboardError('');
@@ -995,17 +1003,20 @@
                     setLeaderboardError(error?.message || String(error));
                     setIsLeaderboardLoading(false);
                 })
-                .getLeaderboard(gameState.gameId || '');
+                .getLeaderboard(gameState.gameId || '',mode);
         };
-        const fetchLeaderboard = () => {
+        const fetchLeaderboard = (requestedMode = leaderboardMode) => {
+            const mode=requestedMode==='challenge'?'challenge':'standard';
+            setLeaderboardMode(mode);
+            setLeaderboardExpandedId(null);
             setShowLeaderboard(true);
             setIsLeaderboardLoading(true);
             setLeaderboardError('');
-            if (isGameStarted && gameState.gameId && typeof google !== 'undefined' && google.script?.run) {
-                submitScore(gameState, true, loadLeaderboard);
+            if (isGameStarted && gameState.gameId && (gameState.gameMode==='challenge'?'challenge':'standard')===mode && typeof google !== 'undefined' && google.script?.run) {
+                submitScore(gameState, true,()=>loadLeaderboard(mode));
                 return;
             }
-            loadLeaderboard();
+            loadLeaderboard(mode);
         };
         const toggleLeaderboardDetails=entry=>{
             const id=String(entry?.gameId||'');
@@ -1025,7 +1036,7 @@
             }).withFailureHandler(error=>{
                 setLeaderboardAvatarErrors(previous=>({...previous,[id]:error?.message||'玩家頭像讀取失敗'}));
                 setLeaderboardAvatarLoading(previous=>({...previous,[id]:false}));
-            }).getLeaderboardAvatar(id);
+            }).getLeaderboardAvatar(id,leaderboardMode);
         };
 
         const submitScore = (stateToSave = gameState, silent = false, onDone = null) => {
@@ -1045,6 +1056,7 @@
                 const child = history.maxChild?.score >= currentMaxChild.score ? history.maxChild : currentMaxChild;
                 const peaks = leaderboardPeaksOf(stateToSave);
                 const record = {
+                    gameMode:stateToSave.gameMode==='challenge'?'challenge':'standard',
                     name: stateToSave.playerName || '無名氏',
                     years: stateToSave.year,
                     eraName: stateToSave.eraName || '天命',
@@ -1061,6 +1073,9 @@
                         (stateToSave.gameWon || hasConqueredAllEnemies(stateToSave))),
                     winYears: stateToSave.unificationGameId === stateToSave.gameId
                         ? (stateToSave.unificationYear || stateToSave.year) : 0,
+                    challengeConfig:stateToSave.gameMode==='challenge'?normalizeChallengeConfig(stateToSave.challengeConfig):emptyChallengeConfig(),
+                    challengePoints:stateToSave.gameMode==='challenge'?calculateChallengePoints(stateToSave.challengeConfig):0,
+                    challengeTier:stateToSave.gameMode==='challenge'?challengeTierOf(calculateChallengePoints(stateToSave.challengeConfig)).label:'',
                     ...emperorLeaderboardAvatarPayload(stateToSave),
                     ...peaks
                 };
@@ -1073,9 +1088,9 @@
                             if (onDone) onDone();
                             return;
                         }
-                        if (!silent) showMessage('世界排行榜成績已更新！', 'success');
+                        if (!silent) showMessage(record.gameMode==='challenge'?'挑戰模式排行榜成績已更新！':'世界排行榜成績已更新！', 'success');
                         if (onDone) onDone();
-                        else if (showLeaderboard) loadLeaderboard();
+                        else if (showLeaderboard) loadLeaderboard(leaderboardMode);
                     })
                     .withFailureHandler(error => {
                         console.warn('世界排行榜連線失敗：', error);
@@ -1656,13 +1671,13 @@
         };
 
         const getCostMultiplier = () => (gameState.unlockedTechs || []).includes('grand_council') ? 0.8 : 1.0;
-        const val = (v) => Math.floor(v * getCostMultiplier());
+        const val = (v) => applyChallengeEnergyCost(Math.floor(v * getCostMultiplier()),gameState);
 
         const getAppointmentCost = () => {
             const pm = getOfficialStats(gameState.centralOfficials.primeMinister);
             const baseCost = 5; 
             const reduction = Math.floor((pm.civil || 0) / 200 * 4); 
-            return Math.floor(Math.max(1, baseCost - reduction) * getCostMultiplier());
+            return applyChallengeEnergyCost(Math.floor(Math.max(1, baseCost - reduction) * getCostMultiplier()),gameState);
         };
         const getPrimeMinisterBonus = () => {
             const pm=getOfficialStats(gameState.centralOfficials.primeMinister);
@@ -1721,11 +1736,14 @@
             const subtotal = baseIncome + popTax + provIncome + ministryIncome + techIncome;
             const xiaoHeBonus = revMinister.specialId==='xiao_he'
                 ? Math.floor((unchangedIncomeBase + ministryIncome + techIncome)*0.05) : 0;
-            const total = subtotal + xiaoHeBonus;
+            const rawTotal = subtotal + xiaoHeBonus;
+            const challengeReduction=challengeValue(state,'income');
+            const total = Math.floor(rawTotal*(1-challengeReduction/100));
             return { base: baseIncome, pop: popTax, basePopulationTax, prov: provIncome, ministry: ministryIncome,
-                tech: techIncome, special: xiaoHeBonus, taxRate, total };
+                tech: techIncome, special: xiaoHeBonus, taxRate, rawTotal,challengeReduction,
+                challengeLoss:rawTotal-total,total };
         };
-        const calculateTaxAmount = () => improvePositive(Math.floor(calculateYearlyIncome({...gameState,annualTaxRate:3}).total / 3),gameState,'civil');
+        const calculateTaxAmount = () => improvePositive(Math.floor(calculateYearlyIncome({...gameState,annualTaxRate:3}).rawTotal / 3),gameState,'civil');
         const calculateRecruitment = state => {
             const population=Math.max(0,Number(state.population)||0);
             const base=Math.floor(population/500+(state.provinces||[]).length*2);
@@ -1733,8 +1751,10 @@
             const ministerBonus=Math.floor((Number(warMinister.military)||0)/10);
             const techMultiplier=1+calculateTechBonuses(state).recruitBonus;
             const requested=improvePositive(Math.round((base+ministerBonus)*techMultiplier),state,'military');
-            const actual=Math.max(0,Math.min(requested,Math.floor(population*10)));
-            return {base,ministerBonus,requested,actual,populationCost:roundPopulation(actual/10)};
+            const standardActual=Math.max(0,Math.min(requested,Math.floor(population*10)));
+            const challengeReduction=challengeValue(state,'recruitment');
+            const actual=Math.floor(standardActual*(1-challengeReduction/100));
+            return {base,ministerBonus,requested,standardActual,challengeReduction,actual,populationCost:roundPopulation(actual/10)};
         };
 
         const checkAchievements = (state) => {
@@ -1868,9 +1888,9 @@
               const palaceCost = Math.floor(rawPalaceCost*(activeSpecialConsort(gameState,'wei_zifu') ? .9 : 1));
               const salaryCost = newMinisters.length * 20; 
               // 貪腐是本年度稅收漏損，不隨歷年積蓄放大；零貪腐率必須確實不扣款。
-              const corruptionRate = normalizeCorruptionRate(gameState.corruptionRate);
+              const corruptionRate = normalizeCorruptionRate(gameState.corruptionRate,gameState);
               const nextCorruptionRate=(gameState.unlockedTechs||[]).includes('official_assessment')
-                  ? normalizeCorruptionRate(corruptionRate-0.005) : corruptionRate;
+                  ? normalizeCorruptionRate(corruptionRate-0.005,gameState) : corruptionRate;
               if(nextCorruptionRate<corruptionRate)newLogsAdd.push(`【考成法】年度百官考核完成，貪腐率由${formatCorruptionPercentage(corruptionRate)}降至${formatCorruptionPercentage(nextCorruptionRate)}。`);
               const corruptionCost = calculateAnnualCorruptionCost(incomeData.total, corruptionRate);
               // 個別官員贓款只是同一筆年度貪腐漏損的案件分帳，不另行扣除國庫。
@@ -1883,8 +1903,9 @@
               let debtPenalty = newTreasury < 0 ? (5 + Math.floor(Math.abs(newTreasury) / 500)) : 0;
               const annualTaxRate=normalizeAnnualTaxRate(gameState.annualTaxRate);
               const taxPolicy=getAnnualTaxPolicy(annualTaxRate);
+              const challengeStabilityPenalty=challengeValue(gameState,'stabilityDrain');
               let newStability = gameState.stability + Math.floor(totalMilitaryBonus / 50) - debtPenalty - bonuses.stabilityPenalty +
-                  (activeSpecialConsort(gameState,'yang_yuhuan')?2:0) + taxPolicy.stability;
+                  (activeSpecialConsort(gameState,'yang_yuhuan')?2:0) + taxPolicy.stability-challengeStabilityPenalty;
               const populationStart=roundPopulation(gameState.population);
               const populationBaseGrowthRate=Math.min(3,1+(gameState.provinces||[]).length*.5);
               const populationTotalGrowthRate=populationBaseGrowthRate+taxPolicy.populationGrowth;
@@ -1964,6 +1985,8 @@
                   net: incomeData.total - totalExpenses, academy:academy.summary,
                   ministerTraining:ministerTraining.summary,
                   taxPolicy:{rate:annualTaxRate,stability:taxPolicy.stability,populationGrowth:taxPolicy.populationGrowth},
+                  challenge:gameState.gameMode==='challenge'?{points:gameState.challengePoints,tier:challengeTierOf(gameState.challengePoints).label,
+                      incomeLoss:incomeData.challengeLoss||0,incomeReduction:incomeData.challengeReduction||0,stabilityPenalty:challengeStabilityPenalty}:null,
                   population:{start:populationStart,end:populationEnd,change:Math.round((populationEnd-populationStart)*10)/10,
                       baseGrowthRate:populationBaseGrowthRate,taxGrowthAdjustment:taxPolicy.populationGrowth,
                       totalGrowthRate:populationTotalGrowthRate,provinceCount:(gameState.provinces||[]).length}
@@ -2190,7 +2213,7 @@
         };
 
         const handleAction = async (baseEnergyCost, moneyCost, actionName, effectFn) => {
-          const energyCost = Math.floor(baseEnergyCost * getCostMultiplier());
+          const energyCost = val(baseEnergyCost);
           if (gameState.energy < energyCost) { showMessage(`體力不足，需要 ${energyCost} 體力`, 'error'); return; }
           if (moneyCost > 0 && gameState.treasury < moneyCost) { showMessage(`國庫不足，需要 ${moneyCost} 銀兩`, 'error'); return; }
           if(!await confirmLowEnergySpend(energyCost,actionName))return false;
@@ -2390,10 +2413,11 @@
                         const year=Number(s.dynastyYear||s.year)||1;
                         const used=Number(s.corruptionReductionYear)===year?(Number(s.corruptionReductionThisYear)||0):0;
                         const requested=0.02*(1+emperorPolicyBonus(s,'civil')/100)+extraRate;
-                        const currentRate=normalizeCorruptionRate(s.corruptionRate);
-                        const reducible=Math.max(0,currentRate-MIN_CORRUPTION_RATE);
+                        const currentRate=normalizeCorruptionRate(s.corruptionRate,s);
+                        const challengeFloor=Math.max(MIN_CORRUPTION_RATE,challengeValue(s,'corruptionFloor')/100);
+                        const reducible=Math.max(0,currentRate-challengeFloor);
                         const reduction=Math.min(requested,Math.max(0,0.03-used),reducible);
-                        return {...s,corruptionRate:normalizeCorruptionRate(currentRate-reduction),
+                        return {...s,corruptionRate:normalizeCorruptionRate(currentRate-reduction,s),
                             corruptionReductionYear:year,corruptionReductionThisYear:used+reduction,
                             stability:addStability(s,improvePositive(5,s,'civil')+extraStability),
                             logsAdd:`接納御史死諫，貪腐率降低${(reduction*100).toFixed(2)}個百分點，民心上升。${weiZhengActive?'魏徵犯顏直諫額外發揮效果。':''}`};
@@ -2504,7 +2528,7 @@
             if(id==null)return;
             const patient=(gameState.consorts||[]).find(c=>String(c.id)===String(id));
             if(!patient){setGameState(prev=>({...prev,pendingConsortIllnesses:(prev.pendingConsortIllnesses||[]).slice(1)}));return;}
-            const cost=choice==='imperial'?{silver:500,energy:10}:choice==='ordinary'?{silver:150,energy:5}:{silver:0,energy:0};
+            const cost=choice==='imperial'?{silver:500,energy:applyChallengeEnergyCost(10,gameState)}:choice==='ordinary'?{silver:150,energy:applyChallengeEnergyCost(5,gameState)}:{silver:0,energy:0};
             if(gameState.treasury<cost.silver||gameState.energy<cost.energy){showMessage('太醫救治所需銀兩或體力不足');return;}
             if(!await confirmLowEnergySpend(cost.energy,'救治病危妃嬪'))return;
             const saved=choice!=='none' && Math.random()<(choice==='imperial'?.90:.60);
@@ -2530,7 +2554,7 @@
             if(id==null)return;
             const person=gameState.consorts.find(c=>String(c.id)===String(id));
             if(!person){setGameState(prev=>({...prev,pendingConsortCrises:(prev.pendingConsortCrises||[]).slice(1)}));return;}
-            const cost=option==='visit'?{silver:0,energy:10}:option==='care'?{silver:200,energy:0}:{silver:0,energy:0};
+            const cost=option==='visit'?{silver:0,energy:applyChallengeEnergyCost(10,gameState)}:option==='care'?{silver:200,energy:0}:{silver:0,energy:0};
             if(gameState.treasury<cost.silver||gameState.energy<cost.energy){showMessage('安撫資源不足');return;}
             if(!await confirmLowEnergySpend(cost.energy,'安撫后妃'))return;
             let next={...gameState,treasury:gameState.treasury-cost.silver,energy:gameState.energy-cost.energy,
@@ -2591,8 +2615,9 @@
             const target=(gameState.palaceCases||[]).find(c=>String(c.id)===String(caseId));
             if(!target||target.status!=='unresolved'){showMessage('案件目前不需要重查');return;}
             if(target.lastInvestigatedYear===gameState.dynastyYear){showMessage('本案今年已經調查過了');return;}
-            if(mode==='full'&&(gameState.treasury<200||gameState.energy<10)){showMessage('徹查需要200兩及10體力');return;}
-            if(mode==='full'&&!await confirmLowEnergySpend(10,'徹查內廷案件'))return;
+            const investigationEnergy=applyChallengeEnergyCost(10,gameState);
+            if(mode==='full'&&(gameState.treasury<200||gameState.energy<investigationEnergy)){showMessage(`徹查需要200兩及${investigationEnergy}體力`);return;}
+            if(mode==='full'&&!await confirmLowEnergySpend(investigationEnergy,'徹查內廷案件'))return;
             watchInvestigationOutcome(`palace:${caseId}`,state=>{
                 const result=state.pendingPalaceEvent;
                 return String(result?.id)===String(caseId)&&result.step==='investigationResult'?result.resultSuccess:undefined;
