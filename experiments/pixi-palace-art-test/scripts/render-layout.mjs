@@ -1,6 +1,7 @@
 // Static art layout proof using the SAME asset bytes and scene coordinates as Pixi.
 // This export is NOT a Pixi renderer screenshot or performance test.
 import sharp from 'sharp';
+import {groundCoverage} from '../src/ground.ts';
 import {readFile,writeFile,mkdir} from 'node:fs/promises';
 const layout=JSON.parse(await readFile('src/layout.json','utf8'));
 const manifest=JSON.parse(await readFile('public/assets/manifest.json','utf8'));
@@ -9,6 +10,11 @@ const uris={};
 for(const a of manifest.assets)uris[a.name]='data:image/png;base64,'+(await sharp('public/'+a.file).png().toBuffer()).toString('base64');
 const image=(asset,x,y,w,h)=>`<image href="${uris[asset]}" x="${x}" y="${y}" width="${w}" height="${h}"/>`;
 const sprite=(asset,x,y,w)=>image(asset,x-w/2,y-w*assets[asset].height/assets[asset].width,w,w*assets[asset].height/assets[asset].width);
+const basis=layout.ground.basis,coverage=groundCoverage(basis,layout.width,layout.height),road=layout.ground.road;
+const matrix=`${basis.a} ${basis.b} ${basis.c} ${basis.d}`;
+const tw=assets.courtyard.width*layout.ground.tileScale,th=assets.courtyard.height*layout.ground.tileScale;
+const rh=assets['imperial-road'].height*road.width/assets['imperial-road'].width;
+const groundSVG=`<defs><clipPath id="world"><rect width="${layout.width}" height="${layout.height}"/></clipPath><pattern id="paving" patternUnits="userSpaceOnUse" x="${coverage.x}" y="${coverage.y}" width="${tw}" height="${th}">${image('courtyard',0,0,tw,th)}</pattern><pattern id="road" patternUnits="userSpaceOnUse" x="${-road.width/2}" y="0" width="${road.width}" height="${rh}">${image('imperial-road',0,0,road.width,rh)}</pattern></defs><g clip-path="url(#world)"><g transform="matrix(${matrix} 0 0)"><rect x="${coverage.x}" y="${coverage.y}" width="${coverage.width}" height="${coverage.height}" fill="url(#paving)"/></g><g transform="matrix(${matrix} ${road.x} ${road.y})"><rect x="${-road.width/2}" y="0" width="${road.width}" height="${road.length}" fill="url(#road)"/></g></g>`;
 const groups=[];
 const put=(y,svg)=>groups.push({y,svg});
 for(const t of [...layout.buildings,...layout.trees])put(t.y,sprite(t.asset,t.x,t.y,t.width));
@@ -23,8 +29,10 @@ for(const [i,route] of layout.routes.entries()){
 }
 const shadows=layout.trees.map(t=>`<ellipse cx="${t.x+t.width*.37*.22}" cy="${t.y+8}" rx="${t.width*.37}" ry="18" fill="#18281f" opacity=".19"/>`).join('');
 const labels=layout.buildings.map(b=>b.label).map(l=>`<g transform="translate(${l.x} ${l.y})"><rect x="${l.main?-66:-50}" y="-17" width="${l.main?132:100}" height="34" rx="6" fill="#17231f" fill-opacity=".92" stroke="#bda16a"/><text x="0" y="7" text-anchor="middle" font-family="Noto Serif CJK TC,serif" font-size="${l.main?22:17}" letter-spacing="3" fill="#f4dfaf">${l.text}</text></g>`).join('');
-const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${layout.width}" height="${layout.height}" viewBox="0 0 ${layout.width} ${layout.height}">${image('courtyard',0,0,layout.width,layout.height)}${shadows}${groups.sort((a,b)=>a.y-b.y).map(g=>g.svg).join('')}${labels}<rect y="${layout.height-48}" width="${layout.width}" height="48" fill="#14231f" fill-opacity=".85"/><text x="30" y="${layout.height-16}" fill="#e4d8ba" font-family="Noto Serif CJK TC,serif" font-size="20">主城入口・靜態素材排版預覽（非瀏覽器截圖，不含介面）</text></svg>`;
+const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${layout.width}" height="${layout.height}" viewBox="0 0 ${layout.width} ${layout.height}">${groundSVG}${shadows}${groups.sort((a,b)=>a.y-b.y).map(g=>g.svg).join('')}${labels}<rect y="${layout.height-48}" width="${layout.width}" height="48" fill="#14231f" fill-opacity=".85"/><text x="30" y="${layout.height-16}" fill="#e4d8ba" font-family="Noto Serif CJK TC,serif" font-size="20">主城入口・靜態素材排版預覽（非瀏覽器截圖，不含介面）</text></svg>`;
 await mkdir('docs',{recursive:true});
-await sharp(Buffer.from(svg)).resize(1440).png().toFile('docs/art-layout-preview.png');
+const full=await sharp(Buffer.from(svg)).png().toBuffer();
+await sharp(full).resize(1440).png().toFile('docs/art-layout-preview.png');
+await sharp(full).extract({left:1000,top:780,width:1500,height:1020}).resize(1200).png().toFile('docs/ground-alignment-detail.png');
 await writeFile('docs/art-layout-preview.json',JSON.stringify({type:'static-layout-proof',renderer:'SVG / Sharp, NOT PixiJS',source:'src/layout.json + public/assets/manifest.json',excludes:['camera transforms','HTML interface','mesh animation','night lighting','runtime FPS']},null,2));
 console.log('Saved static art layout proof: docs/art-layout-preview.png');

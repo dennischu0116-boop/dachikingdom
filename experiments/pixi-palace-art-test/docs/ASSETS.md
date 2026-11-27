@@ -1,6 +1,6 @@
 # 美術素材清單 · 主城入口
 
-沿用第二次重製的六張來源 PNG，新增 city-buildings 與 gate 兩張來源圖，共八張 PNG、十九張執行用 WebP。來源為本次對話的圖片生成工具；未擷取《新三國志》遊戲素材，未把含 UI 的概念圖作為遊戲背景。
+本次替換 courtyard 為正俯視石磚材質，新增 imperial-road 正俯視御道；其餘建築與物件素材保留，共九張來源 PNG、二十張執行用 WebP。來源為本次對話的圖片生成工具；未擷取《新三國志》遊戲素材，未把含 UI 的概念圖作為遊戲背景。
 
 | 素材 | 執行檔案 | 實際像素 | bytes | 透明背景 |
 | --- | --- | --- | ---: | --- |
@@ -10,7 +10,8 @@
 | 松樹 | assets/pine.webp | 501 × 408 | 104284 | 有 |
 | 闊葉樹 | assets/broadleaf.webp | 496 × 438 | 114964 | 有 |
 | 花樹 | assets/blossom.webp | 500 × 407 | 117598 | 有 |
-| 石磚廣場及低矮植栽帶 | assets/courtyard.webp | 1536 × 1024 | 303096 | 無，純地面與低植栽 |
+| 正俯視石磚材料 | assets/courtyard.webp | 1536 × 1024 | 583602 | 無，鋪滿地面 |
+| 正俯視御道材料 | assets/imperial-road.webp | 512 × 768 | 136308 | 無，獨立地面圖層 |
 | 旗杆 | assets/flagpole.webp | 106 × 597 | 14776 | 有 |
 | 龍紋旗布 | assets/banner.webp | 254 × 560 | 61820 | 有 |
 | 宮燈 | assets/lantern.webp | 181 × 562 | 25548 | 有 |
@@ -24,19 +25,19 @@
 | 皇家寶庫 | assets/treasury.webp | 464 × 408 | 73898 | 有 |
 | 宮門 | assets/gate.webp | 1024 × 740 | 297098 | 有 |
 
-WebP 合計 **2097098 bytes**。來源、尺寸及 SHA-256 見 manifest.json。原始 PNG 不由網站載入。
+WebP 合計 **2513912 bytes**。來源、尺寸及 SHA-256 見 manifest.json。原始 PNG 不由網站載入。
 
 ## 畫面方向
 
 - 以重製太和殿為配殿、植栽與道具的視覺參考：固定西南方向斜俯視、可見建築前方與左側、左上方日光。
 - 瓦面改為霧面赭金陶瓦，朱紅木構降低飽和度；保留灰白石材的細節與陰影。
 - 主殿與台基、階梯整體生成；地面、樹木、人物、旗幟、燈光、標籤仍各自分層。
-- 地面與植栽獨立，十座建築分布於主殿周邊；沒有將建築或人物烘焙到地面。新增機構建築使用灰瓦／赭金屋頂及各自可辨識的輪廓。
+- 地面與御道共用一組投影，植栽另置；十座建築分布於主殿周邊，沒有將建築或人物烘焙到地面。新增機構建築使用灰瓦／赭金屋頂及各自可辨識的輪廓。
 - 人物改成俯視圖，每格 128×96，四方向各兩幀。沒有把幾乎相同的六幀宣稱為完整步行動畫。
 
 ## 檔案與重建
 
-`source-art/` 內為 taihe、architecture（兩座配殿）、courtyard、trees（三種樹）、guards、props、city-buildings（六座新附屬建築）、gate 共八張原圖。`npm run assets` 以 Sharp 做固定裁切、透明留白修整及 WebP 編碼；`npm test` 檢查尺寸、容量、透明通道、動畫格線及雜湊。
+`source-art/` 內為 taihe、architecture（兩座配殿）、courtyard、trees（三種樹）、guards、props、city-buildings（六座新附屬建築）、gate、imperial-road 共九張原圖。`npm run assets` 以 Sharp 做固定裁切、透明留白修整及 WebP 編碼；`npm test` 檢查尺寸、容量、透明通道、動畫格線及雜湊。
 
 `src/layout.json` 同時提供給 PixiJS 場景及 `scripts/render-layout.mjs`。`docs/art-layout-preview.png` 是實際素材排版證明圖，不是遊戲背景或 PixiJS 瀏覽器截圖。
 

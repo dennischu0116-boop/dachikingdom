@@ -6,18 +6,22 @@
 | --- | --- |
 | TypeScript 型別檢查、Vite production build | 通過 |
 | 游標中心縮放（含上下限）、桌面／直式鏡頭邊界測試 | 通過，2 個測試案例，涵蓋多組比例及視窗尺寸 |
-| 建築配置狀態與手勢邏輯 | 通過，13 個編輯測試、2 個鏡頭測試、6 個入口／預覽測試，共 21 項 |
-| 19 張 WebP 的尺寸、透明通道、SHA-256、檔案容量與動畫格線 | 通過，19 張素材全部符合 manifest |
-| WebP 實際檔案容量 | 2,097,098 bytes（2.097 MB / 2.000 MiB） |
+| 建築配置狀態與手勢邏輯 | 通過，13 個編輯測試、2 個鏡頭測試、6 個入口／預覽測試、4 個地面投影／對位／舊配置測試，共 25 項 |
+| 20 張 WebP 的尺寸、透明通道、SHA-256、檔案容量與動畫格線 | 通過，20 張素材全部符合 manifest |
+| WebP 實際檔案容量 | 2,513,912 bytes（2.514 MB / 2.397 MiB） |
 | 實際冷載入傳輸容量 | 未測，不以檔案容量代替網路傳輸量 |
 | 桌面 FPS | 未測 |
 | 手機實機 FPS／雙指縮放 | 未測 |
 | 十建築主城素材的靜態排版檢查 | 已檢查；由共用座標與實際 WebP 排版，非 PixiJS 截圖 |
 | 配置模式、晝夜、高亮、拖曳、遮擋的瀏覽器驗收 | 未完成 |
 
-阻塞原因：managed preview 回報 `relay could not open browser port 4173: timed out waiting for relay readiness`。初始化並啟動雲端瀏覽器後再試仍相同。未改用另一個伺服器或繞過預覽基礎設施。本次主城入口實作重新嘗試 `sites-preview start`，仍回報同樣的 relay 逾時，`sites-preview status` 回報 stopped。無法由成功編譯或靜態排版圖推論瀏覽器操作或效能合格。
+阻塞原因：managed preview 回報 `relay could not open browser port 4173: timed out waiting for relay readiness`。初始化並啟動雲端瀏覽器後再試仍相同。未改用另一個伺服器或繞過預覽基礎設施。本次地面對位修正重新嘗試 `sites-preview start`，仍回報同樣的 relay 逾時，`sites-preview status` 回報 stopped。無法由成功編譯或靜態排版圖推論瀏覽器操作或效能合格。
 
 開發環境套件：PixiJS 8.23.0、Vite 7.3.8、TypeScript 5.9.3、Sharp 0.34.5、Node 24.22.3。實際鎖定版本見 package-lock.json。
+
+## 地面對位驗證
+
+完整地面覆蓋、逆投影、御道與鋪磚共軸、階梯標記落點與舊配置保存新增四項測試。完整與局部靜態圖已檢視；宮門素材可沿用，沒有宣稱其內部透視完全精確。PixiJS 的平鋪紋理、遮罩與實際 GPU 效果仍未經瀏覽器驗證。
 
 ## 主城入口驗證
 

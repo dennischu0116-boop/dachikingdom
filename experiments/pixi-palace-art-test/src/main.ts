@@ -1,4 +1,4 @@
-import { Application, Assets, Container, Graphics, MeshPlane, Rectangle, Sprite, Text, Texture, WebGLRenderer } from 'pixi.js';
+import { Application, Assets, Container, Graphics, MeshPlane, Matrix, TilingSprite, Rectangle, Sprite, Text, Texture, WebGLRenderer } from 'pixi.js';
 import './style.css';
 import { setupPortals } from './portals';
 const portalUI=setupPortals();
@@ -7,6 +7,7 @@ import { cameraBounds, zoomTransform } from './camera';
 import { BuildingLayout, loadLayout, saveLayout, clearLayout } from './building-layout';
 import type { BuildingSpec, LayoutStorage } from './building-layout';
 import { SceneGestures } from './gestures';
+import { groundCoverage } from './ground';
 
 type AssetRecord = { name: string; file: string; width: number; height: number; bytes: number };
 type Manifest = { assets: AssetRecord[]; totalBytes: number };
@@ -64,7 +65,19 @@ function addLamp(x:number,y:number) {
   glow.circle(0,0,4).fill({color:0xffe6a5,alpha:.85});glow.position.set(x,y-47);glow.blendMode='add';lightLayer.addChild(glow);lamps.push(glow);
 }
 function buildScene() {
-  const ground = new Sprite(tex.courtyard);ground.width=WIDTH;ground.height=HEIGHT;floor.addChild(ground);
+  const basis=layout.ground.basis;
+  const coverage=groundCoverage(basis,WIDTH,HEIGHT);
+  const plane=new Container();plane.setFromMatrix(new Matrix(basis.a,basis.b,basis.c,basis.d,0,0));
+  const ground=new TilingSprite({texture:tex.courtyard,width:coverage.width,height:coverage.height});
+  ground.position.set(coverage.x,coverage.y);ground.tileScale.set(layout.ground.tileScale);
+  plane.addChild(ground);floor.addChild(plane);
+  const roadSpec=layout.ground.road;
+  const roadPlane=new Container();roadPlane.setFromMatrix(new Matrix(basis.a,basis.b,basis.c,basis.d,roadSpec.x,roadSpec.y));
+  const road=new TilingSprite({texture:tex['imperial-road'],width:roadSpec.width,height:roadSpec.length});
+  road.x=-roadSpec.width/2;road.tileScale.set(roadSpec.width/tex['imperial-road'].width);
+  roadPlane.addChild(road);floor.addChild(roadPlane);
+  const groundMask=new Graphics().rect(0,0,WIDTH,HEIGHT).fill(0xffffff);
+  world.addChild(groundMask);floor.mask=groundMask;
   // A coherent architectural sprite includes the hall, three-tier plinth and stairs.
   // Terrain, vegetation, flags, guards, labels and effects remain independent layers.
   const definitions = layout.buildings;

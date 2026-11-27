@@ -1,8 +1,8 @@
 {
   "generated": "2026-11-27",
   "origin": "OpenAI image generation tool, generated for this experiment; no third-party game assets",
-  "revision": "city-portals-1",
-  "note": "Ten building entrances: retained main hall and two side halls, six new distinct institutional buildings and one palace gate. Shared southwest elevated camera and muted ceramic palette. Historical geometry is illustrative.",
+  "revision": "ground-alignment-1",
+  "note": "Top-down courtyard and independent imperial-road materials projected with one shared basis fitted to the Taihe plinth. Default gate relocated onto the road axis. All ten building textures retained. Projection is an artistic approximation, not surveyed geometry.",
   "assets": [
     {
       "name": "taihe",
@@ -70,9 +70,19 @@
       "source": "source-art/courtyard.png",
       "width": 1536,
       "height": 1024,
-      "bytes": 303096,
+      "bytes": 583602,
       "alpha": false,
-      "sha256": "06fe670532fe7255e8eaa07d88f437f7c092e476f2eb66fef43f35c19ba204d1"
+      "sha256": "aab4bec281534263c7c969b954fed9c038913c2027a49ecfd234bac7629ff679"
+    },
+    {
+      "name": "imperial-road",
+      "file": "assets/imperial-road.webp",
+      "source": "source-art/imperial-road.png",
+      "width": 512,
+      "height": 768,
+      "bytes": 136308,
+      "alpha": false,
+      "sha256": "86c6f66244577ee130fa6a75ac947c165ea9c8c7964cfe226f82b3b5e5d541d4"
     },
     {
       "name": "flagpole",
@@ -199,5 +209,5 @@
       "sha256": "df1b93c29b98c5c677bd4189a9ea61d8d74f4669068e4b19a221e6dbc289ca41"
     }
   ],
-  "totalBytes": 2097098
+  "totalBytes": 2513912
 }

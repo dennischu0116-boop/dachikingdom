@@ -1,20 +1,20 @@
 {
-  "revision": "city-portals-1",
+  "revision": "ground-alignment-1",
   "automatedTests": {
-    "passed": 21,
+    "passed": 25,
     "failed": 0,
-    "scope": "Node tests of actual navigation, rendering functions, fixtures, gestures, storage and camera; not browser tests"
+    "scope": "Node tests of navigation, rendering functions, fixtures, gestures, storage, camera, shared ground projection and default stair-foot alignment; not browser tests"
   },
   "build": "TypeScript and Vite passed",
-  "buildWarning": "Main JS chunk is 512.87 kB minified, 158.34 kB gzip; Vite recommends splitting chunks over 500 kB. This is a size warning, not a measured performance result.",
+  "buildWarning": "Main JS chunk is 526.84 kB minified, 161.57 kB gzip; Vite recommends splitting chunks over 500 kB. This is a size warning, not measured performance.",
   "assets": {
-    "webpCount": 19,
-    "webpBytes": 2097098,
+    "webpCount": 20,
+    "webpBytes": 2513912,
     "integrity": "dimensions, alpha, SHA-256 and animation grid verified"
   },
   "dist": {
-    "files": 28,
-    "bytes": 2784278,
+    "files": 29,
+    "bytes": 3215412,
     "note": "Files on disk; not actual network transfer size"
   },
   "browserQA": {
@@ -25,5 +25,6 @@
   "desktopFPS": null,
   "physicalMobileFPS": null,
   "coldNetworkTransferBytes": null,
-  "staticArtProof": "docs/art-layout-preview.png; not a browser screenshot"
+  "staticArtProof": "docs/art-layout-preview.png and docs/ground-alignment-detail.png; static SVG/Sharp composition, not browser screenshots",
+  "compatibility": "Existing city-portals-1 building positions retained; explicit reset applies new default gate/barracks positions."
 }

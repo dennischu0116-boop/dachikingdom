@@ -10,7 +10,7 @@ for(const a of manifest.assets){
  assert.equal(meta.format,'webp');assert.equal(meta.width,a.width);assert.equal(meta.height,a.height);
  assert.equal(bytes,a.bytes);assert.equal(createHash('sha256').update(await readFile(path)).digest('hex'),a.sha256);
  assert.ok(meta.width<=2048&&meta.height<=2048);
- if(a.name!=='courtyard'){
+ if(!['courtyard','imperial-road'].includes(a.name)){
   assert.ok(meta.hasAlpha,`${a.name} must have alpha`);
   const stats=await sharp(path).stats();assert.equal(stats.channels.at(-1).min,0,`${a.name} needs transparent background`);
  }
