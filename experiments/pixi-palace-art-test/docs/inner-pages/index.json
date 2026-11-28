@@ -1,0 +1,216 @@
+{
+  "kind": "actual-markup-static-gallery",
+  "browserVerified": false,
+  "pages": [
+    {
+      "name": "court-court.html",
+      "title": "上朝聽政",
+      "route": "court",
+      "tab": "court"
+    },
+    {
+      "name": "court-pending.html",
+      "title": "待決事件",
+      "route": "court",
+      "tab": "pending"
+    },
+    {
+      "name": "court-summary.html",
+      "title": "本年摘要",
+      "route": "court",
+      "tab": "summary"
+    },
+    {
+      "name": "ministries-officials.html",
+      "title": "官職任命",
+      "route": "ministries",
+      "tab": "officials"
+    },
+    {
+      "name": "ministries-roster.html",
+      "title": "官員清單",
+      "route": "ministries",
+      "tab": "roster"
+    },
+    {
+      "name": "ministries-academy.html",
+      "title": "皇家書院",
+      "route": "ministries",
+      "tab": "academy"
+    },
+    {
+      "name": "ministries-recruit.html",
+      "title": "人才招募",
+      "route": "ministries",
+      "tab": "recruit"
+    },
+    {
+      "name": "government-finance.html",
+      "title": "稅政賑糧",
+      "route": "government",
+      "tab": "finance"
+    },
+    {
+      "name": "government-reform.html",
+      "title": "改革科技",
+      "route": "government",
+      "tab": "reform"
+    },
+    {
+      "name": "government-diplomacy.html",
+      "title": "外交和親",
+      "route": "government",
+      "tab": "diplomacy"
+    },
+    {
+      "name": "council-cases.html",
+      "title": "案件清單",
+      "route": "council",
+      "tab": "cases"
+    },
+    {
+      "name": "military-army.html",
+      "title": "兵馬管理",
+      "route": "military",
+      "tab": "army"
+    },
+    {
+      "name": "military-campaign.html",
+      "title": "御駕親征",
+      "route": "military",
+      "tab": "campaign"
+    },
+    {
+      "name": "military-defense.html",
+      "title": "邊疆部署",
+      "route": "military",
+      "tab": "defense"
+    },
+    {
+      "name": "harem-consorts.html",
+      "title": "妃嬪名冊",
+      "route": "harem",
+      "tab": "consorts"
+    },
+    {
+      "name": "harem-stories.html",
+      "title": "深宮秘聞",
+      "route": "harem",
+      "tab": "stories"
+    },
+    {
+      "name": "school-children.html",
+      "title": "皇嗣教育",
+      "route": "school",
+      "tab": "children"
+    },
+    {
+      "name": "school-academy.html",
+      "title": "皇家書院",
+      "route": "school",
+      "tab": "academy"
+    },
+    {
+      "name": "study-training.html",
+      "title": "文武培養",
+      "route": "study",
+      "tab": "training"
+    },
+    {
+      "name": "clan-tree.html",
+      "title": "皇室族譜",
+      "route": "clan",
+      "tab": "tree"
+    },
+    {
+      "name": "clan-history.html",
+      "title": "歷代皇帝",
+      "route": "clan",
+      "tab": "history"
+    },
+    {
+      "name": "clan-family.html",
+      "title": "宗室事務",
+      "route": "clan",
+      "tab": "family"
+    },
+    {
+      "name": "treasury-supplies.html",
+      "title": "補給",
+      "route": "treasury",
+      "tab": "supplies"
+    },
+    {
+      "name": "treasury-gifts.html",
+      "title": "珍玩",
+      "route": "treasury",
+      "tab": "gifts"
+    },
+    {
+      "name": "gate-travel.html",
+      "title": "微服私訪",
+      "route": "gate",
+      "tab": "travel"
+    },
+    {
+      "name": "gate-provinces.html",
+      "title": "疆域管理",
+      "route": "gate",
+      "tab": "provinces"
+    },
+    {
+      "name": "emperor-profile.html",
+      "title": "皇帝資料",
+      "route": "emperor",
+      "tab": "profile"
+    },
+    {
+      "name": "emperor-achievements.html",
+      "title": "成就",
+      "route": "emperor",
+      "tab": "achievements"
+    },
+    {
+      "name": "emperor-ranking.html",
+      "title": "排行榜",
+      "route": "emperor",
+      "tab": "ranking"
+    },
+    {
+      "name": "year-review.html",
+      "title": "年度檢視",
+      "route": "year",
+      "tab": "review"
+    },
+    {
+      "name": "system-settings.html",
+      "title": "設定",
+      "route": "system",
+      "tab": "settings"
+    },
+    {
+      "name": "system-save.html",
+      "title": "存檔狀態",
+      "route": "system",
+      "tab": "save"
+    },
+    {
+      "name": "system-manual.html",
+      "title": "玩法說明",
+      "route": "system",
+      "tab": "manual"
+    },
+    {
+      "name": "system-updates.html",
+      "title": "更新說明",
+      "route": "system",
+      "tab": "updates"
+    },
+    {
+      "name": "resources-overview.html",
+      "title": "國家概況",
+      "route": "resources",
+      "tab": "overview"
+    }
+  ]
+}

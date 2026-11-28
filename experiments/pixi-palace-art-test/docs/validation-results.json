@@ -1,21 +1,24 @@
 {
-  "revision": "ground-alignment-1",
+  "revision": "inner-visuals-1",
   "automatedTests": {
-    "passed": 25,
+    "passed": 31,
     "failed": 0,
-    "scope": "Node tests of navigation, rendering functions, fixtures, gestures, storage, camera, shared ground projection and default stair-foot alignment; not browser tests"
+    "scope": "Node tests of actual navigation, HTML rendering, image and route references, roster filters and stable detail indices, in-memory training/selection, fixtures, gestures, storage, camera and shared ground projection; not browser tests"
   },
   "build": "TypeScript and Vite passed",
-  "buildWarning": "Main JS chunk is 526.84 kB minified, 161.57 kB gzip; Vite recommends splitting chunks over 500 kB. This is a size warning, not measured performance.",
+  "buildWarning": "Main JS: 549039 bytes; gzip 167593 bytes. Vite warns above 500 kB; not a runtime measurement.",
   "assets": {
-    "webpCount": 20,
-    "webpBytes": 2513912,
-    "integrity": "dimensions, alpha, SHA-256 and animation grid verified"
+    "webpCount": 44,
+    "webpBytes": 4583116,
+    "sceneWebpBytes": 2513912,
+    "uiWebpBytes": 2069204,
+    "integrity": "dimensions, alpha, SHA-256, bytes and scene animation grid verified",
+    "loading": "UI on opening relevant page; emperor headshot also initial HUD"
   },
   "dist": {
-    "files": 29,
-    "bytes": 3215412,
-    "note": "Files on disk; not actual network transfer size"
+    "files": 54,
+    "bytes": 5346851,
+    "note": "Files on disk; not network transfer size"
   },
   "browserQA": {
     "status": "unverified",
@@ -25,6 +28,13 @@
   "desktopFPS": null,
   "physicalMobileFPS": null,
   "coldNetworkTransferBytes": null,
-  "staticArtProof": "docs/art-layout-preview.png and docs/ground-alignment-detail.png; static SVG/Sharp composition, not browser screenshots",
-  "compatibility": "Existing city-portals-1 building positions retained; explicit reset applies new default gate/barracks positions."
+  "staticArtProof": "Existing scene proof plus officials-visual-desktop.png, officials-visual-mobile.png and inner-visual-overview.png; SVG/Sharp design compositions, not browser screenshots",
+  "compatibility": "Existing city-portals-1 building positions and save format unchanged. New inner-page state is memory-only. Production game/save/version untouched.",
+  "staticHTMLGallery": {
+    "pages": 35,
+    "path": "docs/inner-pages/index.html",
+    "source": "actual renderer and CSS",
+    "browserVerified": false
+  },
+  "remoteMainObservedBeforePush": "996924ab128a6695e0ebe8e2bd53dde1767d8862"
 }

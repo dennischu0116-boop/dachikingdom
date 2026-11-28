@@ -1,0 +1,248 @@
+{
+  "revision": "inner-visuals-1",
+  "origin": "Generated in this conversation using OpenAI image generation; fictional portraits and illustrative geography",
+  "loading": "HTML image assets loaded on opening their page, except emperor headshot in initial HUD; not part of Pixi scene preload",
+  "assets": [
+    {
+      "name": "hall",
+      "file": "assets/ui/hall.webp",
+      "source": "source-art/ui/environments.png",
+      "width": 768,
+      "height": 512,
+      "alpha": false,
+      "bytes": 121944,
+      "sha256": "cdf648560722638541d89d8215c40b14650b668bd4f352150f80344feb2baa22"
+    },
+    {
+      "name": "garden",
+      "file": "assets/ui/garden.webp",
+      "source": "source-art/ui/environments.png",
+      "width": 768,
+      "height": 512,
+      "alpha": false,
+      "bytes": 139164,
+      "sha256": "535038ae05f38a5e947b78439854b9cc67d456de35775f3b698dcff5cea2706b"
+    },
+    {
+      "name": "study",
+      "file": "assets/ui/study.webp",
+      "source": "source-art/ui/environments.png",
+      "width": 768,
+      "height": 512,
+      "alpha": false,
+      "bytes": 120138,
+      "sha256": "676c09cf938ed9962c424f4345840506153fa779797aa9b1df0c6eac6e1a4acb"
+    },
+    {
+      "name": "camp",
+      "file": "assets/ui/camp.webp",
+      "source": "source-art/ui/environments.png",
+      "width": 768,
+      "height": 512,
+      "alpha": false,
+      "bytes": 112074,
+      "sha256": "d330552d348094af35e53ac0aaf0a09aa35584653d9fea0ba461e8f6e678ec97"
+    },
+    {
+      "name": "official-civil",
+      "file": "assets/ui/official-civil.webp",
+      "source": "source-art/ui/portraits.png",
+      "width": 449,
+      "height": 508,
+      "alpha": true,
+      "bytes": 58922,
+      "sha256": "aec6f7e92f7a062a2467f8c5e4112cbc49817ea4f976cbfac78845706f3bec74"
+    },
+    {
+      "name": "official-revenue",
+      "file": "assets/ui/official-revenue.webp",
+      "source": "source-art/ui/portraits.png",
+      "width": 433,
+      "height": 509,
+      "alpha": true,
+      "bytes": 53926,
+      "sha256": "0b5b487bb695b533d560dc14abebb7c06cd8f99f5f7d4e3641caa2aa0d6f8065"
+    },
+    {
+      "name": "official-general",
+      "file": "assets/ui/official-general.webp",
+      "source": "source-art/ui/portraits.png",
+      "width": 451,
+      "height": 508,
+      "alpha": true,
+      "bytes": 68340,
+      "sha256": "2e8ab1ea349c67e9e67bcda2089a1be769d789b9b1b31ab215a354f19298b959"
+    },
+    {
+      "name": "emperor",
+      "file": "assets/ui/emperor.webp",
+      "source": "source-art/ui/portraits.png",
+      "width": 488,
+      "height": 512,
+      "alpha": true,
+      "bytes": 67448,
+      "sha256": "f30807ef6f2e5aa5ee5831348f21e9123752371042f6a1c13ae43e7740f027ac"
+    },
+    {
+      "name": "consort-red",
+      "file": "assets/ui/consort-red.webp",
+      "source": "source-art/ui/portraits.png",
+      "width": 409,
+      "height": 502,
+      "alpha": true,
+      "bytes": 70306,
+      "sha256": "5613b6b864566e80f61dfd35635c16b60e32ff75efc89d6fe7296ad7f5161e16"
+    },
+    {
+      "name": "consort-jade",
+      "file": "assets/ui/consort-jade.webp",
+      "source": "source-art/ui/portraits.png",
+      "width": 402,
+      "height": 505,
+      "alpha": true,
+      "bytes": 64566,
+      "sha256": "49892516796e83706c6896194bc41dce16c68f0584ebaa874ae65aa8ad876206"
+    },
+    {
+      "name": "seal",
+      "file": "assets/ui/seal.webp",
+      "source": "source-art/ui/artifacts.png",
+      "width": 384,
+      "height": 399,
+      "alpha": true,
+      "bytes": 48758,
+      "sha256": "19bfb43d1c8a268aa7ddf46333415309571689d405cc661dd58b06fe9967e465"
+    },
+    {
+      "name": "ruyi",
+      "file": "assets/ui/ruyi.webp",
+      "source": "source-art/ui/artifacts.png",
+      "width": 384,
+      "height": 440,
+      "alpha": true,
+      "bytes": 53668,
+      "sha256": "66035d53e0ffcc7219dd8693ffc65cd9b0e583fb0724177fc668e42b1d683d00"
+    },
+    {
+      "name": "medicine",
+      "file": "assets/ui/medicine.webp",
+      "source": "source-art/ui/artifacts.png",
+      "width": 384,
+      "height": 456,
+      "alpha": true,
+      "bytes": 46688,
+      "sha256": "edf2c3b8adab080eb05f893eee5c75c0503120044e071477880523a9177f3685"
+    },
+    {
+      "name": "books",
+      "file": "assets/ui/books.webp",
+      "source": "source-art/ui/artifacts.png",
+      "width": 384,
+      "height": 381,
+      "alpha": true,
+      "bytes": 48540,
+      "sha256": "2cac5569aea64328050aaaea0289ff1c9eaa082a3fdd654bd002cc3f69b3e885"
+    },
+    {
+      "name": "edict",
+      "file": "assets/ui/edict.webp",
+      "source": "source-art/ui/artifacts.png",
+      "width": 384,
+      "height": 375,
+      "alpha": true,
+      "bytes": 42530,
+      "sha256": "363bab11fefbd88772916f928f3ecaef46902d010b2d30869ce881d75f2975c4"
+    },
+    {
+      "name": "helmet",
+      "file": "assets/ui/helmet.webp",
+      "source": "source-art/ui/artifacts.png",
+      "width": 384,
+      "height": 437,
+      "alpha": true,
+      "bytes": 64948,
+      "sha256": "9d58197324168911743587ff96e02d1636459ac663ea70d0e0eab58fe488529c"
+    },
+    {
+      "name": "map",
+      "file": "assets/ui/map.webp",
+      "source": "source-art/ui/landscapes.png",
+      "width": 768,
+      "height": 512,
+      "alpha": false,
+      "bytes": 171488,
+      "sha256": "d60d2a2a47213a80b24541dae16d68ab3c3ddc2108aa99cdfb46a09c8ad1f014"
+    },
+    {
+      "name": "market",
+      "file": "assets/ui/market.webp",
+      "source": "source-art/ui/landscapes.png",
+      "width": 768,
+      "height": 512,
+      "alpha": false,
+      "bytes": 155092,
+      "sha256": "008b0642f77bac4f2b016368e47a8a4dfcab57344b93ad99a384659220d1d123"
+    },
+    {
+      "name": "countryside",
+      "file": "assets/ui/countryside.webp",
+      "source": "source-art/ui/landscapes.png",
+      "width": 768,
+      "height": 512,
+      "alpha": false,
+      "bytes": 162698,
+      "sha256": "ed1f1194bece5a7e3ce1f77c819e8dc6fcbf038b861ddf3b7fd9703677fbce7b"
+    },
+    {
+      "name": "frontier",
+      "file": "assets/ui/frontier.webp",
+      "source": "source-art/ui/landscapes.png",
+      "width": 768,
+      "height": 512,
+      "alpha": false,
+      "bytes": 111258,
+      "sha256": "904ab739cc132acea3d05bb2c49efa960dd36ad35060c3ff75ee053be5e8df72"
+    },
+    {
+      "name": "prince-elder",
+      "file": "assets/ui/prince-elder.webp",
+      "source": "source-art/ui/princes.png",
+      "width": 512,
+      "height": 1021,
+      "alpha": true,
+      "bytes": 112216,
+      "sha256": "f7ab8fa4cbb52242757ca92b25aecb375ae56426cfc95833a551317da6b6e3a5"
+    },
+    {
+      "name": "prince-young",
+      "file": "assets/ui/prince-young.webp",
+      "source": "source-art/ui/princes.png",
+      "width": 493,
+      "height": 891,
+      "alpha": true,
+      "bytes": 82492,
+      "sha256": "6946c267a298a64a34c12bfcf6b6bc1aa7283630eaf56d0c73ce873a3b4637f9"
+    },
+    {
+      "name": "inkstick",
+      "file": "assets/ui/inkstick.webp",
+      "source": "source-art/ui/treasury-extras.png",
+      "width": 384,
+      "height": 346,
+      "alpha": true,
+      "bytes": 40038,
+      "sha256": "c50dad4a45710a7ee1104133761ba2dd419ea370036d0cda7dc7d383a323b88c"
+    },
+    {
+      "name": "herbal-soup",
+      "file": "assets/ui/herbal-soup.webp",
+      "source": "source-art/ui/treasury-extras.png",
+      "width": 384,
+      "height": 405,
+      "alpha": true,
+      "bytes": 51962,
+      "sha256": "78b2a37edc2dabe84d2179ca37c02fecbb24a13c7349b41c5cb9d3839b8992ba"
+    }
+  ],
+  "totalBytes": 2069204
+}

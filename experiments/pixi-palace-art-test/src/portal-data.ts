@@ -31,7 +31,7 @@ export const portals: Portal[] = [
             ]),
             tab('pending', '待決事件', '重要政務集中呈報，點選可查看詳情或前往相關衙門。', [
                 { title: '邊疆戰線待部署', meta: '兵部 · 2 條戰線', description: '北境與西陲需要配置兵力及將領。', route: 'military', tab: 'defense' },
-                { title: '地方官職出缺', meta: '吏部 · 3 處待任命', description: '查閱候選官員並預覽任命。', route: 'ministries', tab: 'officials' },
+                { title: '中央官職任命', meta: '吏部 · 三個官職席位', description: '查閱候選官員並預覽任命。', route: 'ministries', tab: 'officials' },
                 item('老臣請辭', '御前待決', '禮部老臣奏請告老，請選擇慰留或准辭。', '預覽裁決', '裁決預覽已呈報，不更動官員資料。')
             ]),
             tab('summary', '本年摘要', '以下為固定年度示例，方便檢視摘要版面。', [
@@ -39,16 +39,16 @@ export const portals: Portal[] = [
                 item('朝野近況', '民心 78 · 管轄 12 省', '本年完成兩件政務，三處官職待補。')
             ])
         ] },
-    { id: 'ministries', title: '六部衙門', subtitle: '國政 · 百官庶務', asset: 'east-hall', tabs: [
-            tab('officials', '官員任命', '先選官職，再檢視候選官員的能力與任職資訊。', [
-                item('江蘇巡撫', '出缺 · 文職', '候選：沈文清，文才 86、忠誠 82。', '預覽任命', '江蘇巡撫任命預覽，候選人依下方選擇摘要；未任命、未扣除資源。'),
-                item('戶部侍郎', '出缺 · 財政', '候選：顧秉衡，文才 79、忠誠 88。', '預覽任命', '戶部侍郎任命預覽，候選人依下方選擇摘要。'),
-                item('北境總兵', '出缺 · 武職', '候選：陸承毅，武略 91、忠誠 76。', '預覽任命', '北境總兵任命預覽，候選人依下方選擇摘要。')
+    { id: 'ministries', title: '中央與百官', subtitle: '吏部 · 知人善任', asset: 'east-hall', tabs: [
+            tab('officials', '官職任命', '先選官職，再檢視候選官員的能力與任職資訊。', [
+                item('丞相', '中央官職 · 文治', '候選：沈文清，文治 86、忠誠 82。主管朝政，任命資訊以示範呈現。', '預覽任命', '丞相任命預覽，候選人依下方選擇摘要；未任命、未扣除資源。'),
+                item('戶部尚書', '中央官職 · 文治', '候選：顧秉衡，文治 79、忠誠 88。', '預覽任命', '戶部尚書任命預覽，候選人依下方選擇摘要。'),
+                item('兵部尚書', '中央官職 · 武力', '候選：陸承毅，武力 91、忠誠 76。', '預覽任命', '兵部尚書任命預覽，候選人依下方選擇摘要。')
             ]),
             tab('roster', '官員清單', '人物為虛構示例；可打開完整資料卡。', [
-                item('沈文清', '文才 86 · 忠誠 82', '江南士人，長於民政與河務。現為待任候選。'),
-                item('顧秉衡', '文才 79 · 忠誠 88', '熟悉財賦制度，現為戶部候選。'),
-                item('陸承毅', '武略 91 · 忠誠 76', '熟悉邊地軍務，現為總兵候選。')
+                item('沈文清', '文治 86 · 忠誠 82', '江南士人，長於民政與河務。現為待任候選。'),
+                item('顧秉衡', '文治 79 · 忠誠 88', '熟悉財賦制度，現任地方官，可預覽調任戶部。'),
+                item('陸承毅', '武力 91 · 忠誠 76', '熟悉邊地軍務，現為兵部候選。')
             ]),
             tab('recruit', '科舉招募', '檢視招募方式與名帖展示。', [
                 item('科舉取士', '文官招募', '名帖示例：沈文清，江南籍，經義優等。', '預覽單次招募', '展示一張示範名帖，不抽取新人物。'),
@@ -177,10 +177,10 @@ export const portals: Portal[] = [
             tab('manual', '玩法說明', '這是入口介面示範，沒有遊戲進度與資源消耗。', [
                 item('探索宮城', '點選建築 · 拖動空地', '點建築或底部捷徑開啟相同面板；分頁、詳情及返回可自由切換。滾輪與雙指可縮放。'),
                 item('調整配置', '設定 · 配置模式', '開啟配置模式後拖移十座建築，標籤與遮擋排序跟隨更新。還原配置可回到預設位置。'),
-                item('手機操作', '底部面板 · 展開閱讀', '摘要面板可展開為全螢幕；查看詳情會自動展開。關閉後保留鏡頭位置。')
+                item('手機操作', '全螢幕內頁 · 分頁閱讀', '主要功能以全螢幕呈現；人物、資訊與操作區依手機寬度重新排列。關閉後保留鏡頭位置。')
             ]),
             tab('updates', '更新說明', '本次只更新獨立實驗專案。', [
-                item('主城入口示範', 'city-portals-1', '新增十個建築入口、七個底部捷徑、政務待辦、人物與功能詳情、操作預覽、響應式面板。保留配置編輯及場景測試工具。')
+                item('內頁視覺改版', 'inner-visuals-1', '十五個功能入口改為全螢幕宮廷內頁，加入人物肖像與器物素材。中央官員提供任命、名冊篩選、書院及招募示例；各功能採專屬布局。保留配置編輯與場景工具。')
             ])
         ] },
     { id: 'resources', title: '國家概況', subtitle: '弘熙十二年 · 示範資料', tabs: [
@@ -191,8 +191,19 @@ export const portals: Portal[] = [
             ])
         ] },
 ];
-export const buildingRoutes: Record<string, string> = { taihe: 'court', 'east-hall': 'ministries', 'west-pavilion': 'harem', council: 'council', barracks: 'military', school: 'school', study: 'study', clan: 'clan', treasury: 'treasury', gate: 'gate' };
-export const shortcuts = [['court', 'court', '朝廷', '朝'], ['ministries', 'officials', '官員', '官'], ['harem', 'consorts', '後宮', '宮'], ['military', 'army', '軍事', '武'], ['ministries', 'finance', '國政', '政'], ['gate', 'provinces', '疆域', '疆'], ['treasury', 'supplies', '寶庫', '藏']];
+// Four official tabs match the current game's information architecture.
+const ministers=portals.find(p=>p.id==='ministries')!;
+const governmentTabs=ministers.tabs.filter(t=>['finance','reform','diplomacy'].includes(t.id));
+ministers.tabs=ministers.tabs.filter(t=>!governmentTabs.includes(t));
+ministers.tabs.splice(2,0,tab('academy','皇家書院','官員課程與訓練後能力的介面預覽，最多十名、年滿十六歲；此處提供三名示例。',[
+ item('沈文清','48 歲 · 文治 86／武力 34','可安排經史或騎射課程；預覽不更動能力。','預覽課程','課程安排預覽，未登記年度訓練。'),
+ item('顧秉衡','58 歲 · 文治 79／武力 42','查看官員年度訓練安排。','預覽課程','課程安排預覽，未扣費。'),
+ item('陸承毅','38 歲 · 文治 45／武力 91','查看軍事人才的訓練安排。','預覽課程','課程安排預覽，能力不變。')
+]));
+ministers.tabs.find(t=>t.id==='recruit')!.title='人才招募';
+portals.splice(2,0,{id:'government',title:'六部衙門',subtitle:'國政 · 理財治事',asset:'east-hall',tabs:governmentTabs});
+export const buildingRoutes: Record<string, string> = { taihe: 'court', 'east-hall': 'government', 'west-pavilion': 'harem', council: 'council', barracks: 'military', school: 'school', study: 'study', clan: 'clan', treasury: 'treasury', gate: 'gate' };
+export const shortcuts = [['court', 'court', '朝廷', '朝'], ['ministries', 'officials', '官員', '官'], ['harem', 'consorts', '後宮', '宮'], ['military', 'army', '軍事', '武'], ['government', 'finance', '國政', '政'], ['gate', 'provinces', '疆域', '疆'], ['treasury', 'supplies', '寶庫', '藏']];
 export function resolvePortal(id: string, tabId?: string) { const portal = portals.find(p => p.id === id); if (!portal)
     throw new Error(`Unknown portal: ${id}`); const active = portal.tabs.find(t => t.id === tabId) ?? portal.tabs[0]; return { portal, tab: active }; }
 export type PreviewField = {
@@ -204,18 +215,18 @@ export function previewFields(route: string, tab: string | undefined, index: num
     if (index === undefined)
         return [];
     if (route === 'ministries' && tab === 'officials')
-        return [{ name: 'candidate', label: '候選官員', options: ['沈文清 · 文才 86', '顧秉衡 · 文才 79', '陸承毅 · 武略 91'] }];
-    if (route === 'ministries' && tab === 'finance' && index === 0)
+        return [{ name: 'candidate', label: '候選官員', options: ['沈文清 · 文治 86', '顧秉衡 · 文治 79', '陸承毅 · 武力 91'] }];
+    if (route === 'government' && tab === 'finance' && index === 0)
         return [{ name: 'tax', label: '稅率示例', options: ['三成', '四成', '五成'] }];
     if (route === 'military' && tab !== 'army')
         return [{ name: 'general', label: '領軍將領', options: ['陸承毅', '顧秉衡'] }, { name: 'troops', label: '兵力配置示例', options: ['10 千', '20 千', '30 千'] }];
-    if (route === 'school')
+    if (route === 'school' || route === 'ministries' && tab === 'academy')
         return [{ name: 'course', label: '課程選擇', options: ['經史', '書法', '騎射'] }];
     if (route === 'treasury')
         return [{ name: 'quantity', label: '使用數量示例', options: ['1 件', '2 件'] }];
     if (route === 'harem' && tab === 'consorts')
         return [{ name: 'visit', label: '探望方式', options: ['問候起居', '共賞詩書'] }];
-    if (route === 'ministries' && tab === 'diplomacy')
+    if (route === 'government' && tab === 'diplomacy')
         return index === 0 ? [{ name: 'gift', label: '禮部方案', options: ['玉如意贈禮', '御製墨錠贈禮'] }] : [{ name: 'princess', label: '公主人選', options: ['昭寧公主'] }, { name: 'envoy', label: '使節提案', options: ['北境部族', '西陲盟邦'] }];
     return [];
 }

@@ -1,4 +1,4 @@
-# 美術素材清單 · 主城入口
+# 美術素材清單 · 主城與內頁
 
 本次替換 courtyard 為正俯視石磚材質，新增 imperial-road 正俯視御道；其餘建築與物件素材保留，共九張來源 PNG、二十張執行用 WebP。來源為本次對話的圖片生成工具；未擷取《新三國志》遊戲素材，未把含 UI 的概念圖作為遊戲背景。
 
@@ -44,3 +44,40 @@ WebP 合計 **2513912 bytes**。來源、尺寸及 SHA-256 見 manifest.json。�
 ## 尚存限制
 
 AI 生成素材沒有嚴格的共同相機標定，約 40–45° 是製作方向而非幾何測量結果。太和殿是清代宮廷風格詮釋，未作歷史測繪。人物兩幀動畫仍有限，建築內明暗與接觸陰影已烘焙，夜景不是物理重新打光。整體美術接近程度仍需使用者評閱；瀏覽器動態畫面與實際 FPS 尚未驗證。
+
+## 內頁美術 · inner-visuals-1
+
+新增六張來源 PNG，裁切為二十四張 WebP。人物採寫實半身／立像、獨立透明背景；宮廷環境與景觀採橫幅構圖。所有文字與操作控制均由 HTML 呈現，沒有烘焙到圖片。
+
+| 素材檔名（assets/ui/） | 實際像素 | bytes | 透明背景 |
+| --- | --- | ---: | --- |
+| hall.webp | 768 × 512 | 121944 | 無 |
+| garden.webp | 768 × 512 | 139164 | 無 |
+| study.webp | 768 × 512 | 120138 | 無 |
+| camp.webp | 768 × 512 | 112074 | 無 |
+| official-civil.webp | 449 × 508 | 58922 | 有 |
+| official-revenue.webp | 433 × 509 | 53926 | 有 |
+| official-general.webp | 451 × 508 | 68340 | 有 |
+| emperor.webp | 488 × 512 | 67448 | 有 |
+| consort-red.webp | 409 × 502 | 70306 | 有 |
+| consort-jade.webp | 402 × 505 | 64566 | 有 |
+| seal.webp | 384 × 399 | 48758 | 有 |
+| ruyi.webp | 384 × 440 | 53668 | 有 |
+| medicine.webp | 384 × 456 | 46688 | 有 |
+| books.webp | 384 × 381 | 48540 | 有 |
+| edict.webp | 384 × 375 | 42530 | 有 |
+| helmet.webp | 384 × 437 | 64948 | 有 |
+| map.webp | 768 × 512 | 171488 | 無 |
+| market.webp | 768 × 512 | 155092 | 無 |
+| countryside.webp | 768 × 512 | 162698 | 無 |
+| frontier.webp | 768 × 512 | 111258 | 無 |
+| prince-elder.webp | 512 × 1021 | 112216 | 有 |
+| prince-young.webp | 493 × 891 | 82492 | 有 |
+| inkstick.webp | 384 × 346 | 40038 | 有 |
+| herbal-soup.webp | 384 × 405 | 51962 | 有 |
+
+內頁 WebP 合計 **2,069,204 bytes**；連同主城，共 **44 張、4,583,116 bytes**。這是磁碟上的實際檔案大小，不是冷載入傳輸量。
+
+人物／器物／宮廷／景觀／皇子／額外寶庫物件來源分別為 `source-art/ui/portraits.png`、`artifacts.png`、`environments.png`、`landscapes.png`、`princes.png`、`treasury-extras.png`。`npm run assets:ui` 可重建；獨立 manifest 包含各檔 SHA-256 與來源。全部來源 PNG 均不進入 dist。
+
+內頁圖像依開啟的分頁載入，皇帝頭像同時用於初始主頁。沒有把 24 張內頁圖片加入 Pixi 預載；全部走本機靜態檔案，不呼叫圖片生成或付費服務。半身人物以腰線裁切，服裝為宮廷風格示例；地圖不代表精確疆界。

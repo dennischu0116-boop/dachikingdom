@@ -1,8 +1,10 @@
-# 大清帝國 · 主城入口 PixiJS 示範
+# 大清帝國 · 主城與宮廷內頁視覺測試
 
 獨立 Vite + TypeScript + PixiJS 8 專案。十座可點選、可拖移建築，七個固定捷徑，完整入口分頁、詳情、示範選項與效果預覽。保留石磚廣場、階梯、樹木、四面旗與四名巡邏士兵。
 
-**本次交付為介面原型，所有人物與數值皆為示範，不連接正式遊戲、存檔或任何後端。** 主城入口、流程及限制見 [PORTALS.md](docs/PORTALS.md)。本次重製廣場並新增御道，共 20 張執行素材、2,513,912 bytes。已完成靜態素材排版檢查；瀏覽器預覽服務失敗，畫面、實際互動、載入傳輸量與 FPS 尚未實測。
+**本次交付為介面原型，所有人物與數值皆為示範，不連接正式遊戲、存檔或任何後端。** 本輪將十五個功能入口、三十五個分頁與詳情改為全螢幕宮廷內頁，加入人物與器物圖像、官員篩選、書院安排及招募名帖展示。詳見 [內頁更新](docs/INNER-VISUALS.md)。
+
+[全部分頁的靜態 HTML 預覽](docs/inner-pages/index.html)可直接在本機開啟；互動版仍須依下方指令啟動。 [官員桌面設計圖](docs/officials-visual-desktop.png)／[手機設計圖](docs/officials-visual-mobile.png)／[內頁總覽圖](docs/inner-visual-overview.png)是 SVG 美術排版示意，**不是瀏覽器截圖**。瀏覽器預覽服務失敗，實際版面、互動、傳輸量與 FPS 尚未實測。
 
 ## 本次地面修正
 
@@ -28,7 +30,7 @@ npm run build
 npm run preview
 ```
 
-通常使用 http://localhost:4173。需由 HTTP 伺服器提供，不支援雙擊 `index.html` 的 file:// 開啟方式。
+通常使用 http://localhost:4173。可加 `/?page=ministries&tab=officials` 直接預覽中央官員頁。需由 HTTP 伺服器提供，不支援雙擊 `index.html` 的 file:// 開啟方式。
 
 手機可在與電腦相同的區域網路，開啟終端顯示的 Network URL。手機效能必須在實機測量。
 
@@ -43,7 +45,7 @@ npm run preview
 
 ## 主城入口
 
-點建築或底部捷徑開啟面板，使用分頁、詳情、示範選項及操作預覽。返回逐層回到來源，返回主城保留鏡頭位置。手機面板可展開／收合。所有示範操作不扣資源、不推進年份、不建立遊戲存檔。
+點建築或底部捷徑開啟面板，使用分頁、詳情、示範選項及操作預覽。返回逐層回到來源，返回主城保留鏡頭位置。桌面與手機均為全螢幕內頁。所有示範操作不扣資源、不推進年份、不建立遊戲存檔。
 
 ## 直接拖移建築
 
@@ -62,7 +64,9 @@ npm run preview
 
 ## 架構與隔離
 
-- `src/portal-data.ts`／`src/portals.ts`：主城入口資料、導航狀態、示範表單及原生 HTML 面板。
+- `src/portal-data.ts`／`src/portals.ts`：入口資料、導航與 DOM 事件。
+- `src/inner-view.ts`／`src/inner-pages.css`：各功能專屬版面及響應式設計。
+- `src/inner-model.ts`：官員篩選、選取與課程的記憶體狀態。
 - `src/main.ts`：場景分層、深度排序、巡邏、旗布網格動畫、互動及效能採樣。
 - `src/ground.ts`：地面共用投影、逆投影與覆蓋範圍；PixiJS 與靜態預覽使用相同計算。
 - `src/camera.ts`：鏡頭縮放及邊界計算。
@@ -70,10 +74,11 @@ npm run preview
 - `src/gestures.ts`：單指拖建築／鏡頭、雙指切換與取消手勢。
 - `src/layout.json`：遊戲與靜態排版預覽共用的場景座標。
 - `scripts/render-layout.mjs`：輸出實際素材排版證明圖，不執行 PixiJS、不測量 FPS。
-- `public/assets/`：執行時只載入 20 張 WebP 與 JSON manifest。
-- `source-art/`：9 張生成素材的原始 PNG；不進入 production build。
+- `public/assets/`：20 張主城 WebP；`ui/` 為 24 張內頁 WebP 與獨立 manifest。內頁圖片按頁載入，皇帝頭像另用於初始主頁。
+- `source-art/`：9 張主城來源 PNG；`ui/` 另有 6 張內頁來源 PNG，皆不進入 production build。
 - `scripts/prepare-assets.mjs`：以 Sharp 裁切、透明邊緣修整、WebP 編碼；`npm run assets` 可重建。
-- `tests/`：25 項自動測試，涵蓋入口導航、預覽選項、資料隔離、建築拖移、儲存、手勢交接、游標中心縮放與鏡頭邊界。
+- `scripts/prepare-ui-assets.mjs`：`npm run assets:ui` 重建內頁 WebP；`npm run previews:ui` 重建靜態預覽。
+- `tests/`：31 項自動測試，涵蓋入口導航、預覽選項、資料隔離、建築拖移、儲存、手勢交接、游標中心縮放與鏡頭邊界。
 - `docs/ASSETS.md`：素材尺寸、來源、容量與限制。
 - `docs/PERFORMANCE.md`：驗證結果與可重現的測量方式。
 

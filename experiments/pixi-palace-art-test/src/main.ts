@@ -1,5 +1,6 @@
 import { Application, Assets, Container, Graphics, MeshPlane, Matrix, TilingSprite, Rectangle, Sprite, Text, Texture, WebGLRenderer } from 'pixi.js';
 import './style.css';
+import './inner-pages.css';
 import { setupPortals } from './portals';
 const portalUI=setupPortals();
 import layout from './layout.json';
